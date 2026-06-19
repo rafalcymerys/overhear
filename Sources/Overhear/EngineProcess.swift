@@ -69,6 +69,10 @@ final class EngineProcess {
         }
     }
 
+    func deactivate() {
+        sendCommand(["command": "deactivate"])
+    }
+
     func stop() {
         sendCommand(["command": "quit"])
         let proc = process
@@ -132,13 +136,10 @@ final class EngineProcess {
             appState.status = .listening
 
         case "wake_word":
-            appState.status = .wakeWordDetected
+            appState.status = .dictating
 
-        case "recording_start":
-            appState.status = .recording
-
-        case "recording_stop":
-            appState.status = .transcribing
+        case "dictating":
+            appState.status = .dictating
 
         case "transcribing":
             appState.status = .transcribing

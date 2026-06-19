@@ -3,6 +3,7 @@ import SwiftUI
 struct StatusView: View {
     @ObservedObject var appState: AppState
     var onToggle: () -> Void
+    var onStopDictating: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -53,11 +54,20 @@ struct StatusView: View {
             }
 
             HStack {
-                Button(action: onToggle) {
-                    Text(appState.status.isActive || appState.status == .loading ? "Stop" : "Start")
-                        .frame(maxWidth: .infinity)
+                if appState.status == .dictating || appState.status == .transcribing {
+                    Button(action: onStopDictating) {
+                        Text("Stop Dictating")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .controlSize(.large)
+                    .tint(.red)
+                } else {
+                    Button(action: onToggle) {
+                        Text(appState.status.isActive || appState.status == .loading ? "Stop Engine" : "Start")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .controlSize(.large)
                 }
-                .controlSize(.large)
             }
 
             Button("Quit") {

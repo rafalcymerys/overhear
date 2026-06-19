@@ -22,6 +22,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         popover.contentViewController = NSHostingController(
             rootView: StatusView(appState: appState, onToggle: { [weak self] in
                 self?.toggleEngine()
+            }, onStopDictating: { [weak self] in
+                self?.engine.deactivate()
             })
         )
 
