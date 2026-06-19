@@ -154,6 +154,9 @@ final class EngineProcess {
         case "transcription_empty":
             break
 
+        case "wake_word_off":
+            appState.status = .listening
+
         case "error":
             appState.status = .error
             appState.errorMessage = json["message"] as? String

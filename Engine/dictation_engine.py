@@ -59,19 +59,33 @@ def get_dictating():
         return dictating
 
 
-def record_batch():
-    """Record one batch of speech until silence or max duration."""
+def record_batch(oww):
+    """Record one batch of speech until silence, max duration, or wake word (to stop)."""
     chunks = []
     silence_chunks = 0
     silence_needed = int(SILENCE_DURATION / CHUNK_DURATION)
     max_chunks = int(MAX_BATCH_DURATION / CHUNK_DURATION)
     heard_speech = False
+    stopped_by_wake_word = False
 
     while get_dictating() and len(chunks) < max_chunks:
         try:
             chunk = audio_queue.get(timeout=0.5)
         except queue.Empty:
             continue
+
+        # Check for wake word to toggle off
+        chunk_int16 = (chunk * 32767).astype(np.int16)
+        prediction = oww.predict(chunk_int16)
+        for _model_name, score in prediction.items():
+            if score > 0.5:
+                stopped_by_wake_word = True
+                break
+        if stopped_by_wake_word:
+            oww.reset()
+            set_dictating(False)
+            emit({"event": "wake_word_off"})
+            break
 
         chunks.append(chunk)
         quiet = is_silence(chunk)
@@ -109,10 +123,10 @@ def transcribe(model, audio_data):
     return " ".join(text_parts).strip()
 
 
-def dictation_loop(whisper_model):
+def dictation_loop(whisper_model, oww):
     """Continuously record and transcribe batches while dictating."""
     while get_dictating() and running:
-        audio_data = record_batch()
+        audio_data = record_batch(oww)
         if not get_dictating():
             break
         if audio_data is not None and len(audio_data) > SAMPLE_RATE * 0.3:
@@ -196,7 +210,7 @@ def main():
                     # push chunk back and run dictation loop
                     audio_queue.put(chunk)
                     emit({"event": "dictating"})
-                    dictation_loop(whisper_model)
+                    dictation_loop(whisper_model, oww)
                     if running:
                         oww.reset()
                         emit({"event": "listening"})
@@ -224,7 +238,7 @@ def main():
                             except queue.Empty:
                                 break
 
-                        dictation_loop(whisper_model)
+                        dictation_loop(whisper_model, oww)
 
                         if running:
                             oww.reset()
