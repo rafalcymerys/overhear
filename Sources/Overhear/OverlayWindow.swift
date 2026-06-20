@@ -147,10 +147,11 @@ struct OverlayView: View {
                 case .listening:
                     HStack(spacing: 6) {
                         Circle()
-                            .fill(Color.primary)
+                            .fill(Color.white)
                             .frame(width: 10, height: 10)
                         Text("Ready")
                             .font(.system(.body, design: .rounded, weight: .medium))
+                            .foregroundColor(.white)
                     }
                 case .hearing:
                     HStack(spacing: 6) {
@@ -181,9 +182,9 @@ struct OverlayView: View {
                 Button(action: onStop) {
                     Image(systemName: "stop.fill")
                         .font(.system(size: 12))
-                        .foregroundColor(.white)
+                        .foregroundColor(state.phase == .listening ? .black : .white)
                         .frame(width: 26, height: 26)
-                        .background(Color.primary.opacity(0.85))
+                        .background(state.phase == .listening ? Color.white.opacity(0.85) : Color.primary.opacity(0.85))
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -192,8 +193,16 @@ struct OverlayView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .frame(width: 280)
-        .background(.ultraThinMaterial)
+        .background(
+            ZStack {
+                Rectangle().fill(.ultraThinMaterial)
+                    .opacity(state.phase == .listening ? 0 : 1)
+                Color.black.opacity(0.3)
+                    .opacity(state.phase == .listening ? 1 : 0)
+            }
+        )
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .animation(.easeInOut(duration: 0.35), value: state.phase)
     }
 }
 
