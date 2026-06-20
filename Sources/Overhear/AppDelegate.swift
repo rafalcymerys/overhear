@@ -4,11 +4,10 @@ import SwiftUI
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private var statusItem: NSStatusItem!
     private let appState = AppState()
+    private var statusItem: NSStatusItem!
     private var engine: EngineProcess!
     private var overlay: OverlayController!
-    private var statusObservation: Any?
     private var settingsObservation: AnyCancellable?
     private var restartTask: Task<Void, Never>?
     private var settingsWindow: NSWindow?
@@ -17,7 +16,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        updateMenuBarIcon()
+
+        let iconView = NSHostingView(rootView: MenuBarIcon(appState: appState))
+        iconView.frame = NSRect(x: 0, y: 0, width: 30, height: 22)
+        statusItem.button?.subviews.forEach { $0.removeFromSuperview() }
+        statusItem.button?.addSubview(iconView)
+        statusItem.button?.frame = iconView.frame
 
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ","))
@@ -29,12 +33,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         overlay = OverlayController(appState: appState, onStop: { [weak self] in
             self?.engine.deactivate()
         })
-
-        statusObservation = appState.$status.sink { [weak self] _ in
-            Task { @MainActor in
-                self?.updateMenuBarIcon()
-            }
-        }
 
         settingsObservation = AppSettings.shared.$selectedLanguageCodes
             .dropFirst()
@@ -49,13 +47,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         engine.stop()
-    }
-
-    private func updateMenuBarIcon() {
-        if let button = statusItem?.button {
-            let imageName = appState.status.systemImage
-            button.image = NSImage(systemSymbolName: imageName, accessibilityDescription: "Overhear")
-        }
     }
 
     @objc private func openSettings() {

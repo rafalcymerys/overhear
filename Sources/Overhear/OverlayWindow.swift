@@ -146,12 +146,16 @@ struct OverlayView: View {
                 switch state.phase {
                 case .listening:
                     HStack(spacing: 6) {
-                        Circle()
-                            .fill(Color.white)
-                            .frame(width: 10, height: 10)
+                        HStack(spacing: 2) {
+                            ForEach(0..<3, id: \.self) { _ in
+                                RoundedRectangle(cornerRadius: 1)
+                                    .fill(Color.primary)
+                                    .frame(width: 3, height: 4)
+                            }
+                        }
+                        .frame(width: 14, height: 14)
                         Text("Ready")
                             .font(.system(.body, design: .rounded, weight: .medium))
-                            .foregroundColor(.white)
                     }
                 case .hearing:
                     HStack(spacing: 6) {
