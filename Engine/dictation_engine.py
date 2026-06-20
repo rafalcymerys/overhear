@@ -106,15 +106,26 @@ def record_batch(oww):
     return None
 
 
+def detect_language(model, audio_data, languages):
+    """Detect language from audio, constrained to the given set."""
+    _lang, _prob, all_probs = model.detect_language(audio_data)
+    prob_map = {code: prob for code, prob in all_probs}
+    best_lang = max(languages, key=lambda l: prob_map.get(l, 0.0))
+    return best_lang
+
+
 def transcribe(model, audio_data, languages=None):
     """Transcribe audio using faster-whisper.
 
-    If a single language is set, use it directly.
-    If multiple, let Whisper auto-detect but log which it chose.
+    Detects the most likely language from the selected set, then
+    transcribes with that language explicitly for best accuracy.
     """
-    lang = None
     if languages and len(languages) == 1:
         lang = languages[0]
+    elif languages and len(languages) > 1:
+        lang = detect_language(model, audio_data, languages)
+    else:
+        lang = None
 
     segments, info = model.transcribe(
         audio_data,
@@ -130,9 +141,11 @@ def transcribe(model, audio_data, languages=None):
     for segment in segments:
         text_parts.append(segment.text.strip())
     text = " ".join(text_parts).strip()
-    detected = getattr(info, "language", lang)
+
+    detected = lang or getattr(info, "language", None)
     if detected and text:
         emit({"event": "language_detected", "language": detected})
+
     return text
 
 
