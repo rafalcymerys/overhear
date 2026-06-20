@@ -207,12 +207,34 @@ final class EngineProcess {
 
     private static func findPython() -> String? {
         // Prefer venv python so dependencies are available
+        var venvCandidates: [String] = []
+
+        // Check next to the engine script
         if let enginePath = findEnginePath() {
             let engineDir = URL(fileURLWithPath: enginePath).deletingLastPathComponent()
             let projectRoot = engineDir.deletingLastPathComponent()
-            let venvPython = projectRoot.appendingPathComponent(".venv/bin/python3").path
-            if FileManager.default.fileExists(atPath: venvPython) {
-                return venvPython
+            venvCandidates.append(projectRoot.appendingPathComponent(".venv/bin/python3").path)
+        }
+
+        // Check inside app bundle Resources
+        if let resourcePath = Bundle.main.resourcePath {
+            venvCandidates.append(resourcePath + "/.venv/bin/python3")
+        }
+
+        // Check next to the .app bundle itself
+        if let bundlePath = Bundle.main.bundlePath as String? {
+            let appDir = URL(fileURLWithPath: bundlePath).deletingLastPathComponent()
+            venvCandidates.append(appDir.appendingPathComponent(".venv/bin/python3").path)
+        }
+
+        // Check ~/Library/Application Support/Overhear
+        let appSupport = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/Overhear/.venv/bin/python3")
+        venvCandidates.append(appSupport.path)
+
+        for path in venvCandidates {
+            if FileManager.default.fileExists(atPath: path) {
+                return path
             }
         }
 
