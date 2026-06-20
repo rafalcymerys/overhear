@@ -106,12 +106,20 @@ def record_batch(oww):
     return None
 
 
-def transcribe(model, audio_data):
-    """Transcribe audio using faster-whisper."""
-    segments, _info = model.transcribe(
+def transcribe(model, audio_data, languages=None):
+    """Transcribe audio using faster-whisper.
+
+    If a single language is set, use it directly.
+    If multiple, let Whisper auto-detect but log which it chose.
+    """
+    lang = None
+    if languages and len(languages) == 1:
+        lang = languages[0]
+
+    segments, info = model.transcribe(
         audio_data,
         beam_size=5,
-        language=None,
+        language=lang,
         vad_filter=True,
         vad_parameters=dict(
             min_silence_duration_ms=500,
@@ -121,10 +129,14 @@ def transcribe(model, audio_data):
     text_parts = []
     for segment in segments:
         text_parts.append(segment.text.strip())
-    return " ".join(text_parts).strip()
+    text = " ".join(text_parts).strip()
+    detected = getattr(info, "language", lang)
+    if detected and text:
+        emit({"event": "language_detected", "language": detected})
+    return text
 
 
-def dictation_loop(whisper_model, oww):
+def dictation_loop(whisper_model, oww, languages=None):
     """Continuously record and transcribe batches while dictating."""
     while get_dictating() and running:
         audio_data = record_batch(oww)
@@ -132,7 +144,7 @@ def dictation_loop(whisper_model, oww):
             break
         if audio_data is not None and len(audio_data) > SAMPLE_RATE * 0.3:
             emit({"event": "transcribing"})
-            text = transcribe(whisper_model, audio_data)
+            text = transcribe(whisper_model, audio_data, languages)
             if text:
                 emit({"event": "transcription", "text": text})
             emit({"event": "dictating"})
@@ -159,13 +171,25 @@ def command_listener():
             pass
 
 
+def parse_languages():
+    """Parse --languages argument."""
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--languages", type=str, default="en")
+    args = parser.parse_args()
+    langs = [l.strip() for l in args.languages.split(",") if l.strip()]
+    return langs if langs else ["en"]
+
+
 def main():
     global running
 
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     signal.signal(signal.SIGINT, lambda *_: sys.exit(0))
 
+    languages = parse_languages()
     emit({"event": "status", "message": "loading_models"})
+    emit({"event": "config", "languages": languages})
 
     try:
         from openwakeword.model import Model as OWWModel
@@ -211,7 +235,7 @@ def main():
                     # push chunk back and run dictation loop
                     audio_queue.put(chunk)
                     emit({"event": "dictating"})
-                    dictation_loop(whisper_model, oww)
+                    dictation_loop(whisper_model, oww, languages)
                     if running:
                         oww.reset()
                         emit({"event": "listening"})
@@ -239,7 +263,7 @@ def main():
                             except queue.Empty:
                                 break
 
-                        dictation_loop(whisper_model, oww)
+                        dictation_loop(whisper_model, oww, languages)
 
                         if running:
                             oww.reset()

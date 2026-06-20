@@ -32,7 +32,8 @@ final class EngineProcess {
 
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: pythonPath)
-        proc.arguments = ["-u", enginePath]
+        let languages = Array(AppSettings.shared.selectedLanguageCodes).joined(separator: ",")
+        proc.arguments = ["-u", enginePath, "--languages", languages]
         proc.environment = ProcessInfo.processInfo.environment
 
         let stdout = Pipe()
