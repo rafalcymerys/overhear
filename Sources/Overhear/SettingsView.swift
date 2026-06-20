@@ -55,13 +55,11 @@ struct SettingsView: View {
                 }
             }
 
-            HStack {
-                Text("\(settings.selectedLanguageCodes.count) selected")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Spacer()
-            }
-            .padding()
+            Divider()
+
+            Toggle("Show overlay window during dictation", isOn: $settings.showOverlay)
+                .toggleStyle(.checkbox)
+                .padding()
         }
         .frame(width: 450, height: 400)
     }

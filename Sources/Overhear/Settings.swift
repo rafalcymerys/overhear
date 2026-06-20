@@ -70,11 +70,18 @@ final class AppSettings: ObservableObject {
     static let shared = AppSettings()
 
     private let languagesKey = "selectedLanguages"
+    private let overlayKey = "showOverlay"
 
     @Published var selectedLanguageCodes: Set<String> {
         didSet {
             let array = Array(selectedLanguageCodes)
             UserDefaults.standard.set(array, forKey: languagesKey)
+        }
+    }
+
+    @Published var showOverlay: Bool {
+        didSet {
+            UserDefaults.standard.set(showOverlay, forKey: overlayKey)
         }
     }
 
@@ -87,6 +94,11 @@ final class AppSettings: ObservableObject {
             selectedLanguageCodes = Set(saved)
         } else {
             selectedLanguageCodes = ["en", "pl"]
+        }
+        if UserDefaults.standard.object(forKey: overlayKey) != nil {
+            showOverlay = UserDefaults.standard.bool(forKey: overlayKey)
+        } else {
+            showOverlay = true
         }
     }
 }

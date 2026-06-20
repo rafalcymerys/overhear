@@ -25,6 +25,19 @@ final class OverlayController {
             }
         }.store(in: &cancellables)
 
+        AppSettings.shared.$showOverlay
+            .dropFirst()
+            .sink { [weak self] show in
+                Task { @MainActor in
+                    guard let self else { return }
+                    if show && self.appState.status.isActive {
+                        self.handleStatusChange(self.appState.status)
+                    } else if !show {
+                        self.hideWindow()
+                    }
+                }
+            }.store(in: &cancellables)
+
         appState.$lastTranscription
             .dropFirst()
             .sink { [weak self] text in
@@ -75,6 +88,7 @@ final class OverlayController {
     }
 
     private func showWindow() {
+        guard AppSettings.shared.showOverlay else { return }
         if window == nil {
             createWindow()
         }
