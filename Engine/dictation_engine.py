@@ -90,8 +90,9 @@ def record_batch(oww):
         chunks.append(chunk)
         quiet = is_silence(chunk)
 
-        if not quiet:
+        if not quiet and not heard_speech:
             heard_speech = True
+            emit({"event": "speech_start"})
 
         if heard_speech and quiet:
             silence_chunks += 1

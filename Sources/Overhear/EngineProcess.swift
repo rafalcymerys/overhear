@@ -141,6 +141,9 @@ final class EngineProcess {
         case "dictating":
             appState.status = .dictating
 
+        case "speech_start":
+            appState.status = .hearing
+
         case "transcribing":
             appState.status = .transcribing
 

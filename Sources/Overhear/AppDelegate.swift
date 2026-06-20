@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var popover: NSPopover!
     private let appState = AppState()
     private var engine: EngineProcess!
+    private var overlay: OverlayController!
     private var statusObservation: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -33,6 +34,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         engine = EngineProcess(appState: appState)
+        overlay = OverlayController(appState: appState, onStop: { [weak self] in
+            self?.engine.deactivate()
+        })
 
         statusObservation = appState.$status.sink { [weak self] _ in
             Task { @MainActor in

@@ -54,7 +54,7 @@ struct StatusView: View {
             }
 
             HStack {
-                if appState.status == .dictating || appState.status == .transcribing {
+                if appState.status == .dictating || appState.status == .hearing || appState.status == .transcribing {
                     Button(action: onStopDictating) {
                         Text("Stop Dictating")
                             .frame(maxWidth: .infinity)
