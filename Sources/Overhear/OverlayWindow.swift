@@ -65,7 +65,7 @@ final class OverlayController {
         case .transcribing:
             overlayState.phase = .transcribing
             showWindow()
-        case .listening, .stopped, .ready, .error, .loading:
+        case .stopped, .ready, .error, .loading:
             if overlayState.phase != .result {
                 hideWindow()
             }

@@ -70,6 +70,10 @@ final class EngineProcess {
         }
     }
 
+    func activate() {
+        sendCommand(["command": "activate"])
+    }
+
     func deactivate() {
         sendCommand(["command": "deactivate"])
     }
@@ -133,12 +137,6 @@ final class EngineProcess {
         case "ready":
             appState.status = .ready
 
-        case "listening":
-            appState.status = .listening
-
-        case "wake_word":
-            appState.status = .dictating
-
         case "dictating":
             appState.status = .dictating
 
@@ -158,8 +156,8 @@ final class EngineProcess {
         case "transcription_empty":
             break
 
-        case "wake_word_off":
-            appState.status = .listening
+        case "wake_word_cancel":
+            appState.status = .dictating
 
         case "error":
             appState.status = .error

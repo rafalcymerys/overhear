@@ -5,7 +5,6 @@ enum EngineStatus: String {
     case stopped = "Stopped"
     case loading = "Loading models…"
     case ready = "Ready"
-    case listening = "Waiting for wake word…"
     case dictating = "Dictating"
     case hearing = "Hearing…"
     case transcribing = "Transcribing…"
@@ -15,7 +14,7 @@ enum EngineStatus: String {
         switch self {
         case .stopped: return .gray
         case .loading: return .orange
-        case .ready, .listening: return .green
+        case .ready: return .green
         case .dictating, .hearing: return .red
         case .transcribing: return .blue
         case .error: return .red
@@ -26,7 +25,7 @@ enum EngineStatus: String {
         switch self {
         case .stopped: return "mic.slash"
         case .loading: return "arrow.down.circle"
-        case .ready, .listening: return "mic"
+        case .ready: return "mic"
         case .dictating, .hearing: return "mic.fill"
         case .transcribing: return "text.bubble"
         case .error: return "exclamationmark.triangle"
@@ -35,7 +34,7 @@ enum EngineStatus: String {
 
     var isActive: Bool {
         switch self {
-        case .listening, .dictating, .hearing, .transcribing: return true
+        case .dictating, .hearing, .transcribing: return true
         default: return false
         }
     }

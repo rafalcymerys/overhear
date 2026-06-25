@@ -60,13 +60,12 @@ def get_dictating():
 
 
 def record_batch(oww):
-    """Record one batch of speech until silence, max duration, or wake word (to stop)."""
+    """Record one batch of speech until silence, max duration, or wake word (to cancel)."""
     chunks = []
     silence_chunks = 0
     silence_needed = int(SILENCE_DURATION / CHUNK_DURATION)
     max_chunks = int(MAX_BATCH_DURATION / CHUNK_DURATION)
     heard_speech = False
-    stopped_by_wake_word = False
 
     while get_dictating() and len(chunks) < max_chunks:
         try:
@@ -74,18 +73,22 @@ def record_batch(oww):
         except queue.Empty:
             continue
 
-        # Check for wake word to toggle off
         chunk_int16 = (chunk * 32767).astype(np.int16)
         prediction = oww.predict(chunk_int16)
+        cancelled = False
         for _model_name, score in prediction.items():
             if score > 0.5:
-                stopped_by_wake_word = True
+                cancelled = True
                 break
-        if stopped_by_wake_word:
+        if cancelled:
             oww.reset()
-            set_dictating(False)
-            emit({"event": "wake_word_off"})
-            break
+            emit({"event": "wake_word_cancel"})
+            while not audio_queue.empty():
+                try:
+                    audio_queue.get_nowait()
+                except queue.Empty:
+                    break
+            return None
 
         chunks.append(chunk)
         quiet = is_silence(chunk)
@@ -104,6 +107,40 @@ def record_batch(oww):
     if chunks and heard_speech:
         return np.concatenate(chunks)
     return None
+
+
+def check_queued_wake_word(oww):
+    """Check if wake word exists in audio buffered during transcription."""
+    chunks = []
+    while not audio_queue.empty():
+        try:
+            chunks.append(audio_queue.get_nowait())
+        except queue.Empty:
+            break
+
+    found = False
+    for chunk in chunks:
+        chunk_int16 = (chunk * 32767).astype(np.int16)
+        prediction = oww.predict(chunk_int16)
+        for _, score in prediction.items():
+            if score > 0.5:
+                found = True
+                break
+        if found:
+            break
+
+    if found:
+        oww.reset()
+        while not audio_queue.empty():
+            try:
+                audio_queue.get_nowait()
+            except queue.Empty:
+                break
+        return True
+
+    for chunk in chunks:
+        audio_queue.put(chunk)
+    return False
 
 
 def detect_language(model, audio_data, languages):
@@ -152,15 +189,16 @@ def transcribe(model, audio_data, languages=None):
 def dictation_loop(whisper_model, oww, languages=None):
     """Continuously record and transcribe batches while dictating."""
     while get_dictating() and running:
+        emit({"event": "dictating"})
         audio_data = record_batch(oww)
-        if not get_dictating():
-            break
         if audio_data is not None and len(audio_data) > SAMPLE_RATE * 0.3:
             emit({"event": "transcribing"})
             text = transcribe(whisper_model, audio_data, languages)
+            if check_queued_wake_word(oww):
+                emit({"event": "wake_word_cancel"})
+                continue
             if text:
                 emit({"event": "transcription", "text": text})
-            emit({"event": "dictating"})
 
 
 def command_listener():
@@ -235,8 +273,6 @@ def main():
             blocksize=CHUNK_SAMPLES,
             callback=audio_callback,
         ):
-            emit({"event": "listening"})
-
             while running:
                 try:
                     chunk = audio_queue.get(timeout=0.5)
@@ -244,44 +280,12 @@ def main():
                     continue
 
                 if get_dictating():
-                    # Already in dictation mode (activated via command),
-                    # push chunk back and run dictation loop
                     audio_queue.put(chunk)
-                    emit({"event": "dictating"})
                     dictation_loop(whisper_model, oww, languages)
                     if running:
                         oww.reset()
-                        emit({"event": "listening"})
+                        emit({"event": "ready"})
                     continue
-
-                # Check for wake word
-                chunk_int16 = (chunk * 32767).astype(np.int16)
-                prediction = oww.predict(chunk_int16)
-
-                for model_name, score in prediction.items():
-                    if score > 0.5:
-                        emit({
-                            "event": "wake_word",
-                            "model": model_name,
-                            "score": float(score),
-                        })
-                        oww.reset()
-                        set_dictating(True)
-                        emit({"event": "dictating"})
-
-                        # Drain the queue of wake word audio
-                        while not audio_queue.empty():
-                            try:
-                                audio_queue.get_nowait()
-                            except queue.Empty:
-                                break
-
-                        dictation_loop(whisper_model, oww, languages)
-
-                        if running:
-                            oww.reset()
-                            emit({"event": "listening"})
-                        break
 
     except Exception as e:
         emit({"event": "error", "message": str(e)})

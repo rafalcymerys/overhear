@@ -9,8 +9,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var engine: EngineProcess!
     private var overlay: OverlayController!
     private var settingsObservation: AnyCancellable?
+    private var stateObservation: AnyCancellable?
     private var restartTask: Task<Void, Never>?
     private var settingsWindow: NSWindow?
+    private var dictateMenuItem: NSMenuItem!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -23,7 +25,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.addSubview(iconView)
         statusItem.button?.frame = iconView.frame
 
+        dictateMenuItem = NSMenuItem(title: "Start Dictating", action: #selector(toggleDictation), keyEquivalent: "d")
+
         let menu = NSMenu()
+        menu.addItem(dictateMenuItem)
+        menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ","))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit Overhear", action: #selector(quitApp), keyEquivalent: "q"))
@@ -33,6 +39,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         overlay = OverlayController(appState: appState, onStop: { [weak self] in
             self?.engine.deactivate()
         })
+
+        stateObservation = appState.$status
+            .sink { [weak self] status in
+                Task { @MainActor in
+                    self?.dictateMenuItem.title = status.isActive ? "Stop Dictating" : "Start Dictating"
+                }
+            }
 
         settingsObservation = AppSettings.shared.$selectedLanguageCodes
             .dropFirst()
@@ -81,6 +94,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             try? await Task.sleep(for: .seconds(0.5))
             guard !Task.isCancelled else { return }
             engine.start()
+        }
+    }
+
+    @objc private func toggleDictation() {
+        if appState.status.isActive {
+            engine.deactivate()
+        } else if appState.status == .ready {
+            engine.activate()
         }
     }
 
