@@ -1,0 +1,8 @@
+excluded:
+  - .build
+
+disabled_rules:
+  - trailing_comma
+  - identifier_name
+  - cyclomatic_complexity
+  - line_length

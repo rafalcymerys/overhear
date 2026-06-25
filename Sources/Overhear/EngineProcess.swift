@@ -110,7 +110,7 @@ final class EngineProcess {
                 let lineData = buffer.subdata(in: buffer.startIndex..<newlineRange.lowerBound)
                 buffer.removeSubrange(buffer.startIndex...newlineRange.lowerBound)
 
-                guard let _ = String(data: lineData, encoding: .utf8),
+                guard String(data: lineData, encoding: .utf8) != nil,
                       let json = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
                       let event = json["event"] as? String
                 else { continue }
@@ -184,10 +184,8 @@ final class EngineProcess {
             FileManager.default.currentDirectoryPath + "/Engine/dictation_engine.py",
         ].compactMap { $0 }
 
-        for candidate in candidates {
-            if FileManager.default.fileExists(atPath: candidate) {
-                return candidate
-            }
+        for candidate in candidates where FileManager.default.fileExists(atPath: candidate) {
+            return candidate
         }
 
         if let execURL = Bundle.main.executableURL {
@@ -231,10 +229,8 @@ final class EngineProcess {
             .appendingPathComponent("Library/Application Support/Overhear/.venv/bin/python3")
         venvCandidates.append(appSupport.path)
 
-        for path in venvCandidates {
-            if FileManager.default.fileExists(atPath: path) {
-                return path
-            }
+        for path in venvCandidates where FileManager.default.fileExists(atPath: path) {
+            return path
         }
 
         let candidates = [
@@ -242,10 +238,8 @@ final class EngineProcess {
             "/usr/local/bin/python3",
             "/usr/bin/python3",
         ]
-        for path in candidates {
-            if FileManager.default.fileExists(atPath: path) {
-                return path
-            }
+        for path in candidates where FileManager.default.fileExists(atPath: path) {
+            return path
         }
         let whichResult = try? shellOutput("which python3")
         return whichResult?.trimmingCharacters(in: .whitespacesAndNewlines)
