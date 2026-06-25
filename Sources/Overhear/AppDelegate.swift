@@ -26,13 +26,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         dictateMenuItem = NSMenuItem(title: "Start Dictating", action: #selector(toggleDictation), keyEquivalent: "d")
 
+        // Menu items are populated in menuNeedsUpdate(_:)
         let menu = NSMenu()
         menu.delegate = self
-        menu.addItem(dictateMenuItem)
-        menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ","))
-        menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit Overhear", action: #selector(quitApp), keyEquivalent: "q"))
         statusItem.menu = menu
 
         engine = EngineProcess(appState: appState)
@@ -90,6 +86,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    @objc private func showAbout() {
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.orderFrontStandardAboutPanel(nil)
+    }
+
     @objc private func toggleDictation() {
         if appState.status.isActive {
             engine.deactivate()
@@ -136,6 +137,7 @@ extension AppDelegate: NSMenuDelegate {
 
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ","))
+        menu.addItem(NSMenuItem(title: "About Overhear", action: #selector(showAbout), keyEquivalent: ""))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit Overhear", action: #selector(quitApp), keyEquivalent: "q"))
     }
