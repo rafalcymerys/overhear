@@ -134,14 +134,14 @@ final class EngineProcess {
                 }
             }
 
+        case "idle":
+            appState.status = .idle
+
         case "ready":
             appState.status = .ready
 
-        case "dictating":
-            appState.status = .dictating
-
         case "speech_start":
-            appState.status = .hearing
+            appState.status = .listening
 
         case "transcribing":
             appState.status = .transcribing
@@ -157,7 +157,7 @@ final class EngineProcess {
             break
 
         case "wake_word_cancel":
-            appState.status = .dictating
+            appState.status = .ready
 
         case "error":
             appState.status = .error

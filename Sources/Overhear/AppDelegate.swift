@@ -100,7 +100,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func toggleDictation() {
         if appState.status.isActive {
             engine.deactivate()
-        } else if appState.status == .ready {
+        } else if appState.status == .idle {
             engine.activate()
         }
     }

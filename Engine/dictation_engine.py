@@ -189,7 +189,7 @@ def transcribe(model, audio_data, languages=None):
 def dictation_loop(whisper_model, oww, languages=None):
     """Continuously record and transcribe batches while dictating."""
     while get_dictating() and running:
-        emit({"event": "dictating"})
+        emit({"event": "ready"})
         audio_data = record_batch(oww)
         if audio_data is not None and len(audio_data) > SAMPLE_RATE * 0.3:
             emit({"event": "transcribing"})
@@ -260,7 +260,7 @@ def main():
         emit({"event": "error", "message": f"Failed to load whisper: {e}"})
         sys.exit(1)
 
-    emit({"event": "ready"})
+    emit({"event": "idle"})
 
     cmd_thread = threading.Thread(target=command_listener, daemon=True)
     cmd_thread.start()
@@ -284,7 +284,7 @@ def main():
                     dictation_loop(whisper_model, oww, languages)
                     if running:
                         oww.reset()
-                        emit({"event": "ready"})
+                        emit({"event": "idle"})
                     continue
 
     except Exception as e:

@@ -5,14 +5,14 @@ struct MenuBarIcon: View {
 
     private var isActive: Bool {
         switch appState.status {
-        case .dictating, .hearing, .transcribing: return true
+        case .ready, .listening, .transcribing: return true
         default: return false
         }
     }
 
     private var bgColor: Color {
         switch appState.status {
-        case .dictating, .hearing:
+        case .ready, .listening:
             return Color(red: 1.0, green: 0.58, blue: 0.0)
         case .transcribing:
             return Color(red: 0.85, green: 0.45, blue: 0.0)
@@ -29,9 +29,9 @@ struct MenuBarIcon: View {
                     .frame(width: 22, height: 22)
             }
 
-            if appState.status == .hearing {
+            if appState.status == .listening {
                 MenuBarAudioBars()
-            } else if appState.status == .dictating {
+            } else if appState.status == .ready {
                 MenuBarStaticBars()
             } else if appState.status == .transcribing {
                 ProgressView()

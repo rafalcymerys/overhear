@@ -55,17 +55,17 @@ final class OverlayController {
         dismissTimer = nil
 
         switch status {
-        case .dictating:
-            overlayState.phase = .listening
+        case .ready:
+            overlayState.phase = .ready
             overlayState.transcribedText = ""
             showWindow()
-        case .hearing:
-            overlayState.phase = .hearing
+        case .listening:
+            overlayState.phase = .listening
             showWindow()
         case .transcribing:
             overlayState.phase = .transcribing
             showWindow()
-        case .stopped, .ready, .error, .loading:
+        case .stopped, .idle, .error, .loading:
             if overlayState.phase != .result {
                 hideWindow()
             }
@@ -78,8 +78,8 @@ final class OverlayController {
             Task { @MainActor in
                 guard let self else { return }
                 // If still dictating, go back to listening indicator
-                if self.appState.status == .dictating {
-                    self.overlayState.phase = .listening
+                if self.appState.status == .ready {
+                    self.overlayState.phase = .ready
                 } else {
                     self.hideWindow()
                 }
@@ -141,7 +141,7 @@ final class OverlayController {
 }
 
 enum OverlayPhase {
-    case hidden, listening, hearing, transcribing, result
+    case hidden, ready, listening, transcribing, result
 }
 
 @MainActor
@@ -158,7 +158,7 @@ struct OverlayView: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 switch state.phase {
-                case .listening:
+                case .ready:
                     HStack(spacing: 6) {
                         HStack(spacing: 2) {
                             ForEach(0..<3, id: \.self) { _ in
@@ -171,7 +171,7 @@ struct OverlayView: View {
                         Text("Ready")
                             .font(.system(.body, design: .rounded, weight: .medium))
                     }
-                case .hearing:
+                case .listening:
                     HStack(spacing: 6) {
                         AudioBars()
                         Text("Listening…")
@@ -196,13 +196,13 @@ struct OverlayView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            if state.phase == .listening || state.phase == .hearing || state.phase == .transcribing {
+            if state.phase == .ready || state.phase == .listening || state.phase == .transcribing {
                 Button(action: onStop) {
                     Image(systemName: "stop.fill")
                         .font(.system(size: 12))
-                        .foregroundColor(state.phase == .listening ? .black : .white)
+                        .foregroundColor(state.phase == .ready ? .black : .white)
                         .frame(width: 26, height: 26)
-                        .background(state.phase == .listening ? Color.white.opacity(0.85) : Color.primary.opacity(0.85))
+                        .background(state.phase == .ready ? Color.white.opacity(0.85) : Color.primary.opacity(0.85))
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -214,9 +214,9 @@ struct OverlayView: View {
         .background(
             ZStack {
                 Rectangle().fill(.ultraThinMaterial)
-                    .opacity(state.phase == .listening ? 0 : 1)
+                    .opacity(state.phase == .ready ? 0 : 1)
                 Color.black.opacity(0.3)
-                    .opacity(state.phase == .listening ? 1 : 0)
+                    .opacity(state.phase == .ready ? 1 : 0)
             }
         )
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))

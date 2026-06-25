@@ -4,9 +4,9 @@ import SwiftUI
 enum EngineStatus: String {
     case stopped = "Stopped"
     case loading = "Loading models…"
+    case idle = "Idle"
     case ready = "Ready"
-    case dictating = "Dictating"
-    case hearing = "Hearing…"
+    case listening = "Listening…"
     case transcribing = "Transcribing…"
     case error = "Error"
 
@@ -14,8 +14,8 @@ enum EngineStatus: String {
         switch self {
         case .stopped: return .gray
         case .loading: return .orange
-        case .ready: return .green
-        case .dictating, .hearing: return .red
+        case .idle: return .green
+        case .ready, .listening: return .red
         case .transcribing: return .blue
         case .error: return .red
         }
@@ -25,8 +25,8 @@ enum EngineStatus: String {
         switch self {
         case .stopped: return "mic.slash"
         case .loading: return "arrow.down.circle"
-        case .ready: return "mic"
-        case .dictating, .hearing: return "mic.fill"
+        case .idle: return "mic"
+        case .ready, .listening: return "mic.fill"
         case .transcribing: return "text.bubble"
         case .error: return "exclamationmark.triangle"
         }
@@ -34,7 +34,7 @@ enum EngineStatus: String {
 
     var isActive: Bool {
         switch self {
-        case .dictating, .hearing, .transcribing: return true
+        case .ready, .listening, .transcribing: return true
         default: return false
         }
     }
