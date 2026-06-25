@@ -46,4 +46,12 @@ final class AppState: ObservableObject {
     @Published var lastTranscription: String = ""
     @Published var errorMessage: String?
     @Published var transcriptionCount: Int = 0
+    @Published var recentTranscriptions: [String] = []
+
+    func addTranscription(_ text: String) {
+        recentTranscriptions.insert(text, at: 0)
+        if recentTranscriptions.count > 5 {
+            recentTranscriptions.removeLast()
+        }
+    }
 }

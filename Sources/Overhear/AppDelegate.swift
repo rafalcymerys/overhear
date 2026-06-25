@@ -9,7 +9,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var engine: EngineProcess!
     private var overlay: OverlayController!
     private var settingsObservation: AnyCancellable?
-    private var stateObservation: AnyCancellable?
     private var restartTask: Task<Void, Never>?
     private var settingsWindow: NSWindow?
     private var dictateMenuItem: NSMenuItem!
@@ -28,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         dictateMenuItem = NSMenuItem(title: "Start Dictating", action: #selector(toggleDictation), keyEquivalent: "d")
 
         let menu = NSMenu()
+        menu.delegate = self
         menu.addItem(dictateMenuItem)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ","))
@@ -39,13 +39,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         overlay = OverlayController(appState: appState, onStop: { [weak self] in
             self?.engine.deactivate()
         })
-
-        stateObservation = appState.$status
-            .sink { [weak self] status in
-                Task { @MainActor in
-                    self?.dictateMenuItem.title = status.isActive ? "Stop Dictating" : "Start Dictating"
-                }
-            }
 
         settingsObservation = AppSettings.shared.$selectedLanguageCodes
             .dropFirst()
@@ -105,7 +98,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    @objc private func pasteTranscription(_ sender: NSMenuItem) {
+        guard let text = sender.representedObject as? String else { return }
+        TextInjector.inject(text: text)
+    }
+
     @objc private func quitApp() {
         NSApp.terminate(nil)
+    }
+}
+
+extension AppDelegate: NSMenuDelegate {
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+
+        dictateMenuItem.title = appState.status.isActive ? "Stop Dictating" : "Start Dictating"
+        menu.addItem(dictateMenuItem)
+
+        menu.addItem(.separator())
+        let heading = NSMenuItem(title: "Last Transcriptions", action: nil, keyEquivalent: "")
+        heading.isEnabled = false
+        menu.addItem(heading)
+        if appState.recentTranscriptions.isEmpty {
+            let empty = NSMenuItem(title: "No transcriptions yet — they will appear here as you dictate", action: nil, keyEquivalent: "")
+            empty.isEnabled = false
+            menu.addItem(empty)
+        } else {
+            for transcription in appState.recentTranscriptions {
+                let truncated = transcription.count > 60
+                    ? String(transcription.prefix(60)) + "…"
+                    : transcription
+                let item = NSMenuItem(title: truncated, action: #selector(pasteTranscription), keyEquivalent: "")
+                item.representedObject = transcription
+                menu.addItem(item)
+            }
+        }
+
+        menu.addItem(.separator())
+        menu.addItem(NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ","))
+        menu.addItem(.separator())
+        menu.addItem(NSMenuItem(title: "Quit Overhear", action: #selector(quitApp), keyEquivalent: "q"))
     }
 }

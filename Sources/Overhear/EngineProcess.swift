@@ -150,6 +150,7 @@ final class EngineProcess {
             if let text = json["text"] as? String, !text.isEmpty {
                 appState.lastTranscription = text
                 appState.transcriptionCount += 1
+                appState.addTranscription(text)
                 TextInjector.inject(text: text)
             }
 
