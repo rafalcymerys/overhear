@@ -12,6 +12,8 @@
     <string>0.1.0</string>
     <key>LSUIElement</key>
     <true/>
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright © 2026 Rafal Cymerys. All rights reserved.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Overhear needs microphone access to listen for the wake word and transcribe your speech.</string>
 </dict>
