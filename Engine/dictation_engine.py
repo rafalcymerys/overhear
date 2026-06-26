@@ -15,6 +15,7 @@ import sys
 import json
 import signal
 import threading
+import time
 import queue
 import numpy as np
 import sounddevice as sd
@@ -260,36 +261,46 @@ def main():
         emit({"event": "error", "message": f"Failed to load whisper: {e}"})
         sys.exit(1)
 
-    emit({"event": "idle"})
-
     cmd_thread = threading.Thread(target=command_listener, daemon=True)
     cmd_thread.start()
 
-    try:
-        with sd.InputStream(
-            samplerate=SAMPLE_RATE,
-            channels=1,
-            dtype="float32",
-            blocksize=CHUNK_SAMPLES,
-            callback=audio_callback,
-        ):
-            while running:
+    while running:
+        try:
+            with sd.InputStream(
+                samplerate=SAMPLE_RATE,
+                channels=1,
+                dtype="float32",
+                blocksize=CHUNK_SAMPLES,
+                callback=audio_callback,
+            ):
+                emit({"event": "idle"})
+
+                while running:
+                    try:
+                        chunk = audio_queue.get(timeout=0.5)
+                    except queue.Empty:
+                        continue
+
+                    if get_dictating():
+                        audio_queue.put(chunk)
+                        dictation_loop(whisper_model, oww, languages)
+                        if running:
+                            oww.reset()
+                            emit({"event": "idle"})
+                        continue
+
+        except sd.PortAudioError as e:
+            emit({"event": "warning", "message": f"Audio device changed: {e}"})
+            set_dictating(False)
+            while not audio_queue.empty():
                 try:
-                    chunk = audio_queue.get(timeout=0.5)
+                    audio_queue.get_nowait()
                 except queue.Empty:
-                    continue
-
-                if get_dictating():
-                    audio_queue.put(chunk)
-                    dictation_loop(whisper_model, oww, languages)
-                    if running:
-                        oww.reset()
-                        emit({"event": "idle"})
-                    continue
-
-    except Exception as e:
-        emit({"event": "error", "message": str(e)})
-        sys.exit(1)
+                    break
+            time.sleep(1)
+        except Exception as e:
+            emit({"event": "error", "message": str(e)})
+            sys.exit(1)
 
 
 if __name__ == "__main__":
