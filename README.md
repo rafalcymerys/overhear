@@ -1,6 +1,6 @@
 # Overhear
 
-A macOS menu bar app for hands-free dictation. Say a wake word, speak naturally, and your words are transcribed and pasted into whatever text field is active.
+A macOS menu bar app for dictation. Click to start, speak naturally, and your words are transcribed and pasted into whatever text field is active.
 
 ## Requirements
 
@@ -23,6 +23,14 @@ Then build and run:
 ```bash
 swift build
 .build/debug/Overhear
+```
+
+### Linting
+
+SwiftLint is included as an SPM plugin and runs as a pre-commit hook. To lint manually:
+
+```bash
+swift package plugin --allow-writing-to-package-directory swiftlint lint
 ```
 
 ## Building for Distribution
@@ -57,15 +65,16 @@ This produces a `dist/` folder containing:
 ## Usage
 
 - The app runs in the menu bar — look for the microphone icon
-- Say **"Hey Jarvis"** to start dictating
+- Click the menu bar icon and select **Start Dictating** to begin
 - Speak naturally — text is transcribed in batches and pasted into the active text field
-- Say **"Hey Jarvis"** again to stop dictating
-- Click the menu bar icon for **Settings** and **Quit**
+- Say **"Hey Jarvis"** to cancel the current transcription and keep listening
+- Click **Stop Dictating** to end the session
+- Recent transcriptions appear in the menu — click one to paste it again
 
 ### Settings
 
+- **Show overlay window** — toggle the floating status overlay that appears during dictation
 - **Recognition Languages** — select which languages Whisper should recognize (defaults to English and Polish). Fewer languages improves accuracy. Changes restart the engine automatically.
-- **Show overlay window** — toggle the floating status overlay that appears during dictation.
 
 ## Architecture
 
