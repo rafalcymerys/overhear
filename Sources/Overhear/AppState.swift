@@ -24,7 +24,7 @@ enum EngineStatus: String {
     var systemImage: String {
         switch self {
         case .stopped: return "mic.slash"
-        case .loading: return "arrow.down.circle"
+        case .loading: return "circle.dashed"
         case .idle: return "mic"
         case .ready, .listening: return "mic.fill"
         case .transcribing: return "text.bubble"
