@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var engine: EngineProcess!
     private var overlay: OverlayController!
     private var settingsObservation: AnyCancellable?
+    private var launchObservation: AnyCancellable?
     private var restartTask: Task<Void, Never>?
     private var settingsWindow: NSWindow?
     private var dictateMenuItem: NSMenuItem!
@@ -45,6 +46,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
 
         engine.start()
+
+        if AppSettings.shared.dictateOnLaunch {
+            launchObservation = appState.$status
+                .first { $0 == .idle }
+                .sink { [weak self] _ in
+                    self?.engine.activate()
+                    self?.launchObservation = nil
+                }
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {

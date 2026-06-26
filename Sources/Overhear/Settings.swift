@@ -72,6 +72,7 @@ final class AppSettings: ObservableObject {
 
     private let languagesKey = "selectedLanguages"
     private let overlayKey = "showOverlay"
+    private let dictateOnLaunchKey = "dictateOnLaunch"
 
     @Published var selectedLanguageCodes: Set<String> {
         didSet {
@@ -83,6 +84,12 @@ final class AppSettings: ObservableObject {
     @Published var showOverlay: Bool {
         didSet {
             UserDefaults.standard.set(showOverlay, forKey: overlayKey)
+        }
+    }
+
+    @Published var dictateOnLaunch: Bool {
+        didSet {
+            UserDefaults.standard.set(dictateOnLaunch, forKey: dictateOnLaunchKey)
         }
     }
 
@@ -100,6 +107,11 @@ final class AppSettings: ObservableObject {
             showOverlay = UserDefaults.standard.bool(forKey: overlayKey)
         } else {
             showOverlay = true
+        }
+        if UserDefaults.standard.object(forKey: dictateOnLaunchKey) != nil {
+            dictateOnLaunch = UserDefaults.standard.bool(forKey: dictateOnLaunchKey)
+        } else {
+            dictateOnLaunch = true
         }
     }
 }

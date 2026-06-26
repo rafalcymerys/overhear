@@ -19,6 +19,7 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section("General") {
+                Toggle("Start dictating on launch", isOn: $settings.dictateOnLaunch)
                 Toggle("Show overlay window during dictation", isOn: $settings.showOverlay)
             }
 
