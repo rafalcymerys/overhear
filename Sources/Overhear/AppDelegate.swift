@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var engine: EngineProcess!
     private var overlay: OverlayController!
     private var settingsObservation: AnyCancellable?
+    private var cancelWordObservation: AnyCancellable?
     private var launchObservation: AnyCancellable?
     private var restartTask: Task<Void, Never>?
     private var settingsWindow: NSWindow?
@@ -38,6 +39,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         })
 
         settingsObservation = AppSettings.shared.$selectedLanguageCodes
+            .dropFirst()
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    self?.scheduleRestart()
+                }
+            }
+
+        cancelWordObservation = AppSettings.shared.$cancelWord
             .dropFirst()
             .sink { [weak self] _ in
                 Task { @MainActor in

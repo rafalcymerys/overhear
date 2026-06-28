@@ -21,6 +21,11 @@ struct SettingsView: View {
             Section("General") {
                 Toggle("Start dictating on launch", isOn: $settings.dictateOnLaunch)
                 Toggle("Show overlay window during dictation", isOn: $settings.showOverlay)
+                Picker("Cancel word", selection: $settings.cancelWord) {
+                    ForEach(CancelWord.allCases) { word in
+                        Text(word.displayName).tag(word)
+                    }
+                }
             }
 
             Section {

@@ -66,6 +66,24 @@ struct WhisperLanguage: Identifiable, Hashable, Codable {
     ]
 }
 
+enum CancelWord: String, CaseIterable, Identifiable {
+    case alexa = "alexa"
+    case heyJarvis = "hey_jarvis"
+    case heyMycroft = "hey_mycroft"
+    case heyRhasspy = "hey_rhasspy"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .alexa: return "Alexa"
+        case .heyJarvis: return "Hey Jarvis"
+        case .heyMycroft: return "Hey Mycroft"
+        case .heyRhasspy: return "Hey Rhasspy"
+        }
+    }
+}
+
 @MainActor
 final class AppSettings: ObservableObject {
     static let shared = AppSettings()
@@ -73,6 +91,7 @@ final class AppSettings: ObservableObject {
     private let languagesKey = "selectedLanguages"
     private let overlayKey = "showOverlay"
     private let dictateOnLaunchKey = "dictateOnLaunch"
+    private let cancelWordKey = "cancelWord"
 
     @Published var selectedLanguageCodes: Set<String> {
         didSet {
@@ -90,6 +109,12 @@ final class AppSettings: ObservableObject {
     @Published var dictateOnLaunch: Bool {
         didSet {
             UserDefaults.standard.set(dictateOnLaunch, forKey: dictateOnLaunchKey)
+        }
+    }
+
+    @Published var cancelWord: CancelWord {
+        didSet {
+            UserDefaults.standard.set(cancelWord.rawValue, forKey: cancelWordKey)
         }
     }
 
@@ -112,6 +137,12 @@ final class AppSettings: ObservableObject {
             dictateOnLaunch = UserDefaults.standard.bool(forKey: dictateOnLaunchKey)
         } else {
             dictateOnLaunch = true
+        }
+        if let saved = UserDefaults.standard.string(forKey: cancelWordKey),
+           let word = CancelWord(rawValue: saved) {
+            cancelWord = word
+        } else {
+            cancelWord = .heyJarvis
         }
     }
 }

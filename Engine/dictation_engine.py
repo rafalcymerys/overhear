@@ -223,14 +223,15 @@ def command_listener():
             pass
 
 
-def parse_languages():
-    """Parse --languages argument."""
+def parse_args():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--languages", type=str, default="en")
+    parser.add_argument("--cancel-word", type=str, default="hey_jarvis")
     args = parser.parse_args()
     langs = [l.strip() for l in args.languages.split(",") if l.strip()]
-    return langs if langs else ["en"]
+    langs = langs if langs else ["en"]
+    return langs, args.cancel_word
 
 
 def main():
@@ -239,7 +240,7 @@ def main():
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     signal.signal(signal.SIGINT, lambda *_: sys.exit(0))
 
-    languages = parse_languages()
+    languages, cancel_word = parse_args()
     emit({"event": "status", "message": "loading_models"})
     emit({"event": "config", "languages": languages})
 
@@ -247,7 +248,7 @@ def main():
         from openwakeword.model import Model as OWWModel
         import openwakeword
         openwakeword.utils.download_models()
-        oww = OWWModel(inference_framework="onnx")
+        oww = OWWModel(wakeword_models=[cancel_word], inference_framework="onnx")
         emit({"event": "status", "message": "wake_word_ready"})
     except Exception as e:
         emit({"event": "error", "message": f"Failed to load openwakeword: {e}"})
