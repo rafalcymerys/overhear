@@ -126,32 +126,6 @@ final class AppSettings: ObservableObject {
         }
     }
 
-    @Published var customHotWords: [HotWord] = []
-
-    var allHotWords: [HotWord] {
-        HotWord.builtIn + customHotWords
-    }
-
-    func reloadCustomHotWords() {
-        let dir = HotWord.modelsDirectory
-        guard let files = try? FileManager.default.contentsOfDirectory(atPath: dir.path) else {
-            customHotWords = []
-            return
-        }
-        customHotWords = files
-            .filter { $0.hasSuffix(".onnx") }
-            .sorted()
-            .map { filename in
-                let path = dir.appendingPathComponent(filename).path
-                let name = filename
-                    .replacingOccurrences(of: ".onnx", with: "")
-                    .replacingOccurrences(of: "_", with: " ")
-                    .replacingOccurrences(of: "-", with: " ")
-                    .capitalized
-                return HotWord.custom(path: path, name: name)
-            }
-    }
-
     var selectedLanguages: [WhisperLanguage] {
         WhisperLanguage.all.filter { selectedLanguageCodes.contains($0.code) }
     }
@@ -173,17 +147,8 @@ final class AppSettings: ObservableObject {
             dictateOnLaunch = true
         }
         cancelWord = HotWord.defaultWord
-        reloadCustomHotWords()
         if let saved = UserDefaults.standard.string(forKey: cancelWordKey) {
-            cancelWord = allHotWords.first { $0.modelValue == saved } ?? HotWord.defaultWord
+            cancelWord = HotWordService.shared.allHotWords.first { $0.modelValue == saved } ?? HotWord.defaultWord
         }
-    }
-
-    func removeCustomHotWord(_ word: HotWord) {
-        if cancelWord == word {
-            cancelWord = HotWord.defaultWord
-        }
-        try? FileManager.default.removeItem(atPath: word.modelValue)
-        reloadCustomHotWords()
     }
 }
