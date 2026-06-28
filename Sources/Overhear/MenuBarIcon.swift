@@ -11,6 +11,9 @@ struct MenuBarIcon: View {
     }
 
     private var bgColor: Color {
+        if appState.showCancelled {
+            return Color.red
+        }
         switch appState.status {
         case .ready, .listening:
             return Color(red: 1.0, green: 0.58, blue: 0.0)
@@ -29,7 +32,11 @@ struct MenuBarIcon: View {
                     .frame(width: 22, height: 22)
             }
 
-            if appState.status == .listening {
+            if appState.showCancelled {
+                Image(systemName: "stop.fill")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundColor(.white)
+            } else if appState.status == .listening {
                 MenuBarAudioBars()
             } else if appState.status == .ready {
                 MenuBarStaticBars()

@@ -43,15 +43,25 @@ enum EngineStatus: String {
 @MainActor
 final class AppState: ObservableObject {
     @Published var status: EngineStatus = .stopped
-    @Published var lastTranscription: String = ""
     @Published var errorMessage: String?
-    @Published var transcriptionCount: Int = 0
     @Published var recentTranscriptions: [String] = []
+    @Published var showCancelled: Bool = false
+    private var cancelledTimer: Timer?
 
     func addTranscription(_ text: String) {
         recentTranscriptions.insert(text, at: 0)
         if recentTranscriptions.count > 5 {
             recentTranscriptions.removeLast()
+        }
+    }
+
+    func triggerCancelled() {
+        showCancelled = true
+        cancelledTimer?.invalidate()
+        cancelledTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                self?.showCancelled = false
+            }
         }
     }
 }

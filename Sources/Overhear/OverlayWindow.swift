@@ -7,9 +7,7 @@ final class OverlayController {
     private var window: NSWindow?
     private var hostingView: NSHostingView<OverlayView>?
     private let appState: AppState
-    private let overlayState = OverlayState()
     private var cancellables = Set<AnyCancellable>()
-    private var dismissTimer: Timer?
     private var onStop: () -> Void
 
     init(appState: AppState, onStop: @escaping () -> Void) {
@@ -31,59 +29,21 @@ final class OverlayController {
                 Task { @MainActor in
                     guard let self else { return }
                     if show && self.appState.status.isActive {
-                        self.handleStatusChange(self.appState.status)
+                        self.showWindow()
                     } else if !show {
                         self.hideWindow()
                     }
                 }
             }.store(in: &cancellables)
-
-        appState.$lastTranscription
-            .dropFirst()
-            .sink { [weak self] text in
-                Task { @MainActor in
-                    guard let self, !text.isEmpty else { return }
-                    self.overlayState.transcribedText = text
-                    self.overlayState.phase = .result
-                    self.scheduleDismiss()
-                }
-            }.store(in: &cancellables)
     }
 
     private func handleStatusChange(_ status: EngineStatus) {
-        dismissTimer?.invalidate()
-        dismissTimer = nil
-
+        if appState.showCancelled { return }
         switch status {
-        case .ready:
-            overlayState.phase = .ready
-            overlayState.transcribedText = ""
-            showWindow()
-        case .listening:
-            overlayState.phase = .listening
-            showWindow()
-        case .transcribing:
-            overlayState.phase = .transcribing
+        case .ready, .listening, .transcribing:
             showWindow()
         case .stopped, .idle, .error, .loading:
-            if overlayState.phase != .result {
-                hideWindow()
-            }
-        }
-    }
-
-    private func scheduleDismiss() {
-        dismissTimer?.invalidate()
-        dismissTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
-            Task { @MainActor in
-                guard let self else { return }
-                // If still dictating, go back to listening indicator
-                if self.appState.status == .ready {
-                    self.overlayState.phase = .ready
-                } else {
-                    self.hideWindow()
-                }
-            }
+            hideWindow()
         }
     }
 
@@ -97,14 +57,11 @@ final class OverlayController {
     }
 
     private func hideWindow() {
-        dismissTimer?.invalidate()
-        dismissTimer = nil
         window?.orderOut(nil)
-        overlayState.phase = .hidden
     }
 
     private func createWindow() {
-        let view = OverlayView(state: overlayState, onStop: { [weak self] in
+        let view = OverlayView(appState: appState, onStop: { [weak self] in
             self?.onStop()
             self?.hideWindow()
         })
@@ -140,69 +97,73 @@ final class OverlayController {
     }
 }
 
-enum OverlayPhase {
-    case hidden, ready, listening, transcribing, result
-}
-
-@MainActor
-final class OverlayState: ObservableObject {
-    @Published var phase: OverlayPhase = .hidden
-    @Published var transcribedText: String = ""
-}
-
 struct OverlayView: View {
-    @ObservedObject var state: OverlayState
+    @ObservedObject var appState: AppState
     var onStop: () -> Void
+
+    private var showStopButton: Bool {
+        !appState.showCancelled && appState.status.isActive
+    }
+
+    private var darkBackground: Bool {
+        appState.status == .ready && !appState.showCancelled
+    }
 
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                switch state.phase {
-                case .ready:
+                if appState.showCancelled {
                     HStack(spacing: 6) {
-                        HStack(spacing: 2) {
-                            ForEach(0..<3, id: \.self) { _ in
-                                RoundedRectangle(cornerRadius: 1)
-                                    .fill(Color.primary)
-                                    .frame(width: 3, height: 4)
+                        Image(systemName: "stop.fill")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.red)
+                        Text("Cancelled")
+                            .font(.system(.body, design: .rounded, weight: .medium))
+                            .foregroundColor(.red)
+                    }
+                } else {
+                    switch appState.status {
+                    case .ready:
+                        HStack(spacing: 6) {
+                            HStack(spacing: 2) {
+                                ForEach(0..<3, id: \.self) { _ in
+                                    RoundedRectangle(cornerRadius: 1)
+                                        .fill(Color.primary)
+                                        .frame(width: 3, height: 4)
+                                }
                             }
+                            .frame(width: 14, height: 14)
+                            Text("Ready")
+                                .font(.system(.body, design: .rounded, weight: .medium))
                         }
-                        .frame(width: 14, height: 14)
-                        Text("Ready")
-                            .font(.system(.body, design: .rounded, weight: .medium))
+                    case .listening:
+                        HStack(spacing: 6) {
+                            AudioBars()
+                            Text("Listening…")
+                                .font(.system(.body, design: .rounded, weight: .medium))
+                        }
+                    case .transcribing:
+                        HStack(spacing: 6) {
+                            ProgressView()
+                                .scaleEffect(0.6)
+                                .frame(width: 10, height: 10)
+                            Text("Transcribing…")
+                                .font(.system(.body, design: .rounded, weight: .medium))
+                        }
+                    default:
+                        EmptyView()
                     }
-                case .listening:
-                    HStack(spacing: 6) {
-                        AudioBars()
-                        Text("Listening…")
-                            .font(.system(.body, design: .rounded, weight: .medium))
-                    }
-                case .transcribing:
-                    HStack(spacing: 6) {
-                        ProgressView()
-                            .scaleEffect(0.6)
-                            .frame(width: 10, height: 10)
-                        Text("Transcribing…")
-                            .font(.system(.body, design: .rounded, weight: .medium))
-                    }
-                case .result:
-                    Text(state.transcribedText)
-                        .font(.system(.caption, design: .monospaced))
-                        .lineLimit(2)
-                        .foregroundColor(.primary)
-                case .hidden:
-                    EmptyView()
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            if state.phase == .ready || state.phase == .listening || state.phase == .transcribing {
+            if showStopButton {
                 Button(action: onStop) {
                     Image(systemName: "stop.fill")
                         .font(.system(size: 12))
-                        .foregroundColor(state.phase == .ready ? .black : .white)
+                        .foregroundColor(darkBackground ? .black : .white)
                         .frame(width: 26, height: 26)
-                        .background(state.phase == .ready ? Color.white.opacity(0.85) : Color.primary.opacity(0.85))
+                        .background(darkBackground ? Color.white.opacity(0.85) : Color.primary.opacity(0.85))
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -214,28 +175,14 @@ struct OverlayView: View {
         .background(
             ZStack {
                 Rectangle().fill(.ultraThinMaterial)
-                    .opacity(state.phase == .ready ? 0 : 1)
+                    .opacity(darkBackground ? 0 : 1)
                 Color.black.opacity(0.3)
-                    .opacity(state.phase == .ready ? 1 : 0)
+                    .opacity(darkBackground ? 1 : 0)
             }
         )
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .animation(.easeInOut(duration: 0.35), value: state.phase)
-    }
-}
-
-struct PulsingDot: View {
-    let color: Color
-    @State private var isPulsing = false
-
-    var body: some View {
-        Circle()
-            .fill(color)
-            .frame(width: 10, height: 10)
-            .scaleEffect(isPulsing ? 1.3 : 1.0)
-            .opacity(isPulsing ? 0.6 : 1.0)
-            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isPulsing)
-            .onAppear { isPulsing = true }
+        .animation(.easeInOut(duration: 0.35), value: appState.status)
+        .animation(.easeInOut(duration: 0.35), value: appState.showCancelled)
     }
 }
 

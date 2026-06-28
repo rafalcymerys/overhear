@@ -148,8 +148,6 @@ final class EngineProcess {
 
         case "transcription":
             if let text = json["text"] as? String, !text.isEmpty {
-                appState.lastTranscription = text
-                appState.transcriptionCount += 1
                 appState.addTranscription(text)
                 TextInjector.inject(text: text)
             }
@@ -159,6 +157,7 @@ final class EngineProcess {
 
         case "wake_word_cancel":
             appState.status = .ready
+            appState.triggerCancelled()
 
         case "error":
             appState.status = .error
