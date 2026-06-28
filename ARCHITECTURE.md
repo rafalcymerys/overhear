@@ -68,9 +68,10 @@ The engine and UI share a unified state model:
 | **Ready** | `ready` | Static bars, orange | "Ready" (dark bg) | Dictation active, waiting for speech |
 | **Listening** | `speech_start` | Animated bars, orange | "Listening..." (material bg) | Actively hearing speech |
 | **Transcribing** | `transcribing` | Spinner, dark orange | "Transcribing..." (material bg) | Processing with Whisper |
+| **Cancelled** | `wake_word_cancel` | Shaking bars, red (1s) | Shaking bars + "Cancelled" (1s) | Wake word cancelled current batch |
 | **Error** | `error` | Error icon | Hidden | Something failed |
 
-After transcription completes, the overlay briefly shows the transcribed text (5s), then returns to **Ready** if still dictating.
+After transcription completes, the engine returns to **Ready** if still dictating. The **Cancelled** state is a 1-second visual indicator triggered by the wake word — it overlays on top of the current state and returns to **Ready** automatically.
 
 ## Swift Host — Key Components
 
@@ -125,9 +126,9 @@ The floating window transitions between states with animated crossfades:
 | Ready | Static dots + "Ready" | Black 30% opacity |
 | Listening | Animated audio bars + "Listening..." | Frosted material |
 | Transcribing | Spinner + "Transcribing..." | Frosted material |
-| Result | Transcribed text (5s) | Frosted material |
+| Cancelled | Shaking red bars + "Cancelled" (1s) | Frosted material |
 
-The overlay appears when dictation activates and hides when it deactivates (or 5s after showing a result, if dictation has already stopped). Can be toggled off in Settings.
+The overlay appears when dictation activates and hides when it deactivates. Can be toggled off in Settings.
 
 ## Linting
 

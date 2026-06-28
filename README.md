@@ -67,7 +67,7 @@ This produces a `dist/` folder containing:
 - The app runs in the menu bar — look for the microphone icon
 - Click the menu bar icon and select **Start Dictating** to begin
 - Speak naturally — text is transcribed in batches and pasted into the active text field
-- Say **"Hey Jarvis"** to cancel the current transcription and keep listening
+- Say **"Hey Jarvis"** to cancel the current transcription and keep listening — the menu bar and overlay briefly show a shaking animation to confirm
 - Click **Stop Dictating** to end the session
 - Recent transcriptions appear in the menu — click one to paste it again
 

@@ -58,7 +58,7 @@ final class AppState: ObservableObject {
     func triggerCancelled() {
         showCancelled = true
         cancelledTimer?.invalidate()
-        cancelledTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+        cancelledTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: false) { [weak self] _ in
             Task { @MainActor in
                 self?.showCancelled = false
             }

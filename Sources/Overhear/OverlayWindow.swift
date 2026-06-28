@@ -102,7 +102,7 @@ struct OverlayView: View {
     var onStop: () -> Void
 
     private var showStopButton: Bool {
-        !appState.showCancelled && appState.status.isActive
+        appState.status.isActive
     }
 
     private var darkBackground: Bool {
@@ -113,14 +113,7 @@ struct OverlayView: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 if appState.showCancelled {
-                    HStack(spacing: 6) {
-                        Image(systemName: "stop.fill")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(.red)
-                        Text("Cancelled")
-                            .font(.system(.body, design: .rounded, weight: .medium))
-                            .foregroundColor(.red)
-                    }
+                    OverlayShakeBars()
                 } else {
                     switch appState.status {
                     case .ready:
@@ -214,5 +207,32 @@ struct AudioBars: View {
         case 2: return 8
         default: return 10
         }
+    }
+}
+
+struct OverlayShakeBars: View {
+    @State private var animating = false
+
+    var body: some View {
+        HStack(spacing: 6) {
+            HStack(spacing: 2) {
+                ForEach(0..<3, id: \.self) { _ in
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(Color.red)
+                        .frame(width: 3, height: 4)
+                }
+            }
+            .frame(width: 14, height: 14)
+            .offset(x: animating ? 3 : -3)
+            .animation(
+                .easeInOut(duration: 0.08)
+                    .repeatForever(autoreverses: true),
+                value: animating
+            )
+            Text("Cancelled")
+                .font(.system(.body, design: .rounded, weight: .medium))
+                .foregroundColor(.red)
+        }
+        .onAppear { animating = true }
     }
 }

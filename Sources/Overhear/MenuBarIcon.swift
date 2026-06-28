@@ -33,9 +33,7 @@ struct MenuBarIcon: View {
             }
 
             if appState.showCancelled {
-                Image(systemName: "stop.fill")
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundColor(.white)
+                MenuBarShakeBars()
             } else if appState.status == .listening {
                 MenuBarAudioBars()
             } else if appState.status == .ready {
@@ -93,5 +91,26 @@ struct MenuBarAudioBars: View {
         case 2: return 8
         default: return 10
         }
+    }
+}
+
+struct MenuBarShakeBars: View {
+    @State private var animating = false
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(0..<3, id: \.self) { _ in
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(Color.white)
+                    .frame(width: 3, height: 5)
+            }
+        }
+        .offset(x: animating ? 3 : -3)
+        .animation(
+            .easeInOut(duration: 0.08)
+                .repeatForever(autoreverses: true),
+            value: animating
+        )
+        .onAppear { animating = true }
     }
 }
