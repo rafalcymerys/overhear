@@ -25,6 +25,7 @@ cp .build/release/Overhear "$APP_DIR/Contents/MacOS/Overhear"
 cp Engine/dictation_engine.py "$APP_DIR/Contents/Resources/Engine/"
 cp Engine/requirements.txt "$APP_DIR/Contents/Resources/Engine/"
 cp Resources/Info.plist "$APP_DIR/Contents/Info.plist"
+cp Resources/AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
 
 # Copy install script alongside the app
 cp scripts/install.sh "$PROJECT_DIR/dist/"
