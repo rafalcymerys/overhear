@@ -66,21 +66,29 @@ struct WhisperLanguage: Identifiable, Hashable, Codable {
     ]
 }
 
-enum CancelWord: String, CaseIterable, Identifiable {
-    case alexa = "alexa"
-    case heyJarvis = "hey_jarvis"
-    case heyMycroft = "hey_mycroft"
-    case heyRhasspy = "hey_rhasspy"
+struct HotWord: Hashable, Identifiable {
+    let modelValue: String
+    let displayName: String
+    let isCustom: Bool
 
-    var id: String { rawValue }
+    var id: String { modelValue }
 
-    var displayName: String {
-        switch self {
-        case .alexa: return "Alexa"
-        case .heyJarvis: return "Hey Jarvis"
-        case .heyMycroft: return "Hey Mycroft"
-        case .heyRhasspy: return "Hey Rhasspy"
-        }
+    static let builtIn: [HotWord] = [
+        HotWord(modelValue: "alexa", displayName: "Alexa", isCustom: false),
+        HotWord(modelValue: "hey_jarvis", displayName: "Hey Jarvis", isCustom: false),
+        HotWord(modelValue: "hey_mycroft", displayName: "Hey Mycroft", isCustom: false),
+        HotWord(modelValue: "hey_rhasspy", displayName: "Hey Rhasspy", isCustom: false),
+    ]
+
+    static let defaultWord = builtIn[1]
+
+    static func custom(path: String, name: String) -> HotWord {
+        HotWord(modelValue: path, displayName: name, isCustom: true)
+    }
+
+    static var modelsDirectory: URL {
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        return appSupport.appendingPathComponent("Overhear/models")
     }
 }
 
@@ -112,10 +120,36 @@ final class AppSettings: ObservableObject {
         }
     }
 
-    @Published var cancelWord: CancelWord {
+    @Published var cancelWord: HotWord {
         didSet {
-            UserDefaults.standard.set(cancelWord.rawValue, forKey: cancelWordKey)
+            UserDefaults.standard.set(cancelWord.modelValue, forKey: cancelWordKey)
         }
+    }
+
+    @Published var customHotWords: [HotWord] = []
+
+    var allHotWords: [HotWord] {
+        HotWord.builtIn + customHotWords
+    }
+
+    func reloadCustomHotWords() {
+        let dir = HotWord.modelsDirectory
+        guard let files = try? FileManager.default.contentsOfDirectory(atPath: dir.path) else {
+            customHotWords = []
+            return
+        }
+        customHotWords = files
+            .filter { $0.hasSuffix(".onnx") }
+            .sorted()
+            .map { filename in
+                let path = dir.appendingPathComponent(filename).path
+                let name = filename
+                    .replacingOccurrences(of: ".onnx", with: "")
+                    .replacingOccurrences(of: "_", with: " ")
+                    .replacingOccurrences(of: "-", with: " ")
+                    .capitalized
+                return HotWord.custom(path: path, name: name)
+            }
     }
 
     var selectedLanguages: [WhisperLanguage] {
@@ -138,11 +172,18 @@ final class AppSettings: ObservableObject {
         } else {
             dictateOnLaunch = true
         }
-        if let saved = UserDefaults.standard.string(forKey: cancelWordKey),
-           let word = CancelWord(rawValue: saved) {
-            cancelWord = word
-        } else {
-            cancelWord = .heyJarvis
+        cancelWord = HotWord.defaultWord
+        reloadCustomHotWords()
+        if let saved = UserDefaults.standard.string(forKey: cancelWordKey) {
+            cancelWord = allHotWords.first { $0.modelValue == saved } ?? HotWord.defaultWord
         }
+    }
+
+    func removeCustomHotWord(_ word: HotWord) {
+        if cancelWord == word {
+            cancelWord = HotWord.defaultWord
+        }
+        try? FileManager.default.removeItem(atPath: word.modelValue)
+        reloadCustomHotWords()
     }
 }

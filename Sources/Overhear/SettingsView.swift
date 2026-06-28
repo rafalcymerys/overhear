@@ -3,6 +3,10 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject private var settings = AppSettings.shared
     @State private var searchText = ""
+    @State private var showingURLPrompt = false
+    @State private var customModelURL = ""
+    @State private var isDownloading = false
+    @State private var downloadError: String?
 
     private var selectedLanguages: [WhisperLanguage] {
         WhisperLanguage.all.filter { settings.selectedLanguageCodes.contains($0.code) }
@@ -22,10 +26,51 @@ struct SettingsView: View {
                 Toggle("Start dictating on launch", isOn: $settings.dictateOnLaunch)
                 Toggle("Show overlay window during dictation", isOn: $settings.showOverlay)
                 Picker("Cancel word", selection: $settings.cancelWord) {
-                    ForEach(CancelWord.allCases) { word in
+                    ForEach(settings.allHotWords) { word in
                         Text(word.displayName).tag(word)
                     }
                 }
+            }
+
+            Section {
+                if settings.customHotWords.isEmpty {
+                    Text("Install custom hot words to map them to different actions. Download openwakeword .onnx models to get started.")
+                        .foregroundColor(.secondary)
+                        .font(.caption)
+                } else {
+                    ForEach(settings.customHotWords) { word in
+                        HStack {
+                            Text(word.displayName)
+                            Spacer()
+                            Button {
+                                settings.removeCustomHotWord(word)
+                            } label: {
+                                Image(systemName: "trash")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                HStack {
+                    Button("Install from URL…") {
+                        customModelURL = ""
+                        downloadError = nil
+                        showingURLPrompt = true
+                    }
+                    .disabled(isDownloading)
+                    Button("Install from file…") {
+                        installFromFile()
+                    }
+                    if isDownloading {
+                        ProgressView()
+                            .scaleEffect(0.5)
+                            .frame(width: 16, height: 16)
+                    }
+                }
+            } header: {
+                Text("Custom Hot Words")
             }
 
             Section {
@@ -79,6 +124,100 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .frame(width: 450, height: 500)
+        .sheet(isPresented: $showingURLPrompt) {
+            VStack(spacing: 16) {
+                Text("Install Hot Word")
+                    .font(.headline)
+                Text("Enter the URL of an openwakeword .onnx model file.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                TextField("https://example.com/model.onnx", text: $customModelURL)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 350)
+                if let error = downloadError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                }
+                HStack {
+                    Button("Cancel") {
+                        showingURLPrompt = false
+                    }
+                    .keyboardShortcut(.cancelAction)
+                    Button("Download") {
+                        downloadCustomModel()
+                    }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(customModelURL.isEmpty || isDownloading)
+                }
+            }
+            .padding(20)
+        }
+    }
+
+    private func installFromFile() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.init(filenameExtension: "onnx")!]
+        panel.allowsMultipleSelection = false
+        panel.message = "Select an openwakeword .onnx model file"
+        guard panel.runModal() == .OK, let sourceURL = panel.url else { return }
+
+        let modelsDir = HotWord.modelsDirectory
+        try? FileManager.default.createDirectory(at: modelsDir, withIntermediateDirectories: true)
+
+        let filename = sourceURL.lastPathComponent
+        let destURL = modelsDir.appendingPathComponent(filename)
+        do {
+            if FileManager.default.fileExists(atPath: destURL.path) {
+                try FileManager.default.removeItem(at: destURL)
+            }
+            try FileManager.default.copyItem(at: sourceURL, to: destURL)
+            settings.reloadCustomHotWords()
+        } catch {
+            downloadError = error.localizedDescription
+        }
+    }
+
+    private func downloadCustomModel() {
+        guard let url = URL(string: customModelURL) else {
+            downloadError = "Invalid URL"
+            return
+        }
+        guard url.pathExtension.lowercased() == "onnx" else {
+            downloadError = "URL must point to an .onnx file"
+            return
+        }
+        isDownloading = true
+        downloadError = nil
+
+        let modelsDir = HotWord.modelsDirectory
+        try? FileManager.default.createDirectory(at: modelsDir, withIntermediateDirectories: true)
+
+        URLSession.shared.downloadTask(with: url) { tempURL, _, error in
+            DispatchQueue.main.async {
+                isDownloading = false
+                if let error {
+                    downloadError = error.localizedDescription
+                    return
+                }
+                guard let tempURL else {
+                    downloadError = "Download failed"
+                    return
+                }
+                let filename = url.lastPathComponent
+                let destURL = modelsDir.appendingPathComponent(filename)
+                do {
+                    if FileManager.default.fileExists(atPath: destURL.path) {
+                        try FileManager.default.removeItem(at: destURL)
+                    }
+                    try FileManager.default.moveItem(at: tempURL, to: destURL)
+                    settings.reloadCustomHotWords()
+                    showingURLPrompt = false
+                } catch {
+                    downloadError = error.localizedDescription
+                }
+            }
+        }.resume()
     }
 }
 
