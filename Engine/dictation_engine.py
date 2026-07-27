@@ -31,10 +31,26 @@ SILENCE_THRESHOLD = 0.008
 SILENCE_DURATION = 1.5  # seconds of silence to end a batch
 MAX_BATCH_DURATION = 30  # max seconds per batch
 
+# How long the input stream may go without delivering a single buffer before we
+# treat the device as gone. Audio arrives every 80ms while a stream is healthy —
+# even during silence — so this is a wide margin that still notices a lost
+# device within a few seconds.
+AUDIO_TIMEOUT = 3.0
+
 audio_queue = queue.Queue()
 running = True
 dictating = False
 dictating_lock = threading.Lock()
+last_audio_time = 0.0
+
+
+class AudioDeviceLost(Exception):
+    """The input stream stopped delivering audio without reporting an error.
+
+    PortAudio only raises through the API when a stream is opened or explicitly
+    operated on. When the default input device disappears mid-session it simply
+    stops invoking the callback, so nothing would ever surface without this.
+    """
 
 
 def emit(event: dict):
@@ -44,9 +60,22 @@ def emit(event: dict):
 
 
 def audio_callback(indata, frames, time_info, status):
+    global last_audio_time
+    last_audio_time = time.monotonic()
     if status:
         emit({"event": "warning", "message": str(status)})
     audio_queue.put(indata[:, 0].copy())
+
+
+def check_audio_alive():
+    """Raise if the input stream has gone quiet for longer than AUDIO_TIMEOUT.
+
+    Called wherever the engine waits on the audio queue, so a lost device is
+    noticed whether it happens mid-utterance or while idle.
+    """
+    silent_for = time.monotonic() - last_audio_time
+    if silent_for > AUDIO_TIMEOUT:
+        raise AudioDeviceLost(f"no audio for {silent_for:.1f}s")
 
 
 def is_silence(audio_chunk, threshold=SILENCE_THRESHOLD):
@@ -87,6 +116,7 @@ def record_batch(oww):
         try:
             chunk = audio_queue.get(timeout=0.5)
         except queue.Empty:
+            check_audio_alive()
             continue
 
         chunk_int16 = (chunk * 32767).astype(np.int16)
@@ -284,8 +314,14 @@ def main():
     cmd_thread = threading.Thread(target=command_listener, daemon=True)
     cmd_thread.start()
 
+    global last_audio_time
+
     while running:
         try:
+            # Start the clock before opening, so a stream that never delivers a
+            # single buffer is caught by the same watchdog.
+            last_audio_time = time.monotonic()
+
             with sd.InputStream(
                 samplerate=SAMPLE_RATE,
                 channels=1,
@@ -299,6 +335,7 @@ def main():
                     try:
                         chunk = audio_queue.get(timeout=0.5)
                     except queue.Empty:
+                        check_audio_alive()
                         continue
 
                     if get_dictating():
@@ -309,7 +346,7 @@ def main():
                             emit({"event": "idle"})
                         continue
 
-        except sd.PortAudioError as e:
+        except (sd.PortAudioError, AudioDeviceLost) as e:
             emit({"event": "warning", "message": f"Audio device changed: {e}"})
             set_dictating(False)
             while not audio_queue.empty():

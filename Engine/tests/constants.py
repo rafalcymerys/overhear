@@ -21,3 +21,7 @@ SILENCE_CHUNKS_NEEDED = int(SILENCE_DURATION / CHUNK_DURATION)
 # detection threshold. Passed to the engine subprocess as an env var so there is
 # a single source of truth.
 CANCEL_MARKER = 0.777
+
+# Seconds without any audio buffer before the engine declares the input device
+# lost and re-opens the stream.
+AUDIO_TIMEOUT = 3.0
