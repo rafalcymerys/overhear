@@ -238,7 +238,14 @@ def dictation_loop(whisper_model, oww, languages=None):
     while get_dictating() and running:
         emit({"event": "ready"})
         audio_data = record_batch(oww)
-        if audio_data is not None and len(audio_data) > SAMPLE_RATE * 0.3:
+        # No minimum length check. record_batch only returns completed batches,
+        # which always carry their trailing silence and so are never short. A
+        # duration threshold would also be the wrong tool: measured against real
+        # speech, "no", "what" and "yeah" all land within a few milliseconds of
+        # 0.3s, so any such cut would eat legitimate one-word dictation. Whisper's
+        # VAD already discards non-vocal noise, leaving empty text that the check
+        # below drops.
+        if audio_data is not None:
             emit({"event": "transcribing"})
             text = transcribe(whisper_model, audio_data, languages)
             if check_queued_wake_word(oww):

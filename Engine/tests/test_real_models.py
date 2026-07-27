@@ -19,7 +19,7 @@ import numpy as np
 import pytest
 
 from .constants import CHUNK_SAMPLES, SAMPLE_RATE
-from .harness import silence
+from .harness import silence, speech
 
 pytestmark = [
     pytest.mark.slow,
@@ -171,6 +171,40 @@ def test_real_detection_is_constrained_to_the_selected_set(real_engine_factory, 
 
     detected = engine.events.expect("language_detected", timeout=TRANSCRIBE_TIMEOUT)
     assert detected["language"] in {"en", "pl"}
+
+
+def test_real_short_utterance_is_transcribed(real_engine_factory, tts):
+    """A brief one-word utterance still produces text.
+
+    This is the evidence for having no minimum-duration filter. "no" is roughly
+    0.3s of speech — right where such a threshold would sit — so a duration cut
+    aimed at interjections would silently eat legitimate one-word dictation.
+    If this ever stops holding, the decision in TESTING.md finding 3 is worth
+    revisiting.
+    """
+    engine = real_engine_factory()
+    engine.activate()
+    engine.audio.push(tts("No."), silence(2.0))
+
+    event = engine.events.expect("transcription", timeout=TRANSCRIBE_TIMEOUT)
+    assert event["text"].strip()
+    assert "no" in event["text"].lower()
+
+
+def test_real_noise_burst_produces_no_transcription(real_engine_factory):
+    """Non-vocal noise is discarded by Whisper's VAD, not by a duration check.
+
+    The other half of the same decision: a threshold would buy nothing here,
+    because the VAD already returns no segments and the engine drops the empty
+    result. `speech()` is gaussian noise — loud enough to open a batch, but not
+    speech-like — so the engine transcribes it and gets nothing back.
+    """
+    engine = real_engine_factory()
+    engine.activate()
+    engine.audio.push(speech(0.16), silence(2.0))
+
+    engine.events.expect("speech_start", "transcribing", timeout=TRANSCRIBE_TIMEOUT)
+    engine.events.expect_not("transcription", within=5.0)
 
 
 def test_real_cancel_word_is_detected(real_engine_factory, tts):
