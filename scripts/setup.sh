@@ -23,7 +23,9 @@ fi
 
 echo "Installing Python dependencies..."
 "$VENV_DIR/bin/pip" install --quiet --upgrade pip
-"$VENV_DIR/bin/pip" install --quiet -r "$PROJECT_DIR/Engine/requirements.txt"
+# Dev setup, so this pulls in the test dependencies too. The shipped app installs
+# from requirements.txt via scripts/install.sh and stays lean.
+"$VENV_DIR/bin/pip" install --quiet -r "$PROJECT_DIR/Engine/requirements-dev.txt"
 
 # Download openwakeword models
 echo "Downloading wake word models..."
@@ -40,6 +42,9 @@ echo "To build and run:"
 echo "  cd $PROJECT_DIR"
 echo "  swift build"
 echo "  .build/debug/Overhear"
+echo ""
+echo "To run the engine tests:"
+echo "  .venv/bin/python -m pytest Engine"
 echo ""
 echo "The app will appear as a microphone icon in your menu bar."
 echo "Default wake word: 'hey jarvis' (from openwakeword)"

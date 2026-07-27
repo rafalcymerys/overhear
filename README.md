@@ -25,6 +25,19 @@ swift build
 .build/debug/Overhear
 ```
 
+### Testing
+
+The Python engine has an integration test suite that runs it as a real subprocess
+against a fake microphone — no models, no network, no audio hardware:
+
+```bash
+.venv/bin/python -m pytest Engine
+```
+
+`./scripts/setup.sh` installs the test dependencies. Add `--run-slow` to also
+load the real models and check transcription end to end. Every push and pull
+request runs the fast lane on CI. See [TESTING.md](TESTING.md).
+
 ### Linting
 
 SwiftLint is included as an SPM plugin and runs as a pre-commit hook. To lint manually:

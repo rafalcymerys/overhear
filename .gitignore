@@ -6,3 +6,5 @@ xcuserdata/
 DerivedData/
 __pycache__/
 *.pyc
+.pytest_cache/
+dist/

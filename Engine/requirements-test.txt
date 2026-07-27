@@ -1,0 +1,8 @@
+# Everything the fast test lane needs.
+#
+# It shadows sounddevice, openwakeword and faster-whisper with fakes, so the
+# engine's real dependencies are deliberately absent here — that is what lets
+# the suite run on any machine, with no audio hardware and no model downloads.
+# For the --run-slow lane, install requirements-dev.txt instead.
+numpy>=1.24.0
+pytest>=8.0.0
