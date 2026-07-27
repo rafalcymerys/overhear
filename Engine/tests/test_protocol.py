@@ -82,10 +82,16 @@ def test_stop_mid_utterance_discards_the_partial_batch(engine):
     deactivate but still returns the chunks it has, and dictation_loop
     transcribes them — so text the user cut off gets pasted into their document
     after they asked the app to stop.
+
+    The batch has to be comfortably over dictation_loop's 0.3s floor before Stop
+    arrives, otherwise it is dropped for the wrong reason and this test passes by
+    accident. Two seconds of speech, fully consumed, puts it an order of
+    magnitude clear of that edge.
     """
     engine.activate()
-    engine.audio.push(speech(0.8))
+    engine.audio.push(speech(2.0))
     engine.events.expect("speech_start")
+    engine.audio.settle()
 
     engine.send("deactivate")
     engine.events.expect_not("transcription", within=1.5)

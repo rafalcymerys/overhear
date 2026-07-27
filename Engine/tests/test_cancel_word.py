@@ -1,14 +1,7 @@
 """A8–A10 — the cancel word, in both of the places the engine checks for it."""
 
-import time
-
 from .constants import CHUNK_SAMPLES
 from .harness import cancel_word, silence, speech
-
-# Local TCP delivery of a few chunks is fast, but the tests below need audio to
-# have *arrived* in the engine's queue before they release the transcription.
-# There is no event to wait on, so allow a generous margin.
-DELIVERY_MARGIN = 0.3
 
 
 def test_cancel_word_during_recording_drops_the_batch(engine):
@@ -69,7 +62,7 @@ def test_cancel_word_during_transcription_suppresses_the_result(engine):
     engine.events.expect("speech_start", "transcribing")
 
     engine.audio.push(cancel_word())
-    time.sleep(DELIVERY_MARGIN)
+    engine.audio.settle()
     call.reply(text="text the user cancelled")
 
     engine.events.expect("wake_word_cancel")
@@ -92,7 +85,7 @@ def test_audio_buffered_during_transcription_is_not_lost(engine):
 
     spoken_during = speech(0.8, seed=7)
     engine.audio.push(spoken_during)
-    time.sleep(DELIVERY_MARGIN)
+    engine.audio.settle()
     first.reply(text="first utterance")
 
     engine.events.expect("transcription")
@@ -115,7 +108,7 @@ def test_buffered_audio_keeps_its_place(engine):
     first = engine.whisper.await_call("transcribe")
     spoken_during = speech(0.8, seed=9)
     engine.audio.push(spoken_during)
-    time.sleep(DELIVERY_MARGIN)
+    engine.audio.settle()
     first.reply(text="first")
     engine.events.expect("transcription")
 

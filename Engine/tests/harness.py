@@ -34,6 +34,13 @@ FAKE_MODELS_DIR = os.path.join(TESTS_DIR, "fakes", "models")
 
 DEFAULT_TIMEOUT = 5.0
 
+# Audio is delivered over a local socket and consumed by a background thread, so
+# there is no event marking "the engine has caught up with what I pushed". Tests
+# that care how much audio has been *accumulated* — rather than just delivered —
+# wait this long. Local delivery of a few dozen chunks takes microseconds, so the
+# margin is several orders of magnitude more than needed.
+DELIVERY_MARGIN = 0.3
+
 
 # --------------------------------------------------------------------------
 # Audio helpers
@@ -135,6 +142,10 @@ class AudioChannel:
         if conn is None:
             raise AssertionError("no audio stream is open")
         conn.sendall(struct.pack("!I", len(payload)) + payload)
+
+    def settle(self):
+        """Give the engine time to consume everything pushed so far."""
+        time.sleep(DELIVERY_MARGIN)
 
     def simulate_device_loss(self):
         """Stop delivering audio, as PortAudio does when the input device goes away.
