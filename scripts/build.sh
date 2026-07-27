@@ -30,10 +30,9 @@ cp Resources/AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
 # Copy install script alongside the app
 cp scripts/install.sh "$PROJECT_DIR/dist/"
 
-# Create zip
+# Create zip (from inside dist/ so paths aren't prefixed with dist/)
 echo "Packaging..."
-cd "$PROJECT_DIR"
-zip -r dist/Overhear.zip dist/Overhear.app dist/install.sh -x "*.DS_Store" > /dev/null
+(cd "$PROJECT_DIR/dist" && zip -r Overhear.zip Overhear.app install.sh -x "*.DS_Store" > /dev/null)
 
 echo ""
 echo "=== Build complete ==="
