@@ -31,6 +31,17 @@ MODEL_LOAD_TIMEOUT = 180.0
 TRANSCRIBE_TIMEOUT = 120.0
 
 
+def _installed_voices():
+    listing = subprocess.run(["say", "-v", "?"], capture_output=True, text=True).stdout
+    return {line.split()[0] for line in listing.splitlines() if line.strip()}
+
+
+def _require_voice(name):
+    """Skip rather than error when a CI runner lacks a localized voice."""
+    if name not in _installed_voices():
+        pytest.skip("system voice %r is not installed" % name)
+
+
 def _pad_to_chunk(samples):
     remainder = len(samples) % CHUNK_SAMPLES
     if remainder:
@@ -45,8 +56,9 @@ def tts(tmp_path_factory):
     outdir = tmp_path_factory.mktemp("tts")
 
     def render(text, voice="Samantha", rate=170):
-        if text in cache:
-            return cache[text]
+        key = (text, voice, rate)
+        if key in cache:
+            return cache[key]
         aiff = outdir / "clip.aiff"
         wav = outdir / "clip.wav"
         subprocess.run(["say", "-v", voice, "-r", str(rate), "-o", str(aiff), text],
@@ -57,8 +69,8 @@ def tts(tmp_path_factory):
         with wave.open(str(wav)) as handle:
             frames = handle.readframes(handle.getnframes())
         samples = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
-        cache[text] = _pad_to_chunk(samples)
-        return cache[text]
+        cache[key] = _pad_to_chunk(samples)
+        return cache[key]
 
     return render
 
@@ -106,6 +118,59 @@ def test_real_transcription_round_trip(real_engine_factory, tts):
 
     # ordinary speech must not read as the cancel word
     engine.events.expect_not("wake_word_cancel", within=1.0)
+
+
+def test_real_language_detection_runs_for_multiple_languages(real_engine_factory, tts):
+    """The multi-language path works against the real faster-whisper API.
+
+    This is the configuration every default install runs — AppSettings ships with
+    English and Polish selected — and it is the only path that calls
+    detect_language(). Without this test the engine's unpacking of
+    `(language, probability, all_language_probs)` is asserted only against the
+    fake, so a change to that return shape would break the default setup with a
+    green suite.
+    """
+    engine = real_engine_factory(languages="en,pl")
+    engine.activate()
+    engine.audio.push(tts("The quick brown fox jumps over the lazy dog."), silence(2.0))
+
+    detected = engine.events.expect("language_detected", timeout=TRANSCRIBE_TIMEOUT)
+    assert detected["language"] == "en"
+
+
+def test_real_detection_distinguishes_the_selected_languages(real_engine_factory, tts):
+    """Polish speech is detected as Polish, not just defaulted to the first entry."""
+    _require_voice("Zosia")
+
+    engine = real_engine_factory(languages="en,pl")
+    engine.activate()
+    engine.audio.push(
+        tts("Dzień dobry, nazywam się Zosia i mówię po polsku.", voice="Zosia"),
+        silence(2.0),
+    )
+
+    detected = engine.events.expect("language_detected", timeout=TRANSCRIBE_TIMEOUT)
+    assert detected["language"] == "pl"
+
+
+def test_real_detection_is_constrained_to_the_selected_set(real_engine_factory, tts):
+    """A language the user did not select cannot win, against the real model.
+
+    The fast lane asserts this against a fake probability map; here Whisper
+    genuinely believes the audio is German, and the engine must still narrow its
+    real all_language_probs list down to the configured set.
+    """
+    _require_voice("Anna")
+
+    engine = real_engine_factory(languages="en,pl")
+    engine.activate()
+    engine.audio.push(
+        tts("Der schnelle braune Fuchs springt über den faulen Hund.", voice="Anna"),
+        silence(2.0),
+    )
+
+    detected = engine.events.expect("language_detected", timeout=TRANSCRIBE_TIMEOUT)
+    assert detected["language"] in {"en", "pl"}
 
 
 def test_real_cancel_word_is_detected(real_engine_factory, tts):
