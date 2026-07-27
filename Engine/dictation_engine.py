@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """
-Dictation engine: wake word detection (openwakeword) + transcription (faster-whisper).
+Dictation engine: cancel word detection (openwakeword) + transcription (faster-whisper).
 Communicates with the Swift host via JSON lines on stdin/stdout.
 
 Flow:
-  - Idle: listening for wake word
-  - Wake word detected → enter dictation mode
+  - Idle: capturing audio but doing nothing with it, waiting for a command
+  - "activate" command → enter dictation mode
   - Dictation mode: continuously record speech in batches, transcribe each
-    batch on silence, inject text, keep listening for more speech
-  - Wake word again OR "deactivate" command → back to idle
+    batch on silence, emit the text for the host to paste, keep listening
+  - Cancel word → discard the current batch, stay in dictation mode
+  - "deactivate" command → back to idle
+
+The cancel word model is chosen with --cancel-word (a built-in openwakeword
+name, or a path to an .onnx file); the language set with --languages.
 """
 
 import sys

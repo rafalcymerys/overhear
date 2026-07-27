@@ -65,16 +65,23 @@ This produces a `dist/` folder containing:
 ## Usage
 
 - The app runs in the menu bar — look for the microphone icon
-- Click the menu bar icon and select **Start Dictating** to begin
+- By default the app starts dictating on its own once it finishes loading; you can turn that off in Settings
+- Otherwise, click the menu bar icon and select **Start Dictating** to begin
 - Speak naturally — text is transcribed in batches and pasted into the active text field
-- Say **"Hey Jarvis"** to cancel the current transcription and keep listening — the menu bar and overlay briefly show a shaking animation to confirm
+- Say the cancel word — **"Hey Jarvis"** unless you've changed it — to throw away what you just said and keep dictating. The menu bar and overlay briefly show a shaking animation to confirm.
 - Click **Stop Dictating** to end the session
 - Recent transcriptions appear in the menu — click one to paste it again
 
 ### Settings
 
+- **Start dictating on launch** — begin dictating automatically when the app finishes loading (on by default)
 - **Show overlay window** — toggle the floating status overlay that appears during dictation
-- **Recognition Languages** — select which languages Whisper should recognize (defaults to English and Polish). Fewer languages improves accuracy. Changes restart the engine automatically.
+- **Cancel word** — which phrase discards the current utterance. Four are built in: Alexa, Hey Jarvis, Hey Mycroft, Hey Rhasspy.
+- **Custom Hot Words** — install extra [openwakeword](https://github.com/dscripka/openWakeWord) `.onnx` models from a file or a URL to use as the cancel word. Installed models are stored in `~/Library/Application Support/Overhear/models/`.
+- **Recognition Languages** — select which languages Whisper should recognize (defaults to English and Polish). Fewer languages improves accuracy. At least one must be selected.
+
+Changing the cancel word or the language set restarts the engine automatically, which takes a
+moment while the models reload. The two toggles apply immediately.
 
 ## Architecture
 
