@@ -65,14 +65,25 @@ def get_dictating():
 
 
 def record_batch(oww):
-    """Record one batch of speech until silence, max duration, or wake word (to cancel)."""
+    """Record one batch of speech.
+
+    Returns audio only if the batch actually finished — on trailing silence or
+    the duration cap. If dictation was stopped mid-utterance the audio is
+    dropped: the user asked to stop, so nothing more should reach their
+    document. The wake word cancels by returning None from inside the loop.
+    """
     chunks = []
     silence_chunks = 0
     silence_needed = int(SILENCE_DURATION / CHUNK_DURATION)
     max_chunks = int(MAX_BATCH_DURATION / CHUNK_DURATION)
     heard_speech = False
+    completed = False
 
-    while get_dictating() and len(chunks) < max_chunks:
+    while get_dictating():
+        if len(chunks) >= max_chunks:
+            completed = True
+            break
+
         try:
             chunk = audio_queue.get(timeout=0.5)
         except queue.Empty:
@@ -105,11 +116,12 @@ def record_batch(oww):
         if heard_speech and quiet:
             silence_chunks += 1
             if silence_chunks >= silence_needed:
+                completed = True
                 break
         else:
             silence_chunks = 0
 
-    if chunks and heard_speech:
+    if completed and chunks and heard_speech:
         return np.concatenate(chunks)
     return None
 
@@ -202,7 +214,10 @@ def dictation_loop(whisper_model, oww, languages=None):
             if check_queued_wake_word(oww):
                 emit({"event": "wake_word_cancel"})
                 continue
-            if text:
+            # Transcription can outlive a stop request — Whisper runs for about a
+            # second. Dropping the result keeps the promise that nothing reaches
+            # the user's document after they press Stop.
+            if text and get_dictating():
                 emit({"event": "transcription", "text": text})
 
 

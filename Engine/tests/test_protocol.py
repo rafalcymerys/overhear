@@ -73,20 +73,16 @@ def test_quit_mid_batch_exits_cleanly(engine):
     assert engine.wait_exit(timeout=5.0) == 0
 
 
-@pytest.mark.xfail(reason="known bug: a partial batch is transcribed and pasted "
-                          "after the user presses Stop", strict=True)
 def test_stop_mid_utterance_discards_the_partial_batch(engine):
-    """A16b — pressing Stop mid-sentence should throw away what was captured.
+    """A16b — pressing Stop mid-sentence throws away what was captured.
 
-    It currently does not. record_batch's `while get_dictating()` exits on
-    deactivate but still returns the chunks it has, and dictation_loop
-    transcribes them — so text the user cut off gets pasted into their document
-    after they asked the app to stop.
+    record_batch only returns audio when the batch finished on its own terms, so
+    an utterance the user cut off never reaches their document.
 
     The batch has to be comfortably over dictation_loop's 0.3s floor before Stop
-    arrives, otherwise it is dropped for the wrong reason and this test passes by
-    accident. Two seconds of speech, fully consumed, puts it an order of
-    magnitude clear of that edge.
+    arrives, otherwise it would be dropped for the wrong reason and this test
+    would pass by accident. Two seconds of speech, fully consumed, puts it an
+    order of magnitude clear of that edge.
     """
     engine.activate()
     engine.audio.push(speech(2.0))
@@ -94,7 +90,36 @@ def test_stop_mid_utterance_discards_the_partial_batch(engine):
     engine.audio.settle()
 
     engine.send("deactivate")
+    engine.events.expect_not("transcribing", "transcription", within=1.5)
+
+
+def test_stop_during_transcription_discards_the_result(engine):
+    """A16c — Stop pressed while Whisper is running suppresses the paste.
+
+    The wider half of the same bug: transcription takes about a second, so this
+    window is far easier to hit than the recording one. The batch closed
+    normally here — it is the stop request that must win.
+    """
+    engine.whisper.manual()
+    engine.activate()
+    engine.audio.push(speech(1.0), silence(1.8))
+
+    call = engine.whisper.await_call("transcribe")
+    engine.events.expect("speech_start", "transcribing")
+
+    engine.send("deactivate")
+    engine.audio.settle()
+    call.reply(text="text the user stopped")
+
     engine.events.expect_not("transcription", within=1.5)
+
+
+def test_completed_batch_still_transcribes_while_dictating(engine):
+    """A16c — the guard must not suppress ordinary transcriptions."""
+    engine.activate()
+    engine.audio.push(speech(1.0), silence(1.8))
+
+    assert engine.events.expect("transcription")["text"] == "hello world"
 
 
 def test_unknown_cancel_word_is_fatal(engine_factory):
