@@ -96,33 +96,37 @@ struct HotWord: Hashable, Identifiable {
 final class AppSettings: ObservableObject {
     static let shared = AppSettings()
 
+    static let defaultLanguageCodes: Set<String> = ["en", "pl"]
+
     private let languagesKey = "selectedLanguages"
     private let overlayKey = "showOverlay"
     private let dictateOnLaunchKey = "dictateOnLaunch"
     private let cancelWordKey = "cancelWord"
 
+    private let defaults: UserDefaults
+
     @Published var selectedLanguageCodes: Set<String> {
         didSet {
             let array = Array(selectedLanguageCodes)
-            UserDefaults.standard.set(array, forKey: languagesKey)
+            defaults.set(array, forKey: languagesKey)
         }
     }
 
     @Published var showOverlay: Bool {
         didSet {
-            UserDefaults.standard.set(showOverlay, forKey: overlayKey)
+            defaults.set(showOverlay, forKey: overlayKey)
         }
     }
 
     @Published var dictateOnLaunch: Bool {
         didSet {
-            UserDefaults.standard.set(dictateOnLaunch, forKey: dictateOnLaunchKey)
+            defaults.set(dictateOnLaunch, forKey: dictateOnLaunchKey)
         }
     }
 
     @Published var cancelWord: HotWord {
         didSet {
-            UserDefaults.standard.set(cancelWord.modelValue, forKey: cancelWordKey)
+            defaults.set(cancelWord.modelValue, forKey: cancelWordKey)
         }
     }
 
@@ -130,25 +134,32 @@ final class AppSettings: ObservableObject {
         WhisperLanguage.all.filter { selectedLanguageCodes.contains($0.code) }
     }
 
-    private init() {
-        if let saved = UserDefaults.standard.stringArray(forKey: languagesKey) {
+    /// - Parameters:
+    ///   - defaults: storage to read and write. Tests pass a throwaway suite.
+    ///   - availableHotWords: the words a persisted cancel word can resolve
+    ///     against. Defaults to whatever is installed.
+    init(defaults: UserDefaults = .standard, availableHotWords: [HotWord]? = nil) {
+        self.defaults = defaults
+
+        if let saved = defaults.stringArray(forKey: languagesKey) {
             selectedLanguageCodes = Set(saved)
         } else {
-            selectedLanguageCodes = ["en", "pl"]
+            selectedLanguageCodes = Self.defaultLanguageCodes
         }
-        if UserDefaults.standard.object(forKey: overlayKey) != nil {
-            showOverlay = UserDefaults.standard.bool(forKey: overlayKey)
+        if defaults.object(forKey: overlayKey) != nil {
+            showOverlay = defaults.bool(forKey: overlayKey)
         } else {
             showOverlay = true
         }
-        if UserDefaults.standard.object(forKey: dictateOnLaunchKey) != nil {
-            dictateOnLaunch = UserDefaults.standard.bool(forKey: dictateOnLaunchKey)
+        if defaults.object(forKey: dictateOnLaunchKey) != nil {
+            dictateOnLaunch = defaults.bool(forKey: dictateOnLaunchKey)
         } else {
             dictateOnLaunch = true
         }
         cancelWord = HotWord.defaultWord
-        if let saved = UserDefaults.standard.string(forKey: cancelWordKey) {
-            cancelWord = HotWordService.shared.allHotWords.first { $0.modelValue == saved } ?? HotWord.defaultWord
+        if let saved = defaults.string(forKey: cancelWordKey) {
+            let candidates = availableHotWords ?? HotWordService.shared.allHotWords
+            cancelWord = candidates.first { $0.modelValue == saved } ?? HotWord.defaultWord
         }
     }
 }

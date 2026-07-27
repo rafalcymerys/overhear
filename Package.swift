@@ -13,5 +13,10 @@ let package = Package(
             name: "Overhear",
             path: "Sources/Overhear"
         ),
+        .testTarget(
+            name: "OverhearTests",
+            dependencies: ["Overhear"],
+            path: "Tests/OverhearTests"
+        ),
     ]
 )

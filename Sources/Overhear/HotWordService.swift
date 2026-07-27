@@ -5,21 +5,33 @@ import Foundation
 final class HotWordService: ObservableObject {
     static let shared = HotWordService()
 
+    /// Fetches a remote model to a local temporary file.
+    typealias Downloader = (URL, @escaping @Sendable (Result<URL, Error>) -> Void) -> Void
+
     @Published var customHotWords: [HotWord] = []
     @Published var isDownloading = false
     @Published var downloadError: String?
+
+    private let modelsDirectory: URL
+    private let download: Downloader
 
     var allHotWords: [HotWord] {
         HotWord.builtIn + customHotWords
     }
 
-    private init() {
+    /// - Parameters:
+    ///   - modelsDirectory: where installed `.onnx` models live.
+    ///   - download: how to fetch a remote model. Injected so tests never hit
+    ///     the network.
+    init(modelsDirectory: URL = HotWord.modelsDirectory,
+         download: @escaping Downloader = HotWordService.urlSessionDownload) {
+        self.modelsDirectory = modelsDirectory
+        self.download = download
         reload()
     }
 
     func reload() {
-        let dir = HotWord.modelsDirectory
-        guard let files = try? FileManager.default.contentsOfDirectory(atPath: dir.path) else {
+        guard let files = try? FileManager.default.contentsOfDirectory(atPath: modelsDirectory.path) else {
             customHotWords = []
             return
         }
@@ -27,7 +39,7 @@ final class HotWordService: ObservableObject {
             .filter { $0.hasSuffix(".onnx") }
             .sorted()
             .map { filename in
-                let path = dir.appendingPathComponent(filename).path
+                let path = modelsDirectory.appendingPathComponent(filename).path
                 let name = filename
                     .replacingOccurrences(of: ".onnx", with: "")
                     .replacingOccurrences(of: "_", with: " ")
@@ -37,12 +49,33 @@ final class HotWordService: ObservableObject {
             }
     }
 
-    func remove(_ word: HotWord) {
-        if AppSettings.shared.cancelWord == word {
-            AppSettings.shared.cancelWord = HotWord.defaultWord
+    func remove(_ word: HotWord, settings: AppSettings? = nil) {
+        let settings = settings ?? .shared
+        if settings.cancelWord == word {
+            settings.cancelWord = HotWord.defaultWord
         }
         try? FileManager.default.removeItem(atPath: word.modelValue)
         reload()
+    }
+
+    /// Copy a local model into the models directory, replacing any existing file
+    /// of the same name.
+    @discardableResult
+    func install(from sourceURL: URL) -> Bool {
+        try? FileManager.default.createDirectory(at: modelsDirectory, withIntermediateDirectories: true)
+
+        let destURL = modelsDirectory.appendingPathComponent(sourceURL.lastPathComponent)
+        do {
+            if FileManager.default.fileExists(atPath: destURL.path) {
+                try FileManager.default.removeItem(at: destURL)
+            }
+            try FileManager.default.copyItem(at: sourceURL, to: destURL)
+            reload()
+            return true
+        } catch {
+            downloadError = error.localizedDescription
+            return false
+        }
     }
 
     func installFromFile() {
@@ -51,25 +84,11 @@ final class HotWordService: ObservableObject {
         panel.allowsMultipleSelection = false
         panel.message = "Select an openwakeword .onnx model file"
         guard panel.runModal() == .OK, let sourceURL = panel.url else { return }
-
-        let modelsDir = HotWord.modelsDirectory
-        try? FileManager.default.createDirectory(at: modelsDir, withIntermediateDirectories: true)
-
-        let filename = sourceURL.lastPathComponent
-        let destURL = modelsDir.appendingPathComponent(filename)
-        do {
-            if FileManager.default.fileExists(atPath: destURL.path) {
-                try FileManager.default.removeItem(at: destURL)
-            }
-            try FileManager.default.copyItem(at: sourceURL, to: destURL)
-            reload()
-        } catch {
-            downloadError = error.localizedDescription
-        }
+        install(from: sourceURL)
     }
 
     func downloadFromURL(_ urlString: String, completion: @escaping (Bool) -> Void) {
-        guard let url = URL(string: urlString) else {
+        guard let url = URL(string: urlString), url.scheme != nil, url.host != nil else {
             downloadError = "Invalid URL"
             completion(false)
             return
@@ -82,36 +101,43 @@ final class HotWordService: ObservableObject {
         isDownloading = true
         downloadError = nil
 
-        let modelsDir = HotWord.modelsDirectory
-        try? FileManager.default.createDirectory(at: modelsDir, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: modelsDirectory, withIntermediateDirectories: true)
 
-        URLSession.shared.downloadTask(with: url) { [weak self] tempURL, _, error in
-            DispatchQueue.main.async {
+        download(url) { [weak self] result in
+            Task { @MainActor in
                 guard let self else { return }
                 self.isDownloading = false
-                if let error {
+                switch result {
+                case .failure(let error):
                     self.downloadError = error.localizedDescription
                     completion(false)
-                    return
-                }
-                guard let tempURL else {
-                    self.downloadError = "Download failed"
-                    completion(false)
-                    return
-                }
-                let filename = url.lastPathComponent
-                let destURL = modelsDir.appendingPathComponent(filename)
-                do {
-                    if FileManager.default.fileExists(atPath: destURL.path) {
-                        try FileManager.default.removeItem(at: destURL)
+                case .success(let tempURL):
+                    let destURL = self.modelsDirectory.appendingPathComponent(url.lastPathComponent)
+                    do {
+                        if FileManager.default.fileExists(atPath: destURL.path) {
+                            try FileManager.default.removeItem(at: destURL)
+                        }
+                        try FileManager.default.moveItem(at: tempURL, to: destURL)
+                        self.reload()
+                        completion(true)
+                    } catch {
+                        self.downloadError = error.localizedDescription
+                        completion(false)
                     }
-                    try FileManager.default.moveItem(at: tempURL, to: destURL)
-                    self.reload()
-                    completion(true)
-                } catch {
-                    self.downloadError = error.localizedDescription
-                    completion(false)
                 }
+            }
+        }
+    }
+
+    nonisolated static func urlSessionDownload(_ url: URL,
+                                               completion: @escaping @Sendable (Result<URL, Error>) -> Void) {
+        URLSession.shared.downloadTask(with: url) { tempURL, _, error in
+            if let error {
+                completion(.failure(error))
+            } else if let tempURL {
+                completion(.success(tempURL))
+            } else {
+                completion(.failure(URLError(.badServerResponse)))
             }
         }.resume()
     }

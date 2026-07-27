@@ -5,6 +5,7 @@ import SwiftUI
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let appState = AppState()
+    private let injector: TextInjecting = PasteboardTextInjector()
     private var statusItem: NSStatusItem!
     private var engine: EngineProcess!
     private var overlay: OverlayController!
@@ -33,7 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.delegate = self
         statusItem.menu = menu
 
-        engine = EngineProcess(appState: appState)
+        engine = EngineProcess(appState: appState, injector: injector)
         overlay = OverlayController(appState: appState, onStop: { [weak self] in
             self?.engine.deactivate()
         })
@@ -147,7 +148,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func pasteTranscription(_ sender: NSMenuItem) {
         guard let text = sender.representedObject as? String else { return }
-        TextInjector.inject(text: text)
+        injector.inject(text: text)
     }
 
     @objc private func quitApp() {

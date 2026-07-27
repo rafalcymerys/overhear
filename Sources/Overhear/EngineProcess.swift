@@ -1,14 +1,58 @@
 import Foundation
 
+/// How to launch the engine: which executable, with which arguments.
+struct EngineLaunch {
+    var executablePath: String
+    var arguments: [String]
+}
+
+enum EngineLaunchError: LocalizedError {
+    case engineNotFound
+    case pythonNotFound
+
+    var errorDescription: String? {
+        switch self {
+        case .engineNotFound: return "Could not find dictation_engine.py"
+        case .pythonNotFound: return "Python 3 not found. Run: brew install python3"
+        }
+    }
+}
+
 @MainActor
 final class EngineProcess {
+    /// Resolves what to launch. Injected so tests can substitute a fake engine
+    /// without touching the filesystem probing below.
+    typealias LaunchResolver = @MainActor () throws -> EngineLaunch
+
     private let appState: AppState
+    private let injector: TextInjecting
+    private let resolveLaunch: LaunchResolver
     private var process: Process?
     private var stdoutPipe: Pipe?
     private var stdinPipe: Pipe?
 
-    init(appState: AppState) {
+    init(appState: AppState,
+         injector: TextInjecting = PasteboardTextInjector(),
+         resolveLaunch: @escaping LaunchResolver = EngineProcess.defaultLaunch) {
+        _ = Self.ignoreBrokenPipes
         self.appState = appState
+        self.injector = injector
+        self.resolveLaunch = resolveLaunch
+    }
+
+    /// The production resolver: locate the bundled engine script and a Python
+    /// interpreter, and build the argument list from current settings.
+    @MainActor
+    static func defaultLaunch() throws -> EngineLaunch {
+        guard let enginePath = findEnginePath() else { throw EngineLaunchError.engineNotFound }
+        guard let pythonPath = findPython() else { throw EngineLaunchError.pythonNotFound }
+
+        let languages = Array(AppSettings.shared.selectedLanguageCodes).joined(separator: ",")
+        let cancelWord = AppSettings.shared.cancelWord.modelValue
+        return EngineLaunch(
+            executablePath: pythonPath,
+            arguments: ["-u", enginePath, "--languages", languages, "--cancel-word", cancelWord]
+        )
     }
 
     func start() {
@@ -16,25 +60,18 @@ final class EngineProcess {
 
         appState.status = .loading
 
-        let enginePath = Self.findEnginePath()
-        guard let enginePath else {
+        let launch: EngineLaunch
+        do {
+            launch = try resolveLaunch()
+        } catch {
             appState.status = .error
-            appState.errorMessage = "Could not find dictation_engine.py"
-            return
-        }
-
-        let pythonPath = Self.findPython()
-        guard let pythonPath else {
-            appState.status = .error
-            appState.errorMessage = "Python 3 not found. Run: brew install python3"
+            appState.errorMessage = error.localizedDescription
             return
         }
 
         let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: pythonPath)
-        let languages = Array(AppSettings.shared.selectedLanguageCodes).joined(separator: ",")
-        let cancelWord = AppSettings.shared.cancelWord.modelValue
-        proc.arguments = ["-u", enginePath, "--languages", languages, "--cancel-word", cancelWord]
+        proc.executableURL = URL(fileURLWithPath: launch.executablePath)
+        proc.arguments = launch.arguments
         proc.environment = ProcessInfo.processInfo.environment
 
         let stdout = Pipe()
@@ -80,19 +117,33 @@ final class EngineProcess {
     }
 
     func stop() {
+        // Mark the shutdown as intentional *before* asking the engine to quit.
+        // terminationHandler treats any exit while the status is not .stopped as
+        // a crash, and deferring this to a Task left a window where a prompt
+        // exit would be misreported as an error.
+        appState.status = .stopped
+        appState.errorMessage = nil
+
         sendCommand(["command": "quit"])
         let proc = process
         DispatchQueue.global().asyncAfter(deadline: .now() + 2) {
             proc?.terminate()
         }
-        Task { @MainActor in
-            appState.status = .stopped
-            appState.errorMessage = nil
-        }
     }
 
+    /// Writing to a pipe whose reader has gone raises SIGPIPE, which by default
+    /// terminates the whole app. That is reachable in normal use: if the engine
+    /// dies, the next `activate`/`deactivate`/`quit` would take the app down
+    /// with it. Ignore the signal so the write reports EPIPE instead.
+    private static let ignoreBrokenPipes: Void = {
+        signal(SIGPIPE, SIG_IGN)
+    }()
+
     private func sendCommand(_ cmd: [String: String]) {
-        guard let stdinPipe, let data = try? JSONSerialization.data(withJSONObject: cmd) else { return }
+        guard let process, process.isRunning,
+              let stdinPipe,
+              let data = try? JSONSerialization.data(withJSONObject: cmd)
+        else { return }
         var payload = data
         payload.append(contentsOf: [UInt8(ascii: "\n")])
         try? stdinPipe.fileHandleForWriting.write(contentsOf: payload)
@@ -150,7 +201,7 @@ final class EngineProcess {
         case "transcription":
             if let text = json["text"] as? String, !text.isEmpty {
                 appState.addTranscription(text)
-                TextInjector.inject(text: text)
+                injector.inject(text: text)
             }
 
         case "transcription_empty":
@@ -202,47 +253,64 @@ final class EngineProcess {
         return nil
     }
 
-    private static func findPython() -> String? {
-        // Prefer venv python so dependencies are available
-        var venvCandidates: [String] = []
+    static let systemPythonCandidates = [
+        "/opt/homebrew/bin/python3",
+        "/usr/local/bin/python3",
+        "/usr/bin/python3",
+    ]
 
-        // Check next to the engine script
-        if let enginePath = findEnginePath() {
-            let engineDir = URL(fileURLWithPath: enginePath).deletingLastPathComponent()
-            let projectRoot = engineDir.deletingLastPathComponent()
-            venvCandidates.append(projectRoot.appendingPathComponent(".venv/bin/python3").path)
+    /// Interpreters to try, most preferred first.
+    ///
+    /// Venv interpreters come before any system Python: the engine's
+    /// dependencies only exist inside the venv, so a system interpreter that
+    /// happens to be found first would start and then immediately fail on
+    /// `import sounddevice`.
+    static func pythonCandidates(enginePath: String?,
+                                 resourcePath: String?,
+                                 bundlePath: String?,
+                                 home: URL) -> [String] {
+        var candidates: [String] = []
+
+        // Next to the engine script
+        if let enginePath {
+            let projectRoot = URL(fileURLWithPath: enginePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+            candidates.append(projectRoot.appendingPathComponent(".venv/bin/python3").path)
         }
 
-        // Check inside app bundle Resources
-        if let resourcePath = Bundle.main.resourcePath {
-            venvCandidates.append(resourcePath + "/.venv/bin/python3")
+        // Inside the app bundle's Resources
+        if let resourcePath {
+            candidates.append(resourcePath + "/.venv/bin/python3")
         }
 
-        // Check next to the .app bundle itself
-        if let bundlePath = Bundle.main.bundlePath as String? {
+        // Next to the .app bundle itself
+        if let bundlePath {
             let appDir = URL(fileURLWithPath: bundlePath).deletingLastPathComponent()
-            venvCandidates.append(appDir.appendingPathComponent(".venv/bin/python3").path)
+            candidates.append(appDir.appendingPathComponent(".venv/bin/python3").path)
         }
 
-        // Check ~/Library/Application Support/Overhear
-        let appSupport = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/Overhear/.venv/bin/python3")
-        venvCandidates.append(appSupport.path)
+        // ~/Library/Application Support/Overhear
+        candidates.append(
+            home.appendingPathComponent("Library/Application Support/Overhear/.venv/bin/python3").path
+        )
 
-        for path in venvCandidates where FileManager.default.fileExists(atPath: path) {
-            return path
-        }
+        return candidates + systemPythonCandidates
+    }
 
-        let candidates = [
-            "/opt/homebrew/bin/python3",
-            "/usr/local/bin/python3",
-            "/usr/bin/python3",
-        ]
+    private static func findPython() -> String? {
+        let candidates = pythonCandidates(
+            enginePath: findEnginePath(),
+            resourcePath: Bundle.main.resourcePath,
+            bundlePath: Bundle.main.bundlePath,
+            home: FileManager.default.homeDirectoryForCurrentUser
+        )
         for path in candidates where FileManager.default.fileExists(atPath: path) {
             return path
         }
         let whichResult = try? shellOutput("which python3")
-        return whichResult?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = whichResult?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (trimmed?.isEmpty == false) ? trimmed : nil
     }
 
     private static func shellOutput(_ command: String) throws -> String {

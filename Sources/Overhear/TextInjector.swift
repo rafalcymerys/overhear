@@ -1,25 +1,38 @@
 import AppKit
 import Carbon.HIToolbox
 
-enum TextInjector {
-    static func inject(text: String) {
-        let pasteboard = NSPasteboard.general
+protocol TextInjecting {
+    func inject(text: String)
+}
+
+/// Pastes text by putting it on the general pasteboard, simulating Cmd+V, then
+/// restoring whatever was on the pasteboard before.
+///
+/// `performPaste` and `restoreDelay` exist so tests can exercise the clipboard
+/// save/restore without posting a synthetic Cmd+V into whichever application
+/// happens to be focused.
+struct PasteboardTextInjector: TextInjecting {
+    var pasteboard: NSPasteboard = .general
+    var performPaste: () -> Void = PasteboardTextInjector.simulatePaste
+    var restoreDelay: TimeInterval = 0.3
+
+    func inject(text: String) {
         let previousContents = pasteboard.string(forType: .string)
 
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
 
-        simulatePaste()
+        performPaste()
 
         if let previous = previousContents {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + restoreDelay) {
                 pasteboard.clearContents()
                 pasteboard.setString(previous, forType: .string)
             }
         }
     }
 
-    private static func simulatePaste() {
+    static func simulatePaste() {
         let source = CGEventSource(stateID: .hidSystemState)
 
         let keyDown = CGEvent(keyboardEventSource: source, virtualKey: UInt16(kVK_ANSI_V), keyDown: true)

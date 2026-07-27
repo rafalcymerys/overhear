@@ -1,0 +1,32 @@
+name: App tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: app-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache SwiftPM
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build
+            ~/Library/Caches/org.swift.swiftpm
+          key: swiftpm-${{ runner.os }}-${{ hashFiles('Package.resolved') }}
+          restore-keys: swiftpm-${{ runner.os }}-
+
+      - name: Build
+        run: swift build
+
+      - name: Run tests
+        run: swift test
