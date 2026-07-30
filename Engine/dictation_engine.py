@@ -283,7 +283,7 @@ def parse_args():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--languages", type=str, default="en")
-    parser.add_argument("--cancel-word", type=str, default="hey_jarvis")
+    parser.add_argument("--cancel-word", type=str, default="alexa")
     args = parser.parse_args()
     langs = [l.strip() for l in args.languages.split(",") if l.strip()]
     langs = langs if langs else ["en"]

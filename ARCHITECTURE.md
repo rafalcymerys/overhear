@@ -6,7 +6,7 @@ A macOS menu bar app for dictation. Click to start dictating, speak naturally, a
 
 Overhear runs silently in the menu bar. Clicking **Start Dictating** enters dictation mode: the app continuously captures speech in batches, transcribes each batch when you pause, and injects the text into the focused application. Clicking **Stop Dictating** (or pressing Stop in the overlay) deactivates dictation. If **Start dictating on launch** is enabled (the default), the app activates dictation by itself as soon as the engine finishes loading.
 
-During dictation, saying the **cancel word** — "Hey Jarvis" by default — discards whatever is currently being heard or transcribed. The batch is dropped and the app returns to the ready state, still listening for the next utterance. The cancel word is configurable in Settings: four openwakeword models ship built in (Alexa, Hey Jarvis, Hey Mycroft, Hey Rhasspy), and additional `.onnx` models can be installed. See [Hot Words](#hot-words).
+During dictation, saying the **cancel word** — "Alexa" by default — discards whatever is currently being heard or transcribed. The batch is dropped and the app returns to the ready state, still listening for the next utterance. The cancel word is configurable in Settings: four openwakeword models ship built in (Alexa, Hey Jarvis, Hey Mycroft, Hey Rhasspy), and additional `.onnx` models can be installed. See [Hot Words](#hot-words).
 
 > Terminology: the feature is called the *cancel word* in the UI and in the engine's `--cancel-word` argument, but the underlying library is a wake-word detector, so the event it produces is still named `wake_word_cancel`.
 
@@ -43,7 +43,7 @@ restarts the engine (see [Settings](#settings)).
 | Argument | Default | Meaning |
 |---|---|---|
 | `--languages` | `en` | Comma-separated Whisper language codes to recognize |
-| `--cancel-word` | `hey_jarvis` | A built-in openwakeword model name, or an absolute path to a custom `.onnx` model |
+| `--cancel-word` | `alexa` | A built-in openwakeword model name, or an absolute path to a custom `.onnx` model |
 
 ### Commands (Swift -> Python, via stdin)
 
@@ -128,7 +128,7 @@ All settings live in `AppSettings.shared`, backed by `UserDefaults` and publishe
 |---|---|---|---|
 | Start dictating on launch | `dictateOnLaunch` | on | Sends `activate` automatically on the first `idle` after launch |
 | Show overlay window | `showOverlay` | on | Whether the floating overlay appears during dictation |
-| Cancel word | `cancelWord` | Hey Jarvis | Which wake word model cancels the current batch |
+| Cancel word | `cancelWord` | Alexa | Which wake word model cancels the current batch |
 | Recognition languages | `selectedLanguages` | `en`, `pl` | Whisper language set; at least one must be selected |
 
 Because the engine takes its language set and cancel word as launch arguments, changing either one
@@ -146,9 +146,9 @@ Custom models can be added in Settings, either from a local `.onnx` file or by U
 copied into `~/Library/Application Support/Overhear/models/`, and `HotWordService` lists every
 `.onnx` file in that directory at launch. The display name is derived from the filename —
 `my_word.onnx` becomes "My Word". Removing a custom word deletes the file; if it was the selected
-cancel word, the selection falls back to Hey Jarvis.
+cancel word, the selection falls back to Alexa.
 
-Built-in words are passed to the engine by name (`hey_jarvis`); custom ones are passed as an
+Built-in words are passed to the engine by name (`alexa`); custom ones are passed as an
 absolute path. Both forms are accepted by `openwakeword`'s `wakeword_models` argument.
 
 ## Python Engine — Key Decisions

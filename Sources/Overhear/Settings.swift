@@ -80,7 +80,7 @@ struct HotWord: Hashable, Identifiable {
         HotWord(modelValue: "hey_rhasspy", displayName: "Hey Rhasspy", isCustom: false),
     ]
 
-    static let defaultWord = builtIn[1]
+    static let defaultWord = builtIn[0]
 
     static func custom(path: String, name: String) -> HotWord {
         HotWord(modelValue: path, displayName: name, isCustom: true)

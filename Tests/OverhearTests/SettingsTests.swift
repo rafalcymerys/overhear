@@ -15,8 +15,8 @@ final class SettingsTests: OverhearTestCase {
         XCTAssertEqual(settings.cancelWord, HotWord.defaultWord)
     }
 
-    func testDefaultCancelWordIsHeyJarvis() {
-        XCTAssertEqual(HotWord.defaultWord.modelValue, "hey_jarvis")
+    func testDefaultCancelWordIsAlexa() {
+        XCTAssertEqual(HotWord.defaultWord.modelValue, "alexa")
     }
 
     // B21 — persistence
@@ -28,14 +28,16 @@ final class SettingsTests: OverhearTestCase {
         first.selectedLanguageCodes = ["fr", "de"]
         first.showOverlay = false
         first.dictateOnLaunch = false
-        first.cancelWord = HotWord.builtIn[0]
+        // Deliberately not the default word — otherwise a failure to persist
+        // would look identical to the fallback.
+        first.cancelWord = HotWord.builtIn[1]
 
         let second = AppSettings(defaults: defaults, availableHotWords: HotWord.builtIn)
 
         XCTAssertEqual(second.selectedLanguageCodes, ["fr", "de"])
         XCTAssertFalse(second.showOverlay)
         XCTAssertFalse(second.dictateOnLaunch)
-        XCTAssertEqual(second.cancelWord, HotWord.builtIn[0])
+        XCTAssertEqual(second.cancelWord, HotWord.builtIn[1])
     }
 
     func testTogglesPersistFalseRatherThanFallingBackToDefault() {
