@@ -1,70 +1,113 @@
 #!/bin/bash
 set -euo pipefail
 
-# Overhear — portable installer
-# Run this on any Mac to set up the Python dependencies.
-# The venv is created in ~/Library/Application Support/Overhear/.venv
+# Overhear — dependency installer.
+#
+# Builds the Python environment the dictation engine runs in. Overhear.app runs
+# this itself on first launch (see EngineInstaller.swift), passing explicit
+# --venv/--requirements/--python paths; running it by hand from the distribution
+# folder works too, and the defaults below cover that case.
+#
+# Lines prefixed with ">>> " are what the app shows in its setup window.
+# Everything else is detail that only lands in the install log.
 
 APP_SUPPORT="$HOME/Library/Application Support/Overhear"
 VENV_DIR="$APP_SUPPORT/.venv"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-
-# Find requirements.txt — could be next to this script, or inside the .app bundle
 REQ=""
-for candidate in \
-    "$SCRIPT_DIR/Engine/requirements.txt" \
-    "$SCRIPT_DIR/../Resources/Engine/requirements.txt" \
-    "$SCRIPT_DIR/requirements.txt"; do
-    if [ -f "$candidate" ]; then
-        REQ="$candidate"
-        break
-    fi
+PYTHON_BIN=""
+
+usage() {
+    echo "Usage: $(basename "$0") [--venv DIR] [--requirements FILE] [--python PATH]"
+}
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --venv) VENV_DIR="$2"; shift 2 ;;
+        --requirements) REQ="$2"; shift 2 ;;
+        --python) PYTHON_BIN="$2"; shift 2 ;;
+        -h|--help) usage; exit 0 ;;
+        *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
+    esac
 done
 
+progress() { echo ">>> $1"; }
+
+# Find requirements.txt. Two layouts matter: inside the app bundle
+# (Resources/Engine, which is where both the app and a by-hand run start from),
+# and a source checkout, where this script sits in scripts/.
 if [ -z "$REQ" ]; then
-    echo "Error: Could not find requirements.txt"
+    for candidate in \
+        "$SCRIPT_DIR/Engine/requirements.txt" \
+        "$SCRIPT_DIR/../Engine/requirements.txt"; do
+        if [ -f "$candidate" ]; then
+            REQ="$candidate"
+            break
+        fi
+    done
+fi
+
+if [ -z "$REQ" ] || [ ! -f "$REQ" ]; then
+    echo "Error: could not find requirements.txt" >&2
+    exit 1
+fi
+
+# Pick an interpreter. Prefer the ones a user is likely to have installed
+# deliberately; /usr/bin/python3 is the Command Line Tools stub and comes last.
+if [ -z "$PYTHON_BIN" ]; then
+    for candidate in \
+        /opt/homebrew/bin/python3 \
+        /usr/local/bin/python3 \
+        "$(command -v python3 || true)" \
+        /usr/bin/python3; do
+        if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+            PYTHON_BIN="$candidate"
+            break
+        fi
+    done
+fi
+
+if [ -z "$PYTHON_BIN" ] || ! "$PYTHON_BIN" --version >/dev/null 2>&1; then
+    echo "Error: python3 not found. Install it with: brew install python3" >&2
     exit 1
 fi
 
 echo "=== Overhear Setup ==="
+echo "Python: $("$PYTHON_BIN" --version 2>&1) ($PYTHON_BIN)"
+echo "Requirements: $REQ"
+echo "Environment: $VENV_DIR"
 
-# Check for python3
-if ! command -v python3 &>/dev/null; then
-    echo "Error: python3 not found. Install with: brew install python3"
-    exit 1
-fi
+mkdir -p "$(dirname "$VENV_DIR")"
 
-echo "Python: $(python3 --version)"
-
-# Create app support directory
-mkdir -p "$APP_SUPPORT"
-
-# Create venv
 if [ ! -d "$VENV_DIR" ]; then
-    echo "Creating virtual environment at $VENV_DIR..."
-    python3 -m venv "$VENV_DIR"
+    progress "Creating the Python environment…"
+    "$PYTHON_BIN" -m venv "$VENV_DIR"
 fi
 
-echo "Installing Python dependencies..."
+progress "Installing Python dependencies…"
 "$VENV_DIR/bin/pip" install --quiet --upgrade pip
 "$VENV_DIR/bin/pip" install --quiet -r "$REQ"
 
-# Download openwakeword models
-echo "Downloading wake word models..."
+progress "Downloading wake word models…"
 "$VENV_DIR/bin/python" -c "
 import openwakeword
 openwakeword.utils.download_models()
 print('Wake word models ready.')
 "
 
-# Pre-download whisper model
-echo "Downloading Whisper model..."
+progress "Downloading the Whisper model…"
 "$VENV_DIR/bin/python" -c "
 from faster_whisper import WhisperModel
 WhisperModel('base', device='cpu', compute_type='int8')
 print('Whisper model ready.')
 "
 
+# Stamp the environment with the requirements it was built from. The app reads
+# this to decide whether it can skip setup on the next launch — no stamp means
+# an interrupted install, a different digest means the dependencies moved on.
+shasum -a 256 "$REQ" | awk '{print $1}' > "$VENV_DIR/.overhear-requirements"
+
+progress "Setup complete."
 echo ""
 echo "=== Setup complete ==="
 echo ""

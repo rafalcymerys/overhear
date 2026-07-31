@@ -9,6 +9,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var engine: EngineProcess!
     private var overlay: OverlayController!
+    private let installer = EngineInstaller()
+    private var setupWindow: SetupWindowController!
     private var settingsObservation: AnyCancellable?
     private var cancelWordObservation: AnyCancellable?
     private var launchObservation: AnyCancellable?
@@ -55,6 +57,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
 
+        setupWindow = SetupWindowController(installer: installer, onRetry: { [weak self] in
+            self?.bootstrap()
+        })
+
+        bootstrap()
+    }
+
+    /// Bring up the engine, installing its Python environment first if this Mac
+    /// doesn't have one yet. That is what makes the distributed app runnable by
+    /// unzipping and opening it, with no terminal step.
+    private func bootstrap() {
+        guard case let .install(reason) = EngineInstaller.decideForCurrentEnvironment() else {
+            startEngine()
+            return
+        }
+
+        appState.status = .installing
+        appState.errorMessage = nil
+        installer.prepare(reason: reason)
+        setupWindow.show()
+
+        Task { @MainActor in
+            do {
+                try await installer.install(using: EngineInstaller.resolveEnvironment(), reason: reason)
+                setupWindow.close()
+                startEngine()
+            } catch {
+                // The window stays up showing the failure and a Try Again
+                // button; the menu bar icon reflects it too.
+                appState.status = .error
+                appState.errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func startEngine() {
         engine.start()
 
         if AppSettings.shared.dictateOnLaunch {

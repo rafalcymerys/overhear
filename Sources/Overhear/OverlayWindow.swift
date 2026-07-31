@@ -42,7 +42,7 @@ final class OverlayController {
         switch status {
         case .ready, .listening, .transcribing:
             showWindow()
-        case .stopped, .idle, .error, .loading:
+        case .stopped, .idle, .error, .loading, .installing:
             hideWindow()
         }
     }

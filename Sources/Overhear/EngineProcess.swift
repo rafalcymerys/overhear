@@ -223,7 +223,9 @@ final class EngineProcess {
         }
     }
 
-    private static func findEnginePath() -> String? {
+    /// Internal rather than private: the installer resolves interpreters the
+    /// same way, and that starts from where the engine script sits.
+    static func findEnginePath() -> String? {
         let candidates = [
             Bundle.main.path(forResource: "dictation_engine", ofType: "py", inDirectory: "Engine"),
             Bundle.main.resourcePath.map { "\($0)/Engine/dictation_engine.py" },

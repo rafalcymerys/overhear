@@ -3,6 +3,7 @@ import SwiftUI
 
 enum EngineStatus: String {
     case stopped = "Stopped"
+    case installing = "Setting up…"
     case loading = "Loading models…"
     case idle = "Idle"
     case ready = "Ready"
@@ -13,7 +14,7 @@ enum EngineStatus: String {
     var color: Color {
         switch self {
         case .stopped: return .gray
-        case .loading: return .orange
+        case .installing, .loading: return .orange
         case .idle: return .green
         case .ready, .listening: return .red
         case .transcribing: return .blue
@@ -24,6 +25,7 @@ enum EngineStatus: String {
     var systemImage: String {
         switch self {
         case .stopped: return "mic.slash"
+        case .installing: return "arrow.down.circle"
         case .loading: return "circle.dashed"
         case .idle: return "mic"
         case .ready, .listening: return "mic.fill"

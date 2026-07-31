@@ -101,8 +101,10 @@ After transcription completes, the engine returns to **Ready** if still dictatin
 |---|---|
 | `OverhearApp.swift` | App entry point, accessory (no dock icon) |
 | `AppDelegate.swift` | Menu bar setup (Start/Stop Dictating, recent transcriptions, Settings, About, Quit), engine lifecycle, settings observation |
-| `AppState.swift` | Observable state enum: stopped, loading, idle, ready, listening, transcribing, error |
+| `AppState.swift` | Observable state enum: stopped, installing, loading, idle, ready, listening, transcribing, error |
 | `EngineProcess.swift` | Launches Python subprocess, reads JSON events, dispatches to AppState |
+| `EngineInstaller.swift` | Decides whether the Python environment exists and runs `install.sh` to build it on first launch |
+| `SetupWindow.swift` | First-launch setup window — progress, failure detail, Try Again / Show Log |
 | `OverlayWindow.swift` | Floating status window (top-right corner) — shows Ready/Listening/Transcribing/Result |
 | `MenuBarIcon.swift` | SwiftUI view embedded in NSStatusItem — animated bars, static bars, spinner depending on state |
 | `TextInjector.swift` | Pastes transcribed text via pasteboard + simulated Cmd+V, restores previous clipboard |
@@ -202,13 +204,37 @@ swift package plugin --allow-writing-to-package-directory swiftlint lint
 - `sounddevice` — cross-platform audio capture
 - `numpy`
 
-**Swift**: SwiftLint (via SPM plugin). Uses AppKit, SwiftUI, Combine, Carbon (for key codes).
+**Swift**: SwiftLint (via SPM plugin). Uses AppKit, SwiftUI, Combine, CryptoKit, Carbon (for key codes).
 
 ```bash
 ./scripts/setup.sh   # creates venv, installs deps, downloads wake word models
 swift build           # builds the Swift app
 .build/debug/Overhear # run
 ```
+
+### First-launch setup in the distributed app
+
+A downloaded copy of the app has no Python environment, so `AppDelegate.bootstrap()` builds one
+before starting the engine. `scripts/install.sh` ships inside the bundle at
+`Contents/Resources/install.sh`, and `EngineInstaller` runs it with explicit
+`--venv` / `--requirements` / `--python` paths, creating
+`~/Library/Application Support/Overhear/.venv`.
+
+The script prints its user-facing steps with a `>>> ` prefix; the installer shows those in the
+setup window and writes the full output to `~/Library/Application Support/Overhear/install.log`.
+On success the script stamps the environment with the SHA-256 of the `requirements.txt` it
+installed from (`.venv/.overhear-requirements`), and `EngineInstaller.decide(…)` reads it back on
+later launches:
+
+| Situation | Outcome |
+|---|---|
+| No venv anywhere | Install |
+| A venv that isn't the managed one (source checkout) | Skip — the developer owns that environment |
+| Managed venv, stamp matches `requirements.txt` | Skip |
+| Managed venv, stamp missing (interrupted install) or stale | Install |
+
+Setup can also be run from the terminal — `./Overhear.app/Contents/Resources/install.sh` is the
+same script, and the app then finds the finished environment and skips its own run.
 
 ## Permissions Required
 

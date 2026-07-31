@@ -88,9 +88,8 @@ To create a distributable `.app` bundle:
 
 This produces a `dist/` folder containing:
 
-- `Overhear.app`: the app bundle
-- `Overhear.zip`: zipped archive of the app and install script
-- `install.sh`: dependency installer for target machines
+- `Overhear.app`: the app bundle, with the installer inside it
+- `Overhear.zip`: zipped archive of the app
 
 ## Installing on Another Mac
 
@@ -99,13 +98,24 @@ This produces a `dist/` folder containing:
    ```bash
    xattr -cr Overhear.app
    ```
-3. Run the install script to set up Python dependencies:
-   ```bash
-   ./install.sh
-   ```
-4. Open `Overhear.app`
-5. Grant **Microphone** access when prompted
-6. Grant **Accessibility** access in System Settings > Privacy & Security > Accessibility (needed for pasting text)
+3. Open `Overhear.app`. On first launch it creates its Python environment in
+   `~/Library/Application Support/Overhear` and downloads the speech models,
+   showing progress in a setup window. This takes a few minutes and only
+   happens once; the app starts listening as soon as it finishes.
+4. Grant **Microphone** access when prompted
+5. Grant **Accessibility** access in System Settings > Privacy & Security > Accessibility (needed for pasting text)
+
+The Mac needs Python 3.10+ (`brew install python3`) and a network connection for
+that first run. To do the setup step from the terminal instead — useful if you
+want to watch it, or install on several machines — run the installer inside the
+bundle before opening the app:
+
+```bash
+./Overhear.app/Contents/Resources/install.sh
+```
+
+The app then detects the finished environment and skips straight to listening.
+Setup output is logged to `~/Library/Application Support/Overhear/install.log`.
 
 ## Usage
 
