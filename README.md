@@ -1,5 +1,7 @@
 # Overhear
 
+https://github.com/user-attachments/assets/74f998b1-277d-4e29-b3cb-1c55529f27c9
+
 Dictation for macOS that lives in your menu bar. Launch it and it starts listening on
 its own. Whatever you say is transcribed and pasted into whichever text field is
 focused, be it a Slack message, a commit message, a code comment, a browser form. It
