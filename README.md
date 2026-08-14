@@ -100,12 +100,19 @@ This produces a `dist/` folder containing:
    ```bash
    xattr -cr Overhear.app
    ```
-3. Open `Overhear.app`. On first launch it creates its Python environment in
+3. Open `Overhear.app`. It first asks for the two permissions dictation needs —
+   **Microphone**, to hear you, and **Accessibility**, to paste transcriptions
+   into your apps — with a button for each. Both are required before anything
+   else happens.
+4. Once they're granted, first launch creates the Python environment in
    `~/Library/Application Support/Overhear` and downloads the speech models,
    showing progress in a setup window. This takes a few minutes and only
    happens once; the app starts listening as soon as it finishes.
-4. Grant **Microphone** access when prompted
-5. Grant **Accessibility** access in System Settings > Privacy & Security > Accessibility (needed for pasting text)
+
+macOS only offers its permission dialog once per launch. If you dismiss one, the
+button turns into **Open System Settings** — flip the switch under Privacy &
+Security there and the app picks it up on its own. You can reopen the window any
+time from **Grant Permissions…** in the menu bar.
 
 The Mac needs Python 3.10+ (`brew install python3`) and a network connection for
 that first run. To do the setup step from the terminal instead — useful if you

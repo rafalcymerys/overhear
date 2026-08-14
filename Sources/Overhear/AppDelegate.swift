@@ -11,6 +11,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var overlay: OverlayController!
     private let installer = EngineInstaller()
     private var setupWindow: SetupWindowController!
+    private let permissions = PermissionsService()
+    private var permissionsWindow: PermissionsWindowController!
+    private var permissionsObservation: AnyCancellable?
     private var settingsObservation: AnyCancellable?
     private var cancelWordObservation: AnyCancellable?
     private var launchObservation: AnyCancellable?
@@ -60,8 +63,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupWindow = SetupWindowController(installer: installer, onRetry: { [weak self] in
             self?.bootstrap()
         })
+        permissionsWindow = PermissionsWindowController(permissions: permissions)
 
-        bootstrap()
+        start()
+    }
+
+    /// Nothing works without the microphone and the right to paste into other
+    /// apps, so ask for both before spending minutes on setup and models. Once
+    /// they are in place the launch continues where it otherwise would have
+    /// started.
+    private func start() {
+        permissions.refresh()
+
+        guard !permissions.allGranted else {
+            bootstrap()
+            return
+        }
+
+        permissionsObservation = permissions.$states
+            .first { PermissionsService.allGranted($0) }
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.permissionsObservation = nil
+                self.permissionsWindow.close()
+                self.bootstrap()
+            }
+
+        permissionsWindow.show()
     }
 
     /// Bring up the engine, installing its Python environment first if this Mac
@@ -103,6 +131,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self?.launchObservation = nil
                 }
         }
+    }
+
+    /// Overhear lives in the menu bar, so closing its last window — the
+    /// permissions window on the way in, or setup, or settings — means the user
+    /// is done with that window, not with the app.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -176,6 +211,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return plist
     }
 
+    @objc private func showPermissions() {
+        start()
+    }
+
     @objc private func toggleDictation() {
         if appState.status.isActive {
             engine.deactivate()
@@ -198,8 +237,15 @@ extension AppDelegate: NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
 
-        dictateMenuItem.title = appState.status.isActive ? "Stop Dictating" : "Start Dictating"
-        menu.addItem(dictateMenuItem)
+        permissions.refresh()
+        if permissions.allGranted {
+            dictateMenuItem.title = appState.status.isActive ? "Stop Dictating" : "Start Dictating"
+            menu.addItem(dictateMenuItem)
+        } else {
+            // Dictating is impossible until macOS says otherwise, so offer the
+            // way out instead of a button that would do nothing.
+            menu.addItem(NSMenuItem(title: "Grant Permissions…", action: #selector(showPermissions), keyEquivalent: ""))
+        }
 
         menu.addItem(.separator())
         let heading = NSMenuItem(title: "Last Transcriptions", action: nil, keyEquivalent: "")

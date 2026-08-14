@@ -100,11 +100,13 @@ After transcription completes, the engine returns to **Ready** if still dictatin
 | File | Role |
 |---|---|
 | `OverhearApp.swift` | App entry point, accessory (no dock icon) |
-| `AppDelegate.swift` | Menu bar setup (Start/Stop Dictating, recent transcriptions, Settings, About, Quit), engine lifecycle, settings observation |
+| `AppDelegate.swift` | Menu bar setup (Start/Stop Dictating, recent transcriptions, Settings, About, Quit), permission gate, engine lifecycle, settings observation |
 | `AppState.swift` | Observable state enum: stopped, installing, loading, idle, ready, listening, transcribing, error |
 | `EngineProcess.swift` | Launches Python subprocess, reads JSON events, dispatches to AppState |
 | `EngineInstaller.swift` | Decides whether the Python environment exists and runs `install.sh` to build it on first launch |
 | `SetupWindow.swift` | First-launch setup window — progress, failure detail, Try Again / Show Log |
+| `Permissions.swift` | Microphone and Accessibility state, asking for them, and watching for grants made in System Settings |
+| `PermissionsWindow.swift` | Launch-time permissions window — one explanation and one button per permission |
 | `OverlayWindow.swift` | Floating status window (top-right corner) — shows Ready/Listening/Transcribing/Result |
 | `MenuBarIcon.swift` | SwiftUI view embedded in NSStatusItem — animated bars, static bars, spinner depending on state |
 | `TextInjector.swift` | Pastes transcribed text via pasteboard + simulated Cmd+V, restores previous clipboard |
@@ -238,5 +240,26 @@ same script, and the app then finds the finished environment and skips its own r
 
 ## Permissions Required
 
-- **Microphone**: prompted automatically by macOS on first audio capture
-- **Accessibility**: needed for CGEvent-based Cmd+V paste simulation (System Settings > Privacy > Accessibility)
+- **Microphone**: the engine captures audio to hear the wake word and the dictation itself
+- **Accessibility**: needed for CGEvent-based Cmd+V paste simulation (System Settings > Privacy > Accessibility).
+  Called "inserting text in your apps" in the UI, because that is what it buys the user.
+
+`AppDelegate.start()` checks both before anything else runs — ahead of the first-launch setup, so a
+fresh Mac isn't asked to wait several minutes for an install that can't lead to working dictation.
+When either is missing, `PermissionsWindow` explains what each permission is for and offers a button
+per permission; the launch continues into `bootstrap()` the moment both are granted.
+
+`PermissionsService` decides what a button does, since macOS shows its own dialog only while the
+answer is still open — and only once per launch:
+
+| State | Button |
+|---|---|
+| Never answered, not yet asked this launch | Trigger the macOS dialog |
+| Already asked this launch, or previously denied | Open the relevant System Settings pane |
+| Granted | Replaced by a checkmark |
+
+Neither grant arrives as a notification — Accessibility is switched on in System Settings with the
+app none the wiser, and the microphone switch is just as silent — so the service polls once a second
+while the window is open. Closing the window stops the polling; the state is still refreshed
+whenever the menu bar menu opens, which is also where a **Grant Permissions…** item replaces
+**Start Dictating** until both are in place.
