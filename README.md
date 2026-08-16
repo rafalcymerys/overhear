@@ -93,12 +93,23 @@ This produces a `dist/` folder containing:
 - `Overhear.app`: the app bundle, with the installer inside it
 - `Overhear.zip`: zipped archive of the app
 
+To wrap the built bundle in a drag-to-install disk image:
+
+```bash
+./scripts/make-dmg.sh
+```
+
+This adds `dist/Overhear.dmg`, containing the app next to an `Applications`
+shortcut. Both artifacts are also built by the **Release build** workflow on
+every push to `main`; pushing a `v*` tag attaches them to a GitHub Release.
+
 ## Installing on Another Mac
 
-1. Unzip `Overhear.zip`
+1. Open `Overhear.dmg` and drag Overhear to Applications (or unzip
+   `Overhear.zip`)
 2. Clear the quarantine flag (required for unsigned apps):
    ```bash
-   xattr -cr Overhear.app
+   xattr -cr /Applications/Overhear.app
    ```
 3. Open `Overhear.app`. It first asks for the two permissions dictation needs —
    **Microphone**, to hear you, and **Accessibility**, to paste transcriptions
