@@ -32,7 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.addSubview(iconView)
         statusItem.button?.frame = iconView.frame
 
-        dictateMenuItem = NSMenuItem(title: "Start Dictating", action: #selector(toggleDictation), keyEquivalent: "d")
+        dictateMenuItem = NSMenuItem(title: "Start Listening", action: #selector(toggleDictation), keyEquivalent: "d")
 
         // Menu items are populated in menuNeedsUpdate(_:)
         let menu = NSMenu()
@@ -239,7 +239,7 @@ extension AppDelegate: NSMenuDelegate {
 
         permissions.refresh()
         if permissions.allGranted {
-            dictateMenuItem.title = appState.status.isActive ? "Stop Dictating" : "Start Dictating"
+            dictateMenuItem.title = appState.status.isActive ? "Stop Listening" : "Start Listening"
             menu.addItem(dictateMenuItem)
         } else {
             // Dictating is impossible until macOS says otherwise, so offer the

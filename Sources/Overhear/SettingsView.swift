@@ -22,8 +22,8 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section("General") {
-                Toggle("Start dictating on launch", isOn: $settings.dictateOnLaunch)
-                Toggle("Show overlay window during dictation", isOn: $settings.showOverlay)
+                Toggle("Start listening on launch", isOn: $settings.dictateOnLaunch)
+                Toggle("Show overlay window while listening", isOn: $settings.showOverlay)
                 Picker("Cancel word", selection: $settings.cancelWord) {
                     ForEach(hotWordService.allHotWords) { word in
                         Text(word.displayName).tag(word)

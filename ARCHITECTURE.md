@@ -1,10 +1,10 @@
 # Overhear — Architecture
 
-A macOS menu bar app for dictation. Click to start dictating, speak naturally, and your words are transcribed and pasted into whatever text field is active.
+A macOS menu bar app for dictation. Click to start listening, speak naturally, and your words are transcribed and pasted into whatever text field is active.
 
 ## Core Concept
 
-Overhear runs silently in the menu bar. Clicking **Start Dictating** enters dictation mode: the app continuously captures speech in batches, transcribes each batch when you pause, and injects the text into the focused application. Clicking **Stop Dictating** (or pressing Stop in the overlay) deactivates dictation. If **Start dictating on launch** is enabled (the default), the app activates dictation by itself as soon as the engine finishes loading.
+Overhear runs silently in the menu bar. Clicking **Start Listening** enters dictation mode: the app continuously captures speech in batches, transcribes each batch when you pause, and injects the text into the focused application. Clicking **Stop Listening** (or pressing Stop in the overlay) deactivates dictation. If **Start listening on launch** is enabled (the default), the app activates dictation by itself as soon as the engine finishes loading.
 
 During dictation, saying the **cancel word** — "Alexa" by default — discards whatever is currently being heard or transcribed. The batch is dropped and the app returns to the ready state, still listening for the next utterance. The cancel word is configurable in Settings: four openwakeword models ship built in (Alexa, Hey Jarvis, Hey Mycroft, Hey Rhasspy), and additional `.onnx` models can be installed. See [Hot Words](#hot-words).
 
@@ -100,7 +100,7 @@ After transcription completes, the engine returns to **Ready** if still dictatin
 | File | Role |
 |---|---|
 | `OverhearApp.swift` | App entry point, accessory (no dock icon) |
-| `AppDelegate.swift` | Menu bar setup (Start/Stop Dictating, recent transcriptions, Settings, About, Quit), permission gate, engine lifecycle, settings observation |
+| `AppDelegate.swift` | Menu bar setup (Start/Stop Listening, recent transcriptions, Settings, About, Quit), permission gate, engine lifecycle, settings observation |
 | `AppState.swift` | Observable state enum: stopped, installing, loading, idle, ready, listening, transcribing, error |
 | `EngineProcess.swift` | Launches Python subprocess, reads JSON events, dispatches to AppState |
 | `EngineInstaller.swift` | Decides whether the Python environment exists and runs `install.sh` to build it on first launch |
@@ -118,7 +118,7 @@ After transcription completes, the engine returns to **Ready** if still dictatin
 
 The menu dynamically updates via `NSMenuDelegate`:
 
-- **Start Dictating / Stop Dictating** — toggles dictation (changes label based on state)
+- **Start Listening / Stop Listening** — toggles dictation (changes label based on state)
 - **Last Transcriptions** — up to 5 recent transcriptions; clicking one pastes it into the active app
 - **Settings...** — opens the settings window
 - **About Overhear** — standard macOS about panel
@@ -130,8 +130,8 @@ All settings live in `AppSettings.shared`, backed by `UserDefaults` and publishe
 
 | Setting | Key | Default | Effect |
 |---|---|---|---|
-| Start dictating on launch | `dictateOnLaunch` | on | Sends `activate` automatically on the first `idle` after launch |
-| Show overlay window | `showOverlay` | on | Whether the floating overlay appears during dictation |
+| Start listening on launch | `dictateOnLaunch` | on | Sends `activate` automatically on the first `idle` after launch |
+| Show overlay window while listening | `showOverlay` | on | Whether the floating overlay appears during dictation |
 | Cancel word | `cancelWord` | Alexa | Which wake word model cancels the current batch |
 | Recognition languages | `selectedLanguages` | `en`, `pl` | Whisper language set; at least one must be selected |
 
@@ -262,4 +262,4 @@ Neither grant arrives as a notification — Accessibility is switched on in Syst
 app none the wiser, and the microphone switch is just as silent — so the service polls once a second
 while the window is open. Closing the window stops the polling; the state is still refreshed
 whenever the menu bar menu opens, which is also where a **Grant Permissions…** item replaces
-**Start Dictating** until both are in place.
+**Start Listening** until both are in place.

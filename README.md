@@ -140,17 +140,17 @@ Setup output is logged to `~/Library/Application Support/Overhear/install.log`.
 ## Usage
 
 - The app runs in the menu bar, marked by the microphone icon
-- By default the app starts dictating on its own once it finishes loading; you can turn that off in Settings
-- Otherwise, click the menu bar icon and select **Start Dictating** to begin
+- By default the app starts listening on its own once it finishes loading; you can turn that off in Settings
+- Otherwise, click the menu bar icon and select **Start Listening** to begin
 - Speak naturally; text is transcribed in batches and pasted into the active text field
 - Say the cancel word (**"Alexa"** unless you've changed it) to throw away what you just said and keep dictating. The menu bar and overlay briefly show a shaking animation to confirm.
-- Click **Stop Dictating** to end the session
+- Click **Stop Listening** to end the session
 - Recent transcriptions appear in the menu; click one to paste it again
 
 ### Settings
 
-- **Start dictating on launch**: begin dictating automatically when the app finishes loading (on by default)
-- **Show overlay window**: toggle the floating status overlay that appears during dictation
+- **Start listening on launch**: begin listening automatically when the app finishes loading (on by default)
+- **Show overlay window while listening**: toggle the floating status overlay that appears while dictation is active
 - **Cancel word**: which phrase discards the current utterance. Four are built in: Alexa, Hey Jarvis, Hey Mycroft, Hey Rhasspy.
 - **Custom Hot Words**: install extra [openwakeword](https://github.com/dscripka/openWakeWord) `.onnx` models from a file or a URL to use as the cancel word. Installed models are stored in `~/Library/Application Support/Overhear/models/`.
 - **Recognition Languages**: select which languages Whisper should recognize. Fewer languages improves accuracy. At least one must be selected.
