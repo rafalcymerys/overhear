@@ -42,6 +42,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         engine = EngineProcess(appState: appState, injector: injector)
         overlay = OverlayController(appState: appState, onStop: { [weak self] in
             self?.engine.deactivate()
+        }, onOpenSettings: { [weak self] in
+            self?.openSettings()
         })
 
         settingsObservation = AppSettings.shared.$selectedLanguageCodes

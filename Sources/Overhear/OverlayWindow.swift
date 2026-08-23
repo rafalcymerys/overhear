@@ -3,16 +3,19 @@ import SwiftUI
 import Combine
 
 @MainActor
-final class OverlayController {
+final class OverlayController: NSObject {
     private var window: NSWindow?
     private var hostingView: NSHostingView<OverlayView>?
     private let appState: AppState
     private var cancellables = Set<AnyCancellable>()
     private var onStop: () -> Void
+    private var onOpenSettings: () -> Void
 
-    init(appState: AppState, onStop: @escaping () -> Void) {
+    init(appState: AppState, onStop: @escaping () -> Void, onOpenSettings: @escaping () -> Void) {
         self.appState = appState
         self.onStop = onStop
+        self.onOpenSettings = onOpenSettings
+        super.init()
         observe()
     }
 
@@ -60,10 +63,39 @@ final class OverlayController {
         window?.orderOut(nil)
     }
 
+    /// The overlay window never becomes key, which is exactly the case a SwiftUI
+    /// `Menu` handles badly, so the options menu is a plain `NSMenu` popped up at
+    /// the pointer.
+    private func showOptionsMenu() {
+        let menu = NSMenu()
+
+        let hide = NSMenuItem(title: "Don't show the overlay", action: #selector(hideOverlayForGood), keyEquivalent: "")
+        hide.target = self
+        menu.addItem(hide)
+
+        let settings = NSMenuItem(title: "Settings…", action: #selector(showSettings), keyEquivalent: "")
+        settings.target = self
+        menu.addItem(settings)
+
+        menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+    }
+
+    /// Turns the setting off rather than hiding the window on its own, so the
+    /// overlay stays gone across launches and Settings tells the same story.
+    @objc private func hideOverlayForGood() {
+        AppSettings.shared.showOverlay = false
+    }
+
+    @objc private func showSettings() {
+        onOpenSettings()
+    }
+
     private func createWindow() {
         let view = OverlayView(appState: appState, onStop: { [weak self] in
             self?.onStop()
             self?.hideWindow()
+        }, onShowOptions: { [weak self] in
+            self?.showOptionsMenu()
         })
 
         let hostingView = NSHostingView(rootView: view)
@@ -100,6 +132,7 @@ final class OverlayController {
 struct OverlayView: View {
     @ObservedObject var appState: AppState
     var onStop: () -> Void
+    var onShowOptions: () -> Void
 
     private var showStopButton: Bool {
         appState.status.isActive
@@ -141,15 +174,30 @@ struct OverlayView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             if showStopButton {
-                Button(action: onStop) {
-                    Image(systemName: "stop.fill")
-                        .font(.system(size: 12))
-                        .foregroundColor(darkBackground ? .black : .white)
-                        .frame(width: 26, height: 26)
-                        .background(darkBackground ? Color.white.opacity(0.85) : Color.primary.opacity(0.85))
-                        .clipShape(Circle())
+                HStack(spacing: 6) {
+                    Button(action: onStop) {
+                        Image(systemName: "stop.fill")
+                            .font(.system(size: 12))
+                            .foregroundColor(darkBackground ? .black : .white)
+                            .frame(width: 26, height: 26)
+                            .background(darkBackground ? Color.white.opacity(0.85) : Color.primary.opacity(0.85))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Stop listening")
+
+                    // Quieter than stop: hiding the overlay is a preference, not
+                    // the thing you came to the panel to do.
+                    Button(action: onShowOptions) {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor((darkBackground ? Color.white : Color.primary).opacity(0.7))
+                            .frame(width: 22, height: 26)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("More options")
                 }
-                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 16)
