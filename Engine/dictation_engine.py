@@ -278,6 +278,12 @@ def command_listener():
         except json.JSONDecodeError:
             pass
 
+    # Reaching EOF means the host's end of the pipe is gone: it quit, crashed, or
+    # was killed outright without getting to send "quit". Stop with it rather than
+    # be left orphaned holding the microphone.
+    set_dictating(False)
+    running = False
+
 
 def parse_args():
     import argparse
