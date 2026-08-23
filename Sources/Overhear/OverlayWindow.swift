@@ -69,7 +69,7 @@ final class OverlayController: NSObject {
     private func showOptionsMenu() {
         let menu = NSMenu()
 
-        let hide = NSMenuItem(title: "Don't show the overlay", action: #selector(hideOverlayForGood), keyEquivalent: "")
+        let hide = NSMenuItem(title: "Don't Show the Overlay", action: #selector(hideOverlayForGood), keyEquivalent: "")
         hide.target = self
         menu.addItem(hide)
 
