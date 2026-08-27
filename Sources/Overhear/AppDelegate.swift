@@ -110,7 +110,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         Task { @MainActor in
             do {
-                try await installer.install(using: EngineInstaller.resolveEnvironment(), reason: reason)
+                try await installer.install(reason: reason)
                 setupWindow.close()
                 startEngine()
             } catch {

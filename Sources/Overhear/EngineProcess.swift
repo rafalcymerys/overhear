@@ -255,7 +255,7 @@ final class EngineProcess {
         return nil
     }
 
-    static let systemPythonCandidates = [
+    nonisolated static let systemPythonCandidates = [
         "/opt/homebrew/bin/python3",
         "/usr/local/bin/python3",
         "/usr/bin/python3",

@@ -46,7 +46,6 @@ final class EngineInstaller: ObservableObject {
     enum InstallError: LocalizedError, Equatable {
         case scriptNotFound
         case requirementsNotFound
-        case pythonNotFound
         case failed(status: Int32, output: String)
 
         var errorDescription: String? {
@@ -55,14 +54,15 @@ final class EngineInstaller: ObservableObject {
                 return "Could not find install.sh in the app bundle"
             case .requirementsNotFound:
                 return "Could not find requirements.txt in the app bundle"
-            case .pythonNotFound:
-                return "Python 3 not found. Install it with: brew install python3"
             case let .failed(status, output):
                 let detail = output.isEmpty ? "" : "\n\n\(output)"
                 return "Setup failed (exit code \(status))." + detail
             }
         }
     }
+
+    /// The step shown while the installer is working something out for itself.
+    nonisolated static let preparingStep = "Preparing…"
 
     @Published private(set) var step: String = ""
     @Published private(set) var isInstalling = false
@@ -158,93 +158,90 @@ final class EngineInstaller: ObservableObject {
         return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 
-    // MARK: - Locating the pieces
+    // MARK: - Running the installer
 
-    static func resolveEnvironment() throws -> Environment {
-        guard let script = findScriptPath() else { throw InstallError.scriptNotFound }
-        guard let requirements = findRequirementsPath() else { throw InstallError.requirementsNotFound }
-        guard let python = findInstallerPython() else { throw InstallError.pythonNotFound }
+    /// What the setup window says while macOS installs the developer tools.
+    /// That install runs in the system's own window, so name it rather than
+    /// leave "Preparing…" on screen looking stuck.
+    nonisolated static let waitingForDeveloperToolsStep = "Waiting for the Xcode command line tools to finish installing…"
+
+    /// How often to look for the interpreter that install leaves behind.
+    nonisolated static let developerToolsPollInterval = Duration.seconds(2)
+
+    /// Everything the installer needs, once there is a Python to build the
+    /// environment with.
+    ///
+    /// A missing interpreter is a wait, not a failure: on a stock Mac the first
+    /// probe asks macOS to install the Command Line Tools, that install runs
+    /// outside the app, and nothing tells us when it finishes. So poll, and
+    /// carry on the moment python3 works — otherwise setup sits in "Preparing…"
+    /// until the user quits and opens the app again.
+    func resolveEnvironment(pollInterval: Duration = EngineInstaller.developerToolsPollInterval,
+                            probe: @escaping @Sendable (Bool) -> String?
+                                = { EngineInstaller.findInstallerPython(mayRequestDeveloperTools: $0) }) async throws -> Environment {
+        guard let script = Self.findScriptPath() else { throw InstallError.scriptNotFound }
+        guard let requirements = Self.findRequirementsPath() else { throw InstallError.requirementsNotFound }
 
         return Environment(
             script: URL(fileURLWithPath: script),
             requirements: URL(fileURLWithPath: requirements),
-            python: python,
-            venvDirectory: managedVenvDirectory,
-            logFile: supportDirectory.appendingPathComponent("install.log")
+            python: try await awaitInstallerPython(pollInterval: pollInterval, probe: probe),
+            venvDirectory: Self.managedVenvDirectory,
+            logFile: Self.supportDirectory.appendingPathComponent("install.log")
         )
     }
 
-    private static func findScriptPath() -> String? {
-        firstExisting([
-            Bundle.main.path(forResource: "install", ofType: "sh"),
-            Bundle.main.resourcePath.map { "\($0)/install.sh" },
-            sourceCheckoutPath("scripts/install.sh"),
-        ])
-    }
-
-    private static func findRequirementsPath() -> String? {
-        firstExisting([
-            Bundle.main.path(forResource: "requirements", ofType: "txt", inDirectory: "Engine"),
-            Bundle.main.resourcePath.map { "\($0)/Engine/requirements.txt" },
-            sourceCheckoutPath("Engine/requirements.txt"),
-        ])
-    }
-
-    /// A Python that can *create* the environment — unlike the engine, which
-    /// needs the venv interpreter, any working system Python 3 will do.
-    private static func findInstallerPython() -> String? {
-        for candidate in EngineProcess.systemPythonCandidates
-        where FileManager.default.isExecutableFile(atPath: candidate) && runs(candidate) {
-            return candidate
+    /// The first system Python that works, waiting for one to appear if this
+    /// Mac has none yet.
+    ///
+    /// Only the first probe may ask macOS for the developer tools: that request
+    /// is what puts the install dialog up, and repeating it every couple of
+    /// seconds would talk over the user answering it.
+    func awaitInstallerPython(pollInterval: Duration = EngineInstaller.developerToolsPollInterval,
+                              probe: @escaping @Sendable (Bool) -> String?
+                                  = { EngineInstaller.findInstallerPython(mayRequestDeveloperTools: $0) }) async throws -> String {
+        if let python = await Self.probeOffMainActor(probe, mayRequestDeveloperTools: true) {
+            return python
         }
-        return nil
-    }
 
-    /// `/usr/bin/python3` exists on a stock Mac as a Command Line Tools stub
-    /// that fails until the tools are installed, so existence isn't enough.
-    private static func runs(_ python: String) -> Bool {
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: python)
-        proc.arguments = ["--version"]
-        proc.standardOutput = FileHandle.nullDevice
-        proc.standardError = FileHandle.nullDevice
-        guard (try? proc.run()) != nil else { return false }
-        proc.waitUntilExit()
-        return proc.terminationStatus == 0
+        step = Self.waitingForDeveloperToolsStep
+        while true {
+            try await Task.sleep(for: pollInterval)
+            if let python = await Self.probeOffMainActor(probe, mayRequestDeveloperTools: false) {
+                step = Self.preparingStep
+                return python
+            }
+        }
     }
-
-    private static func sourceCheckoutPath(_ relative: String) -> String {
-        URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // Overhear
-            .deletingLastPathComponent()   // Sources
-            .deletingLastPathComponent()   // repository root
-            .appendingPathComponent(relative)
-            .path
-    }
-
-    private static func firstExisting(_ candidates: [String?]) -> String? {
-        candidates
-            .compactMap { $0 }
-            .first { FileManager.default.fileExists(atPath: $0) }
-    }
-
-    // MARK: - Running the installer
 
     /// Put the published state in its starting shape, so the setup window opens
     /// with the right explanation and no leftover failure from a previous try.
     func prepare(reason: Reason) {
         self.reason = reason
         failure = nil
-        step = "Preparing…"
+        step = Self.preparingStep
+    }
+
+    /// Build the environment: find the pieces — waiting out a developer tools
+    /// install if this Mac has no Python yet — and then run the script.
+    func install(reason: Reason = .firstLaunch) async throws {
+        try await install(reason: reason) { try await self.resolveEnvironment() }
     }
 
     func install(using environment: Environment, reason: Reason = .firstLaunch) async throws {
+        try await install(reason: reason) { environment }
+    }
+
+    /// The one place a failure — resolving the pieces or running the script —
+    /// becomes something the setup window can show, instead of a spinner that
+    /// never moves.
+    func install(reason: Reason, resolving resolve: () async throws -> Environment) async throws {
         prepare(reason: reason)
         isInstalling = true
         defer { isInstalling = false }
 
         do {
-            try await run(environment)
+            try await run(resolve())
         } catch {
             failure = error.localizedDescription
             throw error

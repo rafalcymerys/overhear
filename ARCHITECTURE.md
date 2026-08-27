@@ -235,6 +235,13 @@ later launches:
 | Managed venv, stamp matches `requirements.txt` | Skip |
 | Managed venv, stamp missing (interrupted install) or stale | Install |
 
+A Mac with no Python at all needs one thing before any of that: probing `/usr/bin/python3` asks
+macOS to install the Xcode command line tools, which then happens in the system's own window and
+tells the app nothing when it ends. `EngineInstaller.awaitInstallerPython()` polls every two seconds
+for the interpreter to appear — without re-running the stub, which would only talk over the dialog
+the user is answering — and setup carries on by itself the moment it does, rather than sitting in
+"Preparing…" until the app is quit and reopened.
+
 Setup can also be run from the terminal — `./Overhear.app/Contents/Resources/install.sh` is the
 same script, and the app then finds the finished environment and skips its own run.
 
