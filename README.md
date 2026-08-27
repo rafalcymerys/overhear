@@ -1,6 +1,6 @@
 # Overhear
 
-https://github.com/user-attachments/assets/b7b790aa-4438-4aef-8c3a-ed74c6a18aa7
+https://github.com/user-attachments/assets/cace2a45-962c-43e6-a9db-f6af1518350d
 
 Dictation for macOS that lives in your menu bar. Launch it and it starts listening on
 its own. Whatever you say is transcribed and pasted into whichever text field is
