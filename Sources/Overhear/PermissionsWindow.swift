@@ -69,11 +69,6 @@ struct PermissionsView: View {
             Text("Overhear needs two permissions")
                 .font(.system(.title3, design: .rounded, weight: .semibold))
 
-            Text("Dictation starts as soon as both are granted.")
-                .font(.callout)
-                .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
             ForEach(Permission.allCases) { permission in
                 PermissionRow(
                     permission: permission,
@@ -127,13 +122,6 @@ private struct PermissionRow: View {
             } else {
                 Button(buttonTitle, action: onGrant)
                     .modifier(DefaultAction(enabled: isNext))
-
-                if request == .systemSettings {
-                    Text("macOS won't ask again — turn Overhear on in System Settings, then come back.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
             }
         }
     }
