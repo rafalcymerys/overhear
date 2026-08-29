@@ -6,11 +6,6 @@ import OnnxRuntimeBindings
 /// Idle, it captures audio and throws it away. Activated, it records speech in
 /// batches — accumulating chunks until a pause, transcribing that batch, then
 /// listening again — and watches every chunk for the cancel word.
-///
-/// This is the Python engine's `dictation_loop` / `record_batch` /
-/// `check_queued_wake_word` moved in-process. The constants and the sequencing
-/// are deliberately unchanged; what went away is the subprocess and the JSON
-/// framing around it.
 actor DictationEngine {
     private static let sampleRate = 16000
     private static let chunkDuration = Double(WakeWordDetector.chunkSamples) / Double(sampleRate)
@@ -66,8 +61,8 @@ actor DictationEngine {
     }
 
     /// Load models and start listening. `languages` and `cancelWordPath` are
-    /// the two settings the engine is configured with; changing either one
-    /// means a restart, as it did when they were launch arguments.
+    /// the two settings baked into an engine at construction, so changing either
+    /// one means building a new one.
     func start(languages: [String], cancelWordPath: String) async {
         self.languages = languages.isEmpty ? ["en"] : languages
         self.cancelWordPath = cancelWordPath

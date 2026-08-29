@@ -3,7 +3,7 @@ import OnnxRuntimeBindings
 
 /// Wake word detection, ported from openWakeWord's streaming inference.
 ///
-/// Three ONNX graphs in sequence, the same files the Python engine used:
+/// Three ONNX graphs in sequence:
 ///
 /// 1. `melspectrogram.onnx` turns raw 16 kHz samples into 32-bin mel frames,
 /// 2. Google's `embedding_model.onnx` turns a 76-frame window into a 96-value

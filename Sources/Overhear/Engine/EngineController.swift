@@ -2,10 +2,9 @@ import Foundation
 
 /// Owns the engine and translates its events into app state.
 ///
-/// This is what `EngineProcess` used to be, minus the process: it keeps the
-/// same start/activate/deactivate/stop surface the app delegate and the overlay
-/// were written against, so moving the engine in-process changed nothing above
-/// this line.
+/// The seam between the engine and the UI: everything above it deals in
+/// `AppState` and a start/activate/deactivate/stop surface, and never touches an
+/// audio buffer or a model.
 @MainActor
 final class EngineController {
     private let appState: AppState

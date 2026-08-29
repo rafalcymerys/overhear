@@ -8,8 +8,9 @@ import XCTest
 /// `WakeWordDetector` reimplements a pipeline whose buffering was fixed by how
 /// the classifier heads were trained — a window off by one frame still runs and
 /// still returns a number, it just returns a wrong one. So the assertions here
-/// are against scores measured from the Python original on these exact clips:
-/// 0.999999 for "alexa", 0.000328 for unrelated speech.
+/// are against scores measured by running openWakeWord's own reference
+/// implementation over these exact clips: 0.999999 for "alexa", 0.000328 for
+/// unrelated speech.
 final class WakeWordDetectorTests: XCTestCase {
     /// Models are shared across tests and across runs — six files, ~6MB, and
     /// re-downloading them per test would dominate the suite.
@@ -27,13 +28,13 @@ final class WakeWordDetectorTests: XCTestCase {
     func testScoresWakeWordNearCertainty() throws {
         let detector = try makeDetector()
         let score = try highestScore(detector: detector, fixture: "alexa")
-        XCTAssertEqual(score, 0.999999, accuracy: 0.0001, "matches the Python engine on this clip")
+        XCTAssertEqual(score, 0.999999, accuracy: 0.0001, "matches openWakeWord's reference score for this clip")
     }
 
     func testIgnoresUnrelatedSpeech() throws {
         let detector = try makeDetector()
         let score = try highestScore(detector: detector, fixture: "unrelated_speech")
-        XCTAssertEqual(score, 0.000328, accuracy: 0.0001, "matches the Python engine on this clip")
+        XCTAssertEqual(score, 0.000328, accuracy: 0.0001, "matches openWakeWord's reference score for this clip")
     }
 
     /// A reset has to leave the detector able to hear the word again — that is

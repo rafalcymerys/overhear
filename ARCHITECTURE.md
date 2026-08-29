@@ -29,11 +29,11 @@ Everything runs in a single Swift app. Audio capture, wake word detection and tr
 +-------------------------------------------------------------+
 ```
 
-### Why one process?
+### The seam
 
-Earlier versions ran a Python subprocess, because openwakeword and faster-whisper had no Swift equivalents. Both now do: WhisperKit runs Whisper on CoreML, and openWakeWord's inference is three small ONNX graphs that ONNX Runtime executes natively. Removing the subprocess removed the venv, the `pip install` on first launch, the Xcode-command-line-tools dance, and the JSON protocol between the halves — several hundred lines whose only job was to make two runtimes talk.
+`EngineEvent` is the whole contract between the engine and the UI. Everything above `EngineController` — `AppState`, the overlay, the menu bar icon — is driven by those cases alone and never touches an audio buffer or a model. Everything below is free to change how it captures or infers without the UI noticing.
 
-What survived the move is the event vocabulary. `EngineEvent` has the same cases the JSON protocol had, so `AppState`, the overlay and the menu bar icon were untouched by the change.
+That boundary is also what makes the engine testable: `DictationEngineTests` drives the loop through a scripted `AudioSource` and asserts on the events that come out.
 
 ## Dependencies
 
@@ -130,7 +130,7 @@ Dictation does not survive either case: the engine returns to idle and the user 
 
 Only the third stage is per-word, which is why a custom model is a few hundred kilobytes rather than a whole network. The tensor names of the word heads differ between models (`onnx::Flatten_0` in alexa, `x.1` in hey_jarvis), so `ONNXModel` reads them off the session instead of hardcoding.
 
-The buffering mirrors `AudioFeatures._streaming_features` in openwakeword frame for frame, including seeding the feature buffer with embeddings of four seconds of noise on reset — without it the first sixteen frames after a reset are scored against zeros, far outside anything the head saw in training. `WakeWordDetectorTests` pins the port to scores measured from the Python original on the same clips: 0.999999 for "alexa", 0.000328 for unrelated speech. It matches both to within 0.0001.
+The buffering mirrors `AudioFeatures._streaming_features` in openWakeWord frame for frame, including seeding the feature buffer with embeddings of four seconds of noise on reset — without it the first sixteen frames after a reset are scored against zeros, far outside anything the head saw in training. `WakeWordDetectorTests` pins the port to scores measured by running openWakeWord's own implementation over the same clips: 0.999999 for "alexa", 0.000328 for unrelated speech. It matches both to within 0.0001.
 
 ## Dictation Loop
 
@@ -142,9 +142,9 @@ The buffering mirrors `AudioFeatures._streaming_features` in openwakeword frame 
 
 ## Transcription
 
-WhisperKit's `base` model with CoreML, the same Whisper weights faster-whisper used, running on the Neural Engine.
+WhisperKit's `base` model with CoreML — small, fast and multilingual, running on the Neural Engine.
 
-**Language detection** differs from the Python engine, and not by choice. faster-whisper returned a probability for every language, so the old code could rank *within* the user's selected set and pick the best of those. WhisperKit's `langProbs` carries only the language it sampled — the other entries are absent, and the values it does carry are log probabilities, so a missing entry cannot be defaulted to zero and compared. Instead: with one language selected there is no detection at all; with several, Whisper's own answer is used when it is one of the selected languages, and otherwise the alphabetically first selected language is the fallback, so the choice is the same every launch.
+**Language detection** cannot be constrained to the selected set, which is a limit worth knowing about. WhisperKit's `langProbs` carries only the language it sampled: the other entries are absent, and the values it does carry are log probabilities, so a missing entry cannot be defaulted to zero and ranked against the rest. Instead: with one language selected there is no detection at all; with several, Whisper's own answer is used when it is one of the selected languages, and otherwise the alphabetically first selected language is the fallback, so the choice is the same every launch.
 
 ## Text Injection
 
@@ -176,7 +176,7 @@ The engine takes its language set and cancel word when it starts, so changing ei
 
 The cancel word is an openWakeWord model. Four are offered built in: Alexa, Hey Jarvis, Hey Mycroft, Hey Rhasspy.
 
-They are **downloaded on first launch rather than shipped inside the app**, which is a licensing decision, not a size one. openWakeWord's pre-trained word models are CC BY-NC-SA 4.0 — only the melspectrogram and Google embedding models are Apache 2.0 — so bundling them would attach those terms to a distribution of Overhear itself. `ModelSetup` fetches them from openWakeWord's own release assets, which is what the Python engine did through `download_models()`.
+They are **downloaded on first launch rather than shipped inside the app**, which is a licensing decision, not a size one. openWakeWord's pre-trained word models are CC BY-NC-SA 4.0 — only the melspectrogram and Google embedding models are Apache 2.0 — so bundling them would attach those terms to a distribution of Overhear itself. `ModelSetup` fetches them from openWakeWord's own release assets.
 
 Custom models can be added in Settings, either from a local `.onnx` file or by URL. They land in the same directory, `~/Library/Application Support/Overhear/models/`, and `HotWordService` lists every `.onnx` file there at launch. The display name is derived from the filename — `my_word.onnx` becomes "My Word". Removing a custom word deletes the file; if it was the selected cancel word, the selection falls back to Alexa.
 
@@ -184,7 +184,7 @@ Built-in words are stored in settings by name (`alexa`) so the stored value stay
 
 ## Permissions Required
 
-- **Microphone**: the engine captures audio to hear the cancel word and the dictation itself. The prompt is now attributed to Overhear directly rather than to a Python subprocess.
+- **Microphone**: the engine captures audio to hear the cancel word and the dictation itself.
 - **Accessibility**: needed for CGEvent-based Cmd+V paste simulation (System Settings > Privacy > Accessibility). Called "inserting text in your apps" in the UI, because that is what it buys the user.
 
 `AppDelegate.start()` checks both before anything else runs — ahead of the first-launch model download, so a fresh Mac isn't asked to wait for a download that can't lead to working dictation. When either is missing, `PermissionsWindow` explains what each permission is for and offers a button per permission; the launch continues into `bootstrap()` the moment both are granted.
@@ -203,7 +203,7 @@ Neither grant arrives as a notification — Accessibility is switched on in Syst
 
 `swift test` runs the suite. The interesting parts:
 
-- `WakeWordDetectorTests` — the golden test for the openWakeWord port, asserting against scores measured from the Python original.
+- `WakeWordDetectorTests` — the golden test for the openWakeWord port, asserting against scores measured from openWakeWord's own implementation.
 - `DictationEngineTests` — drives the loop with a scripted audio source and real wake word models: batching, silence discarding, cancel-word behaviour, the stop rules, and device loss.
 - `EngineControllerTests` — engine events reaching `AppState` and the pasteboard, the layer the menu bar and overlay render from.
 - `ChunkAccumulatorTests` — that no sample is lost or duplicated across awkward buffer boundaries.

@@ -2,10 +2,9 @@ import Foundation
 
 /// What the engine tells the app about.
 ///
-/// These are the same events the Python engine used to write as JSON lines, kept
-/// name for name: the state machine in `AppState`, the overlay and the menu bar
-/// icon were all written against this vocabulary and none of them needed to
-/// change when the engine moved in-process.
+/// The whole contract between the engine and the UI. `AppState`, the overlay and
+/// the menu bar icon are driven entirely by these cases, so nothing above
+/// `EngineController` knows how audio is captured or how a model is run.
 enum EngineEvent: Equatable {
     case status(String)
     case idle

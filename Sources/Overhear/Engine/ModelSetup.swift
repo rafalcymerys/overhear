@@ -6,8 +6,8 @@ import Foundation
 /// purpose. openWakeWord's pre-trained words are CC BY-NC-SA licensed — only
 /// the two shared feature models are Apache 2.0 — so bundling them would attach
 /// those terms to a distribution of Overhear itself. Fetching them at first
-/// launch from openWakeWord's own release assets is what the Python engine did
-/// via `download_models()`, and it keeps this app's MIT terms unencumbered.
+/// launch from openWakeWord's own release assets keeps this app's MIT terms
+/// unencumbered.
 @MainActor
 final class ModelSetup: ObservableObject {
     /// openWakeWord's official release assets. The repo publishes `.tflite` and

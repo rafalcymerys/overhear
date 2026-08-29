@@ -19,8 +19,7 @@ for simple edits and fixes.
 Speech recognition runs locally, using [WhisperKit](https://github.com/argmaxinc/WhisperKit)
 for transcription and [openWakeWord](https://github.com/dscripka/openWakeWord)'s models
 for voice commands. Your audio never leaves your Mac; the models are downloaded once
-during setup and everything after that is offline. Overhear is a single native app —
-there is no Python runtime and nothing to install alongside it.
+during setup and everything after that is offline.
 
 **What it's good at**
 
