@@ -1,39 +1,42 @@
 import SwiftUI
 
-struct SettingsView: View {
+/// How Overhear behaves on launch and while listening.
+struct GeneralSettingsView: View {
     @ObservedObject private var settings = AppSettings.shared
-    @ObservedObject private var hotWordService = HotWordService.shared
-    @State private var searchText = ""
-    @State private var showingURLPrompt = false
-    @State private var customModelURL = ""
-
-    private var selectedLanguages: [WhisperLanguage] {
-        WhisperLanguage.all.filter { settings.selectedLanguageCodes.contains($0.code) }
-    }
-
-    private var filteredLanguages: [WhisperLanguage] {
-        if searchText.isEmpty { return WhisperLanguage.all }
-        return WhisperLanguage.all.filter {
-            $0.name.localizedCaseInsensitiveContains(searchText) ||
-            $0.code.localizedCaseInsensitiveContains(searchText)
-        }
-    }
 
     var body: some View {
         Form {
-            Section("General") {
+            Section {
                 Toggle("Start listening on launch", isOn: $settings.dictateOnLaunch)
                 Toggle("Show overlay window while listening", isOn: $settings.showOverlay)
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+/// Installing and removing custom cancel words.
+struct HotWordSettingsView: View {
+    @ObservedObject private var settings = AppSettings.shared
+    @ObservedObject private var hotWordService = HotWordService.shared
+    @State private var showingURLPrompt = false
+    @State private var customModelURL = ""
+
+    var body: some View {
+        Form {
+            Section {
                 Picker("Cancel word", selection: $settings.cancelWord) {
                     ForEach(hotWordService.allHotWords) { word in
                         Text(word.displayName).tag(word)
                     }
                 }
+            } footer: {
+                Text("Say this word while dictating to throw away what you just said.")
             }
 
             Section {
                 if hotWordService.customHotWords.isEmpty {
-                    Text("Install custom hot words to map them to different actions. Download openwakeword .onnx models to get started.")
+                    Text("Install custom hot words to map them to different actions. Download openWakeWord .onnx models to get started.")
                         .foregroundColor(.secondary)
                         .font(.caption)
                 } else {
@@ -70,14 +73,70 @@ struct SettingsView: View {
                 }
             } header: {
                 Text("Custom Hot Words")
+            } footer: {
+                Text("The four built-in words are always available and are not listed here.")
             }
+        }
+        .formStyle(.grouped)
+        .sheet(isPresented: $showingURLPrompt) {
+            VStack(spacing: 16) {
+                Text("Install Hot Word")
+                    .font(.headline)
+                Text("Enter the URL of an openWakeWord .onnx model file.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                TextField("https://example.com/model.onnx", text: $customModelURL)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 350)
+                if let error = hotWordService.downloadError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                }
+                HStack {
+                    Button("Cancel") {
+                        showingURLPrompt = false
+                    }
+                    .keyboardShortcut(.cancelAction)
+                    Button("Download") {
+                        hotWordService.downloadFromURL(customModelURL) { success in
+                            if success { showingURLPrompt = false }
+                        }
+                    }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(customModelURL.isEmpty || hotWordService.isDownloading)
+                }
+            }
+            .padding(20)
+        }
+    }
+}
 
+/// Which languages Whisper should recognise.
+struct LanguageSettingsView: View {
+    @ObservedObject private var settings = AppSettings.shared
+    @State private var searchText = ""
+
+    private var selectedLanguages: [WhisperLanguage] {
+        WhisperLanguage.all.filter { settings.selectedLanguageCodes.contains($0.code) }
+    }
+
+    private var filteredLanguages: [WhisperLanguage] {
+        if searchText.isEmpty { return WhisperLanguage.all }
+        return WhisperLanguage.all.filter {
+            $0.name.localizedCaseInsensitiveContains(searchText) ||
+            $0.code.localizedCaseInsensitiveContains(searchText)
+        }
+    }
+
+    var body: some View {
+        Form {
             Section {
                 if selectedLanguages.isEmpty {
                     Text("No languages selected")
                         .foregroundColor(.secondary)
                 } else {
-                        SelectedLanguagesChips(
+                    SelectedLanguagesChips(
                         languages: selectedLanguages,
                         canRemove: settings.selectedLanguageCodes.count > 1
                     ) { code in
@@ -122,40 +181,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 450, height: 500)
-        .sheet(isPresented: $showingURLPrompt) {
-            VStack(spacing: 16) {
-                Text("Install Hot Word")
-                    .font(.headline)
-                Text("Enter the URL of an openwakeword .onnx model file.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                TextField("https://example.com/model.onnx", text: $customModelURL)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 350)
-                if let error = hotWordService.downloadError {
-                    Text(error)
-                        .font(.caption)
-                        .foregroundColor(.red)
-                }
-                HStack {
-                    Button("Cancel") {
-                        showingURLPrompt = false
-                    }
-                    .keyboardShortcut(.cancelAction)
-                    Button("Download") {
-                        hotWordService.downloadFromURL(customModelURL) { success in
-                            if success { showingURLPrompt = false }
-                        }
-                    }
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(customModelURL.isEmpty || hotWordService.isDownloading)
-                }
-            }
-            .padding(20)
-        }
     }
-
 }
 
 struct SelectedLanguagesChips: View {

@@ -18,7 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var cancelWordObservation: AnyCancellable?
     private var launchObservation: AnyCancellable?
     private var restartTask: Task<Void, Never>?
-    private var settingsWindow: NSWindow?
+    private var settingsWindow: SettingsWindowController!
     private var dictateMenuItem: NSMenuItem!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -66,6 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.bootstrap()
         })
         permissionsWindow = PermissionsWindowController(permissions: permissions)
+        settingsWindow = SettingsWindowController()
 
         start()
     }
@@ -146,26 +147,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func openSettings() {
-        if let window = settingsWindow {
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
-        }
-
-        let settingsView = SettingsView()
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 450, height: 300),
-            styleMask: [.titled, .closable, .miniaturizable],
-            backing: .buffered,
-            defer: false
-        )
-        window.title = "Overhear Settings"
-        window.contentView = NSHostingView(rootView: settingsView)
-        window.center()
-        window.isReleasedWhenClosed = false
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        settingsWindow = window
+        settingsWindow.show()
     }
 
     private func scheduleRestart() {
