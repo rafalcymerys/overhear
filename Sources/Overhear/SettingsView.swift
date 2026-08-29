@@ -40,13 +40,20 @@ struct HotWordSettingsView: View {
     var body: some View {
         Form {
             Section {
-                Picker("Cancel word", selection: $settings.cancelWord) {
-                    ForEach(hotWordService.allHotWords) { word in
-                        Text(word.displayName).tag(word)
+                // The explanation shares the row with the picker rather than
+                // sitting in the section's footer, which grouped forms render
+                // outside the card.
+                VStack(alignment: .leading, spacing: 4) {
+                    Picker("Cancel word", selection: $settings.cancelWord) {
+                        ForEach(hotWordService.allHotWords) { word in
+                            Text(word.displayName).tag(word)
+                        }
                     }
+                    Text("Say this word while dictating to throw away what you just said.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-            } footer: {
-                Text("Say this word while dictating to throw away what you just said.")
             }
 
             Section {
@@ -88,8 +95,6 @@ struct HotWordSettingsView: View {
                 }
             } header: {
                 Text("Custom Hot Words")
-            } footer: {
-                Text("Install custom .onnx models to use them as Hot Words")
             }
         }
         .formStyle(.grouped)
