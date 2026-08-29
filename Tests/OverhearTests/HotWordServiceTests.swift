@@ -174,4 +174,21 @@ final class HotWordServiceTests: OverhearTestCase {
         XCTAssertFalse(service.isDownloading, "a stuck spinner would disable the install buttons")
         XCTAssertEqual(service.customHotWords, [])
     }
+
+    /// The built-in words and the shared feature models share a directory with
+    /// the user's own installs. They are not the user's to see or delete:
+    /// listing them would duplicate every built-in word in the cancel word
+    /// picker, offer "Melspectrogram" as a cancel word, and put a trash button
+    /// next to a file every other word depends on.
+    func testManagedModelsAreNotListedAsCustomHotWords() throws {
+        for file in ModelSetup.requiredFiles {
+            try Data("model".utf8).write(to: modelsDirectory.appendingPathComponent(file))
+        }
+        try Data("model".utf8).write(to: modelsDirectory.appendingPathComponent("my_word.onnx"))
+
+        let service = HotWordService(modelsDirectory: modelsDirectory, download: { _, _ in })
+
+        XCTAssertEqual(service.customHotWords.map(\.displayName), ["My Word"])
+        XCTAssertEqual(service.allHotWords.count, HotWord.builtIn.count + 1)
+    }
 }

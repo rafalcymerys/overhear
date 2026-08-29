@@ -1,15 +1,6 @@
 import Foundation
 
 extension HotWord {
-    /// The file each built-in word's classifier head lives in, as published in
-    /// openWakeWord's release assets.
-    static let builtInModelFiles: [String: String] = [
-        "alexa": "alexa_v0.1.onnx",
-        "hey_jarvis": "hey_jarvis_v0.1.onnx",
-        "hey_mycroft": "hey_mycroft_v0.1.onnx",
-        "hey_rhasspy": "hey_rhasspy_v0.1.onnx",
-    ]
-
     /// Where to load this word's model from.
     ///
     /// Custom words already carry an absolute path — that is what
@@ -24,7 +15,6 @@ extension HotWord {
     /// own feature models.
     func modelPath(in directory: URL = HotWord.modelsDirectory) -> String {
         if isCustom { return modelValue }
-        let file = Self.builtInModelFiles[modelValue] ?? "\(modelValue).onnx"
-        return directory.appendingPathComponent(file).path
+        return directory.appendingPathComponent("\(modelValue).onnx").path
     }
 }

@@ -29,7 +29,11 @@ final class ModelSetupTests: OverhearTestCase {
         XCTAssertFalse(setup.isComplete)
         try await setup.ensureModels()
 
-        XCTAssertEqual(Set(remote.requested), Set(ModelSetup.requiredFiles))
+        // Fetched under the release's versioned asset names...
+        XCTAssertEqual(Set(remote.requested), Set(ModelSetup.modelAssets.values))
+        // ...and stored under the unversioned ones.
+        let onDisk = try FileManager.default.contentsOfDirectory(atPath: tempDirectory.path)
+        XCTAssertEqual(Set(onDisk), Set(ModelSetup.requiredFiles))
         XCTAssertTrue(setup.isComplete)
     }
 
@@ -66,12 +70,22 @@ final class ModelSetupTests: OverhearTestCase {
 
     func testResolvesBuiltInWordsToDownloadedFiles() {
         let alexa = HotWord.defaultWord
-        XCTAssertTrue(alexa.modelPath().hasSuffix("alexa_v0.1.onnx"))
-        XCTAssertTrue(ModelSetup.requiredFiles.contains("alexa_v0.1.onnx"))
+        XCTAssertTrue(alexa.modelPath().hasSuffix("alexa.onnx"))
+        XCTAssertTrue(ModelSetup.requiredFiles.contains("alexa.onnx"))
 
         // Custom words already carry an absolute path and must be left alone.
         let custom = HotWord.custom(path: "/tmp/my_word.onnx", name: "My Word")
         XCTAssertEqual(custom.modelPath(), "/tmp/my_word.onnx")
+    }
+
+    /// Setup stores the word models under their own names, not the versioned
+    /// ones the release publishes. `HotWordService` turns a filename into a
+    /// display name, so a suffix here would reach Settings as "Alexa V0.1".
+    func testStoresModelsWithoutTheReleaseVersionSuffix() {
+        for file in ModelSetup.requiredFiles {
+            XCTAssertFalse(file.contains("_v0."), "\(file) would be displayed with its version")
+        }
+        XCTAssertEqual(ModelSetup.modelAssets["alexa.onnx"], "alexa_v0.1.onnx", "but it is fetched from the versioned asset")
     }
 
     /// Every word offered in Settings needs a model that setup actually fetches.

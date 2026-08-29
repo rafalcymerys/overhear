@@ -158,7 +158,7 @@ final class DictationEngineTests: XCTestCase {
 
         await engine.start(
             languages: ["en"],
-            cancelWordPath: Self.modelsDirectory.appendingPathComponent("alexa_v0.1.onnx").path
+            cancelWordPath: HotWord.defaultWord.modelPath(in: Self.modelsDirectory)
         )
 
         // The loop only reports itself idle once audio is actually arriving.

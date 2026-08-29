@@ -52,7 +52,9 @@ final class WakeWordDetectorTests: XCTestCase {
         let env = try ORTEnv(loggingLevel: .warning)
         let directory = Self.modelsDirectory
         return try WakeWordDetector(
-            wordModelPath: directory.appendingPathComponent("alexa_v0.1.onnx").path,
+            // Resolved the way the app resolves it, so a change to how models
+            // are named on disk fails the assertion rather than the file lookup.
+            wordModelPath: HotWord.defaultWord.modelPath(in: directory),
             featureModels: FeatureModelPaths(
                 melspectrogram: directory.appendingPathComponent("melspectrogram.onnx").path,
                 embedding: directory.appendingPathComponent("embedding_model.onnx").path

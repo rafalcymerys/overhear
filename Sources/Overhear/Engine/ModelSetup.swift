@@ -14,19 +14,29 @@ final class ModelSetup: ObservableObject {
     /// `.onnx` side by side under the same tag.
     static let releaseBase = "https://github.com/dscripka/openWakeWord/releases/download/v0.5.1"
 
-    /// Needed whatever the chosen cancel word is: every word head runs on top
-    /// of these two.
-    static let featureModelFiles = ["melspectrogram.onnx", "embedding_model.onnx"]
-
-    /// The words offered in Settings, in `HotWord.builtIn` order.
-    static let builtInModelFiles = [
-        "alexa_v0.1.onnx",
-        "hey_jarvis_v0.1.onnx",
-        "hey_mycroft_v0.1.onnx",
-        "hey_rhasspy_v0.1.onnx",
+    /// Local filename to the release asset it is fetched from.
+    ///
+    /// The word models are published with a version suffix but stored without
+    /// one, because a filename is not private here: `HotWordService` derives a
+    /// hot word's display name from it, so `alexa_v0.1.onnx` would reach
+    /// Settings as "Alexa V0.1". Storing them as `alexa.onnx` also means
+    /// `HotWord.modelPath` can derive the file from the word's own name instead
+    /// of keeping a second table in step with this one.
+    static let modelAssets: [String: String] = [
+        // Needed whatever the chosen cancel word is: every word head runs on
+        // top of these two.
+        "melspectrogram.onnx": "melspectrogram.onnx",
+        "embedding_model.onnx": "embedding_model.onnx",
+        // The words offered in Settings.
+        "alexa.onnx": "alexa_v0.1.onnx",
+        "hey_jarvis.onnx": "hey_jarvis_v0.1.onnx",
+        "hey_mycroft.onnx": "hey_mycroft_v0.1.onnx",
+        "hey_rhasspy.onnx": "hey_rhasspy_v0.1.onnx",
     ]
 
-    static var requiredFiles: [String] { featureModelFiles + builtInModelFiles }
+    /// Every file setup is responsible for. `HotWordService` uses this to tell
+    /// the models it manages apart from the ones a user installed.
+    static let requiredFiles: [String] = modelAssets.keys.sorted()
 
     enum SetupError: LocalizedError {
         case downloadFailed(file: String, underlying: String)
@@ -80,7 +90,8 @@ final class ModelSetup: ObservableObject {
 
         for (index, file) in missing.enumerated() {
             step = "Downloading wake word models (\(index + 1) of \(missing.count))…"
-            guard let url = URL(string: "\(Self.releaseBase)/\(file)") else {
+            guard let asset = Self.modelAssets[file],
+                  let url = URL(string: "\(Self.releaseBase)/\(asset)") else {
                 continue
             }
             do {
