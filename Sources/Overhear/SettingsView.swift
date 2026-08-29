@@ -36,7 +36,7 @@ struct HotWordSettingsView: View {
 
             Section {
                 if hotWordService.customHotWords.isEmpty {
-                    Text("Install custom hot words to map them to different actions. Download openWakeWord .onnx models to get started.")
+                    Text("No custom Hot Words installed")
                         .foregroundColor(.secondary)
                         .font(.caption)
                 } else {
@@ -74,7 +74,7 @@ struct HotWordSettingsView: View {
             } header: {
                 Text("Custom Hot Words")
             } footer: {
-                Text("The four built-in words are always available and are not listed here.")
+                Text("Install custom .onnx models to use them as Hot Words")
             }
         }
         .formStyle(.grouped)
