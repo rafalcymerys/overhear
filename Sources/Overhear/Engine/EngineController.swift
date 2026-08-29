@@ -62,7 +62,7 @@ final class EngineController {
             await engine.start(languages: languages, cancelWordPath: cancelWordPath)
             for await event in events {
                 guard let self else { return }
-                await self.handle(event)
+                self.handle(event)
             }
         }
     }
