@@ -12,9 +12,15 @@ final class EngineControllerTests: OverhearTestCase {
     }
 
     private actor StubTranscriber: Transcribing {
+        private let text: String
+
+        init(text: String = "hello world") {
+            self.text = text
+        }
+
         func load() async throws {}
         func transcribe(_ audio: [Float], languages: [String]) async throws -> Transcription {
-            Transcription(text: "hello world", language: "en")
+            Transcription(text: text, language: "en")
         }
     }
 
@@ -92,5 +98,82 @@ final class EngineControllerTests: OverhearTestCase {
         controller.stop()
         XCTAssertEqual(appState.status, .stopped)
         XCTAssertNil(appState.errorMessage)
+    }
+
+    // MARK: - R-97
+
+    /// The bug as reported: with nobody speaking, Whisper described the sound it
+    /// heard and the description was pasted into the user's document.
+    func testAnnotationOnlyTranscriptionsAreNotPasted() async throws {
+        for annotation in ["[ Pause ]", "(coughing) (coughing)", "[BLANK_AUDIO]"] {
+            let harness = try await makeHarness(transcribing: annotation)
+            defer { harness.controller.stop() }
+
+            try await harness.dictateOneBatch()
+
+            XCTAssertTrue(harness.injector.injected.isEmpty, "\(annotation) should not reach the document")
+            XCTAssertTrue(harness.appState.recentTranscriptions.isEmpty, "\(annotation) should not reach the menu")
+        }
+    }
+
+    /// Speech alongside an annotation keeps the speech.
+    func testAnnotationsAreStrippedFromRealSpeech() async throws {
+        let harness = try await makeHarness(transcribing: "(coughing) hello world")
+        defer { harness.controller.stop() }
+
+        try await harness.dictateOneBatch()
+        await waitUntil("text is pasted") { harness.injector.injected == ["hello world"] }
+    }
+
+    /// With the setting off a parenthesised annotation counts as speech — that
+    /// is what the toggle is for. Brackets are stripped either way.
+    func testParenthesesSurviveWhenStrippingIsOff() async throws {
+        let harness = try await makeHarness(transcribing: "(coughing) hello world") { $0.stripAnnotations = false }
+        defer { harness.controller.stop() }
+
+        try await harness.dictateOneBatch()
+        await waitUntil("text is pasted") { harness.injector.injected == ["(coughing) hello world"] }
+    }
+
+    // MARK: - Harness
+
+    private struct Harness {
+        let controller: EngineController
+        let appState: AppState
+        let injector: SpyInjector
+        let audio: ScriptedAudioSource
+
+        /// Speak, pause, and let the batch run through transcription.
+        func dictateOneBatch() async throws {
+            audio.sendSpeech(seconds: 1.0)
+            audio.sendSilence(seconds: 2.0)
+            try await Task.sleep(for: .milliseconds(400))
+        }
+    }
+
+    private func makeHarness(transcribing text: String,
+                             configure: (AppSettings) -> Void = { _ in }) async throws -> Harness {
+        let appState = AppState()
+        let injector = SpyInjector()
+        let audio = ScriptedAudioSource()
+        let settings = AppSettings(defaults: makeDefaults(), availableHotWords: HotWord.builtIn)
+        configure(settings)
+
+        let controller = EngineController(
+            appState: appState,
+            injector: injector,
+            modelsDirectory: Self.modelsDirectory,
+            transcriber: StubTranscriber(text: text),
+            makeAudioSource: { audio },
+            settings: settings
+        )
+
+        controller.start()
+        audio.sendSilence(seconds: 0.2)
+        await waitUntil("engine reaches idle") { appState.status == .idle }
+        controller.activate()
+        await waitUntil("engine is ready") { appState.status == .ready }
+
+        return Harness(controller: controller, appState: appState, injector: injector, audio: audio)
     }
 }

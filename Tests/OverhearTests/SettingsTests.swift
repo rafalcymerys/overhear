@@ -12,7 +12,18 @@ final class SettingsTests: OverhearTestCase {
         XCTAssertEqual(settings.selectedLanguageCodes, ["en", "pl"])
         XCTAssertTrue(settings.showOverlay)
         XCTAssertTrue(settings.dictateOnLaunch)
+        XCTAssertTrue(settings.stripAnnotations, "annotations are filtered unless the user opts out")
         XCTAssertEqual(settings.cancelWord, HotWord.defaultWord)
+    }
+
+    /// Off has to survive a relaunch, which a plain `bool(forKey:)` read would
+    /// get wrong — it returns false for both "off" and "never set".
+    func testStripAnnotationsRoundTripsWhenTurnedOff() {
+        let defaults = makeDefaults()
+        AppSettings(defaults: defaults, availableHotWords: HotWord.builtIn).stripAnnotations = false
+
+        let reloaded = AppSettings(defaults: defaults, availableHotWords: HotWord.builtIn)
+        XCTAssertFalse(reloaded.stripAnnotations)
     }
 
     func testDefaultCancelWordIsAlexa() {

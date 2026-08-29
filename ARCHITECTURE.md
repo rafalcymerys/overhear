@@ -95,6 +95,7 @@ After transcription completes, the engine returns to **Ready** if still dictatin
 | `Engine/WakeWordDetector.swift` | openWakeWord's three-stage inference, in Swift |
 | `Engine/ONNXModel.swift` | Thin wrapper over one ONNX Runtime session |
 | `Engine/Transcriber.swift` | WhisperKit: model loading, language detection, transcription |
+| `Engine/AnnotationFilter.swift` | Strips Whisper's non-speech annotations from a transcription |
 | `Engine/ModelSetup.swift` | Downloads the wake word models on first launch |
 | `Engine/EngineEvent.swift` | The event vocabulary and engine errors |
 | `SetupWindow.swift` | First-launch setup window — progress, failure detail, Try Again |
@@ -144,6 +145,8 @@ The buffering mirrors `AudioFeatures._streaming_features` in openWakeWord frame 
 
 WhisperKit's `base` model with CoreML — small, fast and multilingual, running on the Neural Engine.
 
+**Non-speech annotations.** Given a cough or a pause, Whisper describes the sound rather than transcribing speech — `[ Pause ]`, `[BLANK_AUDIO]`, `(coughing)` — and in a dictation app that description is pasted into the user's document. Whisper has two defences against this and neither is usable here: `DecodingOptions.supressTokens` defaults to empty, with the call that would fill it left as `// nonSpeechTokens() // TODO`, and that function does not exist in the package; and every segment's `noSpeechProb` is hardcoded to `0`, so `noSpeechThreshold` can never fire. So `AnnotationFilter` strips the annotations from the text instead. Square brackets and musical notes go unconditionally — nobody dictates them — while parentheses are governed by a setting, since a speaker could plausibly produce one. It runs in `EngineController` rather than `Transcriber` so the setting applies without restarting the engine.
+
 **Language detection** cannot be constrained to the selected set, which is a limit worth knowing about. WhisperKit's `langProbs` carries only the language it sampled: the other entries are absent, and the values it does carry are log probabilities, so a missing entry cannot be defaulted to zero and ranked against the rest. Instead: with one language selected there is no detection at all; with several, Whisper's own answer is used when it is one of the selected languages, and otherwise the alphabetically first selected language is the fallback, so the choice is the same every launch.
 
 ## Text Injection
@@ -166,9 +169,10 @@ All settings live in `AppSettings.shared`, backed by `UserDefaults` and publishe
 | Start listening on launch | `dictateOnLaunch` | on | Sends `activate` automatically on the first `idle` after launch |
 | Show overlay window while listening | `showOverlay` | on | Whether the floating overlay appears during dictation |
 | Cancel word | `cancelWord` | Alexa | Which wake word model cancels the current batch |
+| Strip transcription annotations | `stripTranscriptionAnnotations` | on | Whether `(coughing)` and the like are dropped instead of pasted |
 | Recognition languages | `selectedLanguages` | `en`, `pl` | Whisper language set; at least one must be selected |
 
-The engine takes its language set and cancel word when it starts, so changing either one restarts it. `AppDelegate` observes both and calls `scheduleRestart()`, which debounces for 1 second — so toggling several languages in a row produces a single restart rather than one per toggle. Whisper stays loaded across a restart: neither setting affects the model, and reloading it would turn a settings toggle into a multi-second stall. The overlay and launch toggles apply live and never restart the engine.
+The engine takes its language set and cancel word when it starts, so changing either one restarts it. The annotation setting does not: it is read on every transcription, so it applies live. `AppDelegate` observes both and calls `scheduleRestart()`, which debounces for 1 second — so toggling several languages in a row produces a single restart rather than one per toggle. Whisper stays loaded across a restart: neither setting affects the model, and reloading it would turn a settings toggle into a multi-second stall. The overlay and launch toggles apply live and never restart the engine.
 
 `selectedLanguageCodes` is a `Set`, whose iteration order changes between launches, so `EngineController` sorts it before handing it over — the single-language shortcut and the detection fallback both depend on that order.
 
@@ -206,6 +210,7 @@ Neither grant arrives as a notification — Accessibility is switched on in Syst
 - `WakeWordDetectorTests` — the golden test for the openWakeWord port, asserting against scores measured from openWakeWord's own implementation.
 - `DictationEngineTests` — drives the loop with a scripted audio source and real wake word models: batching, silence discarding, cancel-word behaviour, the stop rules, and device loss.
 - `EngineControllerTests` — engine events reaching `AppState` and the pasteboard, the layer the menu bar and overlay render from.
+- `AnnotationFilterTests` — that Whisper's descriptions of non-speech never reach the document, using the strings from the bug report.
 - `ChunkAccumulatorTests` — that no sample is lost or duplicated across awkward buffer boundaries.
 - `TranscriberTests` — real WhisperKit, opt-in via `OVERHEAR_RUN_MODEL_TESTS=1` because it downloads model weights.
 - `AudioCaptureTests` — the real microphone, opt-in via `OVERHEAR_RUN_AUDIO_TESTS=1` because CI has no input device.

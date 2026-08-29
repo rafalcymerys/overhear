@@ -22,6 +22,8 @@ final class EngineController {
     /// either setting.
     private let transcriber: any Transcribing
 
+    private let settings: AppSettings
+
     private var engine: DictationEngine?
     private var listener: Task<Void, Never>?
 
@@ -29,12 +31,16 @@ final class EngineController {
          injector: TextInjecting = PasteboardTextInjector(),
          modelsDirectory: URL = HotWord.modelsDirectory,
          transcriber: any Transcribing = Transcriber(),
-         makeAudioSource: @escaping @Sendable () -> any AudioSource = { AudioCapture() }) {
+         makeAudioSource: @escaping @Sendable () -> any AudioSource = { AudioCapture() },
+         settings: AppSettings? = nil) {
         self.appState = appState
         self.injector = injector
         self.modelsDirectory = modelsDirectory
         self.transcriber = transcriber
         self.makeAudioSource = makeAudioSource
+        // Resolved here rather than as a default argument: `AppSettings.shared`
+        // is main actor isolated and a default argument is not.
+        self.settings = settings ?? .shared
     }
 
     func start() {
@@ -54,8 +60,8 @@ final class EngineController {
         // iteration order changes between launches, and the engine's
         // single-language shortcut and detection fallback both depend on the
         // order it is given.
-        let languages = AppSettings.shared.selectedLanguageCodes.sorted()
-        let cancelWordPath = AppSettings.shared.cancelWord.modelPath(in: modelsDirectory)
+        let languages = settings.selectedLanguageCodes.sorted()
+        let cancelWordPath = settings.cancelWord.modelPath(in: modelsDirectory)
 
         listener = Task { [weak self] in
             let events = await engine.events()
@@ -104,9 +110,16 @@ final class EngineController {
         case .transcribing:
             appState.status = .transcribing
 
-        case .transcription(let text) where !text.isEmpty:
-            appState.addTranscription(text)
-            injector.inject(text: text)
+        case .transcription(let text):
+            // Whisper describes non-speech rather than transcribing it, and in a
+            // dictation app that description would be pasted into the user's
+            // document. Filtered here rather than in the engine so the setting
+            // takes effect immediately instead of on the next engine restart.
+            let filter = AnnotationFilter(stripsParentheses: settings.stripAnnotations)
+            let spoken = filter.filter(text)
+            guard !spoken.isEmpty else { break }
+            appState.addTranscription(spoken)
+            injector.inject(text: spoken)
 
         case .wakeWordCancel:
             appState.status = .ready
@@ -116,7 +129,7 @@ final class EngineController {
             appState.status = .error
             appState.errorMessage = message
 
-        case .transcription, .languageDetected, .warning:
+        case .languageDetected, .warning:
             break
         }
     }

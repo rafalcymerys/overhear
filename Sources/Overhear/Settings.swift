@@ -102,6 +102,7 @@ final class AppSettings: ObservableObject {
     private let overlayKey = "showOverlay"
     private let dictateOnLaunchKey = "dictateOnLaunch"
     private let cancelWordKey = "cancelWord"
+    private let stripAnnotationsKey = "stripTranscriptionAnnotations"
 
     private let defaults: UserDefaults
 
@@ -130,6 +131,18 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    /// Whether to drop Whisper's parenthesised descriptions of non-speech —
+    /// `(coughing)` and the like — instead of pasting them.
+    ///
+    /// Unlike the language set and the cancel word, this one applies live: it
+    /// is read on every transcription rather than baked into the engine, so
+    /// toggling it does not reload any models.
+    @Published var stripAnnotations: Bool {
+        didSet {
+            defaults.set(stripAnnotations, forKey: stripAnnotationsKey)
+        }
+    }
+
     var selectedLanguages: [WhisperLanguage] {
         WhisperLanguage.all.filter { selectedLanguageCodes.contains($0.code) }
     }
@@ -155,6 +168,11 @@ final class AppSettings: ObservableObject {
             dictateOnLaunch = defaults.bool(forKey: dictateOnLaunchKey)
         } else {
             dictateOnLaunch = true
+        }
+        if defaults.object(forKey: stripAnnotationsKey) != nil {
+            stripAnnotations = defaults.bool(forKey: stripAnnotationsKey)
+        } else {
+            stripAnnotations = true
         }
         cancelWord = HotWord.defaultWord
         if let saved = defaults.string(forKey: cancelWordKey) {
