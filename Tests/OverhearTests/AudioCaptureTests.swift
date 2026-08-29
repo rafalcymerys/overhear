@@ -1,3 +1,4 @@
+import AVFoundation
 import XCTest
 @testable import Overhear
 
@@ -10,6 +11,25 @@ final class AudioCaptureTests: XCTestCase {
             ProcessInfo.processInfo.environment["OVERHEAR_RUN_AUDIO_TESTS"] == "1",
             "set OVERHEAR_RUN_AUDIO_TESTS=1 to run tests that open the microphone"
         )
+        // Microphone access is granted per binary, and the test runner is a new
+        // binary after every build touching this target. Without the grant
+        // AVAudioEngine still starts and simply never delivers a buffer, which
+        // would surface as a watchdog timeout and read like a bug in
+        // AudioCapture rather than a missing permission.
+        try XCTSkipUnless(
+            AVCaptureDevice.authorizationStatus(for: .audio) == .authorized,
+            "the test runner does not hold microphone permission (status: \(Self.authorizationName))"
+        )
+    }
+
+    private static var authorizationName: String {
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized: return "authorized"
+        case .denied: return "denied"
+        case .restricted: return "restricted"
+        case .notDetermined: return "not determined"
+        @unknown default: return "unknown"
+        }
     }
 
     /// The contract the rest of the engine is built on: a steady stream of
