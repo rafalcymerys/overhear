@@ -7,9 +7,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let appState = AppState()
     private let injector: TextInjecting = PasteboardTextInjector()
     private var statusItem: NSStatusItem!
-    private var engine: EngineProcess!
+    private var engine: EngineController!
     private var overlay: OverlayController!
-    private let installer = EngineInstaller()
+    private let modelSetup = ModelSetup()
     private var setupWindow: SetupWindowController!
     private let permissions = PermissionsService()
     private var permissionsWindow: PermissionsWindowController!
@@ -39,7 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.delegate = self
         statusItem.menu = menu
 
-        engine = EngineProcess(appState: appState, injector: injector)
+        engine = EngineController(appState: appState, injector: injector)
         overlay = OverlayController(appState: appState, onStop: { [weak self] in
             self?.engine.deactivate()
         }, onOpenSettings: { [weak self] in
@@ -62,7 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
 
-        setupWindow = SetupWindowController(installer: installer, onRetry: { [weak self] in
+        setupWindow = SetupWindowController(setup: modelSetup, onRetry: { [weak self] in
             self?.bootstrap()
         })
         permissionsWindow = PermissionsWindowController(permissions: permissions)
@@ -94,23 +94,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         permissionsWindow.show()
     }
 
-    /// Bring up the engine, installing its Python environment first if this Mac
-    /// doesn't have one yet. That is what makes the distributed app runnable by
-    /// unzipping and opening it, with no terminal step.
+    /// Bring up the engine, fetching the wake word models first if this Mac
+    /// doesn't have them yet. That is what makes the distributed app runnable
+    /// by unzipping and opening it, with no terminal step.
     private func bootstrap() {
-        guard case let .install(reason) = EngineInstaller.decideForCurrentEnvironment() else {
+        guard !modelSetup.isComplete else {
             startEngine()
             return
         }
 
         appState.status = .installing
         appState.errorMessage = nil
-        installer.prepare(reason: reason)
         setupWindow.show()
 
         Task { @MainActor in
             do {
-                try await installer.install(reason: reason)
+                try await modelSetup.ensureModels()
                 setupWindow.close()
                 startEngine()
             } catch {

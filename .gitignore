@@ -1,10 +1,11 @@
 .build/
-.venv/
 .swiftpm/
+
+# Left over from the Python engine. Nothing builds or runs from it any more —
+# it is ignored rather than removed so an existing checkout doesn't get 400MB
+# of dead virtualenv committed by an `add -A`.
+.venv/
 *.xcodeproj
 xcuserdata/
 DerivedData/
-__pycache__/
-*.pyc
-.pytest_cache/
 dist/

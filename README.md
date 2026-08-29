@@ -16,10 +16,11 @@ it, and then talk to my computer whenever I need to enter text. It doesn't try t
 correct mistakes automatically, because it's usually easier to just use the keyboard
 for simple edits and fixes.
 
-Speech recognition runs locally, using [faster-whisper](https://github.com/SYSTRAN/faster-whisper)
-for transcription and [openwakeword](https://github.com/dscripka/openWakeWord) for
-voice commands. Your audio never leaves your Mac; the models are downloaded once
-during setup and everything after that is offline.
+Speech recognition runs locally, using [WhisperKit](https://github.com/argmaxinc/WhisperKit)
+for transcription and [openWakeWord](https://github.com/dscripka/openWakeWord)'s models
+for voice commands. Your audio never leaves your Mac; the models are downloaded once
+during setup and everything after that is offline. Overhear is a single native app —
+there is no Python runtime and nothing to install alongside it.
 
 **What it's good at**
 
@@ -39,20 +40,12 @@ means clearing the quarantine flag yourself.
 ## Requirements
 
 - macOS 14 (Sonoma) or later
-- Python 3.10+
-- Xcode Command Line Tools (`xcode-select --install`)
+- Xcode 16 or later, to build it
 
 ## Development Setup
 
-Clone the repo and run the setup script to create a Python virtual environment with all dependencies:
-
-```bash
-./scripts/setup.sh
-```
-
-This installs openwakeword, faster-whisper, and downloads the required models.
-
-Then build and run:
+Clone the repo, then build and run — Swift Package Manager fetches everything,
+and the app downloads its models on first launch:
 
 ```bash
 swift build
@@ -61,16 +54,21 @@ swift build
 
 ### Testing
 
-The Python engine has an integration test suite that runs it as a real subprocess
-against a fake microphone, with no models, no network, and no audio hardware:
-
 ```bash
-.venv/bin/python -m pytest Engine
+swift test
 ```
 
-`./scripts/setup.sh` installs the test dependencies. Add `--run-slow` to also
-load the real models and check transcription end to end. Every push and pull
-request runs the fast lane on CI. See [TESTING.md](TESTING.md).
+The suite drives the dictation loop with a scripted microphone and the real wake
+word models, so batching, the cancel word and the stop rules are checked against
+actual inference rather than a stub. It downloads about 6MB of models the first
+time.
+
+Transcription tests are opt-in, because they pull down a few hundred megabytes of
+Whisper weights:
+
+```bash
+OVERHEAR_RUN_MODEL_TESTS=1 swift test --filter TranscriberTests
+```
 
 ### Linting
 
@@ -90,7 +88,7 @@ To create a distributable `.app` bundle:
 
 This produces a `dist/` folder containing:
 
-- `Overhear.app`: the app bundle, with the installer inside it
+- `Overhear.app`: the app bundle — a single self-contained binary
 - `Overhear.zip`: zipped archive of the app
 
 To wrap the built bundle in a drag-to-install disk image:
@@ -115,27 +113,17 @@ every push to `main`; pushing a `v*` tag attaches them to a GitHub Release.
    **Microphone**, to hear you, and **Accessibility**, to paste transcriptions
    into your apps — with a button for each. Both are required before anything
    else happens.
-4. Once they're granted, first launch creates the Python environment in
-   `~/Library/Application Support/Overhear` and downloads the speech models,
-   showing progress in a setup window. This takes a few minutes and only
-   happens once; the app starts listening as soon as it finishes.
+4. Once they're granted, first launch downloads the speech models into
+   `~/Library/Application Support/Overhear`, showing progress in a setup window.
+   This only happens once; the app starts listening as soon as it finishes.
 
 macOS only offers its permission dialog once per launch. If you dismiss one, the
 button turns into **Open System Settings** — flip the switch under Privacy &
 Security there and the app picks it up on its own. You can reopen the window any
 time from **Grant Permissions…** in the menu bar.
 
-The Mac needs Python 3.10+ (`brew install python3`) and a network connection for
-that first run. To do the setup step from the terminal instead — useful if you
-want to watch it, or install on several machines — run the installer inside the
-bundle before opening the app:
-
-```bash
-./Overhear.app/Contents/Resources/install.sh
-```
-
-The app then detects the finished environment and skips straight to listening.
-Setup output is logged to `~/Library/Application Support/Overhear/install.log`.
+That first run needs a network connection. Nothing else has to be installed —
+the app carries its own inference engine.
 
 ## Usage
 
@@ -160,4 +148,4 @@ moment while the models reload. The two toggles apply immediately.
 
 ## Architecture
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for details on the two-process design, communication protocol, and key technical decisions.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the engine design and the key technical decisions.

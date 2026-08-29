@@ -30,3 +30,30 @@ jobs:
 
       - name: Run tests
         run: swift test
+
+  models:
+    name: Real models
+    if: github.event_name != 'pull_request'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache SwiftPM
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build
+            ~/Library/Caches/org.swift.swiftpm
+          key: swiftpm-models-${{ runner.os }}-${{ hashFiles('Package.resolved') }}
+          restore-keys: swiftpm-models-${{ runner.os }}-
+
+      - name: Cache Whisper model
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Application Support/Overhear
+          key: whisperkit-base
+
+      - name: Run tests with real models
+        env:
+          OVERHEAR_RUN_MODEL_TESTS: "1"
+        run: swift test

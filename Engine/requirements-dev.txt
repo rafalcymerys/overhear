@@ -1,4 +1,0 @@
-# Full development environment: the engine's real dependencies plus the test
-# tooling. Needed to run the app, and to run the --run-slow test lane.
--r requirements.txt
--r requirements-test.txt

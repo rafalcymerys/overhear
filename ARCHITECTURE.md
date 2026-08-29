@@ -6,77 +6,63 @@ A macOS menu bar app for dictation. Click to start listening, speak naturally, a
 
 Overhear runs silently in the menu bar. Clicking **Start Listening** enters dictation mode: the app continuously captures speech in batches, transcribes each batch when you pause, and injects the text into the focused application. Clicking **Stop Listening** (or pressing Stop in the overlay) deactivates dictation. If **Start listening on launch** is enabled (the default), the app activates dictation by itself as soon as the engine finishes loading.
 
-During dictation, saying the **cancel word** — "Alexa" by default — discards whatever is currently being heard or transcribed. The batch is dropped and the app returns to the ready state, still listening for the next utterance. The cancel word is configurable in Settings: four openwakeword models ship built in (Alexa, Hey Jarvis, Hey Mycroft, Hey Rhasspy), and additional `.onnx` models can be installed. See [Hot Words](#hot-words).
+During dictation, saying the **cancel word** — "Alexa" by default — discards whatever is currently being heard or transcribed. The batch is dropped and the app returns to the ready state, still listening for the next utterance. The cancel word is configurable in Settings: four openWakeWord models are offered built in (Alexa, Hey Jarvis, Hey Mycroft, Hey Rhasspy), and additional `.onnx` models can be installed. See [Hot Words](#hot-words).
 
-> Terminology: the feature is called the *cancel word* in the UI and in the engine's `--cancel-word` argument, but the underlying library is a wake-word detector, so the event it produces is still named `wake_word_cancel`.
+> Terminology: the feature is called the *cancel word* in the UI, but the underlying models are wake-word detectors, so the event it produces is still named `wakeWordCancel`.
 
-## Architecture: Two-Process Split
+## Architecture: One Native Process
 
-The app is split into a **Swift host** (UI, macOS integration) and a **Python engine** (ML inference, audio capture). They communicate over stdin/stdout using JSON lines.
+Everything runs in a single Swift app. Audio capture, wake word detection and transcription all happen in-process, on Apple frameworks and Swift packages.
 
 ```
-+---------------------------+          JSON lines          +---------------------------+
-|       Swift Host          | <------------------------->  |      Python Engine         |
-|                           |    stdin:  commands           |                           |
-|  - Menu bar icon          |    stdout: events             |  - Audio capture           |
-|  - Floating overlay UI    |                               |    (sounddevice)           |
-|  - Text injection         |                               |  - Wake word detection     |
-|  - Settings (UserDefaults)|                               |    (openwakeword + ONNX)   |
-|  - Engine lifecycle       |                               |  - Speech transcription    |
-+---------------------------+                               |    (faster-whisper)        |
-                                                            +---------------------------+
++-------------------------------------------------------------+
+|                      Overhear (Swift)                        |
+|                                                              |
+|  AppDelegate ── menu bar, permissions, engine lifecycle      |
+|       │                                                      |
+|  EngineController ── engine events → AppState → paste        |
+|       │                                                      |
+|  DictationEngine (actor) ── batching, cancel, stop rules     |
+|       ├── AudioCapture ...... AVAudioEngine, 16kHz mono      |
+|       ├── WakeWordDetector .. openWakeWord models on ORT     |
+|       └── Transcriber ....... WhisperKit (CoreML Whisper)    |
++-------------------------------------------------------------+
 ```
 
-### Why two processes?
+### Why one process?
 
-- **openwakeword** and **faster-whisper** are Python libraries with no native Swift bindings. Wrapping them via C/ONNX Runtime would be complex and fragile.
-- A subprocess keeps the ML dependencies isolated — the Swift app stays lean and the Python environment is managed by a venv.
-- JSON-line IPC is simple, debuggable, and allows the engine to be tested independently.
+Earlier versions ran a Python subprocess, because openwakeword and faster-whisper had no Swift equivalents. Both now do: WhisperKit runs Whisper on CoreML, and openWakeWord's inference is three small ONNX graphs that ONNX Runtime executes natively. Removing the subprocess removed the venv, the `pip install` on first launch, the Xcode-command-line-tools dance, and the JSON protocol between the halves — several hundred lines whose only job was to make two runtimes talk.
 
-## Communication Protocol
+What survived the move is the event vocabulary. `EngineEvent` has the same cases the JSON protocol had, so `AppState`, the overlay and the menu bar icon were untouched by the change.
 
-### Launch arguments (Swift -> Python)
+## Dependencies
 
-The engine is configured once per launch, via argv rather than commands. Changing either setting
-restarts the engine (see [Settings](#settings)).
+| Package | Used for |
+|---|---|
+| [argmax-oss-swift](https://github.com/argmaxinc/argmax-oss-swift) (`WhisperKit`) | Whisper transcription on CoreML |
+| [onnxruntime-swift-package-manager](https://github.com/microsoft/onnxruntime-swift-package-manager) | Running openWakeWord's `.onnx` models |
+| [SwiftLintPlugins](https://github.com/SimplyDanny/SwiftLintPlugins) | Linting |
 
-| Argument | Default | Meaning |
-|---|---|---|
-| `--languages` | `en` | Comma-separated Whisper language codes to recognize |
-| `--cancel-word` | `alexa` | A built-in openwakeword model name, or an absolute path to a custom `.onnx` model |
+ONNX Runtime links statically, so the built `.app` is three files: the binary, `Info.plist` and the icon.
 
-### Commands (Swift -> Python, via stdin)
+## Engine Events
 
-```json
-{"command": "activate"}
-{"command": "deactivate"}
-{"command": "quit"}
-```
+`DictationEngine` publishes an `AsyncStream<EngineEvent>`; `EngineController` consumes it and maps each case onto `AppState`.
 
-Unrecognized commands and malformed JSON lines are ignored — the engine keeps running.
+| Event | Meaning |
+|---|---|
+| `status` | Loading progress (`loading_models`, `wake_word_ready`, `whisper_ready`) |
+| `idle` | Engine initialized or dictation stopped — waiting for activation |
+| `ready` | Dictation active, waiting for speech |
+| `speechStart` | Audio level crossed the silence threshold — user is speaking |
+| `transcribing` | Processing a batch of speech |
+| `transcription` | Result — triggers paste |
+| `languageDetected` | Which language was used for this transcription |
+| `wakeWordCancel` | Cancel word said during dictation — current batch discarded, stays in dictation |
+| `warning` | Non-fatal issue (e.g. audio device changed) |
+| `error` | Something went wrong |
 
-### Events (Python -> Swift, via stdout)
-
-| Event | Fields | Meaning |
-|---|---|---|
-| `status` | `message` | Loading progress (`loading_models`, `wake_word_ready`, `whisper_ready`) |
-| `config` | `languages` | Echoes the resolved language set at startup, for diagnostics |
-| `idle` | — | Engine initialized or dictation stopped — waiting for activation |
-| `ready` | — | Dictation active, waiting for speech |
-| `speech_start` | — | Audio level crossed silence threshold — user is speaking |
-| `transcribing` | — | Processing a batch of speech |
-| `transcription` | `text` | Result — triggers paste |
-| `language_detected` | `language` | Which language was used for this transcription |
-| `wake_word_cancel` | — | Cancel word said during dictation — current batch discarded, stays in dictation |
-| `warning` | `message` | Non-fatal issue (e.g. audio device changed) |
-| `error` | `message` | Something went wrong |
-
-Each event is a single line of JSON on stdout, written with `ensure_ascii=False` so non-Latin
-transcriptions travel as UTF-8 rather than escapes. Newlines inside `text` are escaped by
-`json.dumps`, so the line framing holds for any transcription.
-
-Two events carry no UI behaviour today: `config` and `language_detected` are emitted for
-diagnostics and ignored by the host.
+`languageDetected` carries no UI behaviour today; it is emitted for diagnostics and ignored by the controller.
 
 ## Engine States
 
@@ -88,83 +74,77 @@ The engine and UI share a unified state model:
 | **Loading** | `status` | Mic icon | Hidden | Loading ML models |
 | **Idle** | `idle` | Mic icon | Hidden | Ready to be activated via menu |
 | **Ready** | `ready` | Static bars, orange | "Ready" (dark bg) | Dictation active, waiting for speech |
-| **Listening** | `speech_start` | Animated bars, orange | "Listening..." (material bg) | Actively hearing speech |
+| **Listening** | `speechStart` | Animated bars, orange | "Listening..." (material bg) | Actively hearing speech |
 | **Transcribing** | `transcribing` | Spinner, dark orange | "Transcribing..." (material bg) | Processing with Whisper |
-| **Cancelled** | `wake_word_cancel` | Shaking bars, red (1s) | Shaking bars + "Cancelled" (1s) | Cancel word discarded current batch |
+| **Cancelled** | `wakeWordCancel` | Shaking bars, red (1s) | Shaking bars + "Cancelled" (1s) | Cancel word discarded current batch |
 | **Error** | `error` | Error icon | Hidden | Something failed |
 
 After transcription completes, the engine returns to **Ready** if still dictating. The **Cancelled** state is a 1-second visual indicator triggered by the cancel word — it overlays on top of the current state and returns to **Ready** automatically.
 
-## Swift Host — Key Components
+## Key Components
 
 | File | Role |
 |---|---|
 | `OverhearApp.swift` | App entry point, accessory (no dock icon) |
-| `AppDelegate.swift` | Menu bar setup (Start/Stop Listening, recent transcriptions, Settings, About, Quit), permission gate, engine lifecycle, settings observation |
+| `AppDelegate.swift` | Menu bar setup, permission gate, model setup, engine lifecycle, settings observation |
 | `AppState.swift` | Observable state enum: stopped, installing, loading, idle, ready, listening, transcribing, error |
-| `EngineProcess.swift` | Launches Python subprocess, reads JSON events, dispatches to AppState |
-| `EngineInstaller.swift` | Decides whether the Python environment exists and runs `install.sh` to build it on first launch |
-| `SetupWindow.swift` | First-launch setup window — progress, failure detail, Try Again / Show Log |
+| `Engine/EngineController.swift` | Owns the engine, maps its events onto `AppState`, injects text |
+| `Engine/DictationEngine.swift` | The dictation loop: batching, cancel word, stop rules |
+| `Engine/AudioCapture.swift` | `AVAudioEngine` capture, resampling, device-loss recovery |
+| `Engine/ChunkAccumulator.swift` | Re-slices arbitrary buffers into exact 1280-sample chunks |
+| `Engine/WakeWordDetector.swift` | openWakeWord's three-stage inference, in Swift |
+| `Engine/ONNXModel.swift` | Thin wrapper over one ONNX Runtime session |
+| `Engine/Transcriber.swift` | WhisperKit: model loading, language detection, transcription |
+| `Engine/ModelSetup.swift` | Downloads the wake word models on first launch |
+| `Engine/EngineEvent.swift` | The event vocabulary and engine errors |
+| `SetupWindow.swift` | First-launch setup window — progress, failure detail, Try Again |
 | `Permissions.swift` | Microphone and Accessibility state, asking for them, and watching for grants made in System Settings |
 | `PermissionsWindow.swift` | Launch-time permissions window — one explanation and one button per permission |
-| `OverlayWindow.swift` | Floating status window (top-right corner) — shows Ready/Listening/Transcribing/Result |
-| `MenuBarIcon.swift` | SwiftUI view embedded in NSStatusItem — animated bars, static bars, spinner depending on state |
+| `OverlayWindow.swift` | Floating status window (top-right corner) |
+| `MenuBarIcon.swift` | SwiftUI view embedded in NSStatusItem |
 | `TextInjector.swift` | Pastes transcribed text via pasteboard + simulated Cmd+V, restores previous clipboard |
-| `Settings.swift` | `AppSettings` (UserDefaults-backed), `WhisperLanguage` catalog with flags, `HotWord` model |
-| `SettingsView.swift` | Grouped form with language chips, searchable language list, toggles, hot word management |
+| `Settings.swift` | `AppSettings` (UserDefaults-backed), `WhisperLanguage` catalog, `HotWord` model |
+| `SettingsView.swift` | Grouped form with language chips, toggles, hot word management |
 | `HotWordService.swift` | Discovers, installs (file or URL), and removes custom `.onnx` cancel word models |
 
-## Menu Bar
+## Audio Capture
 
-The menu dynamically updates via `NSMenuDelegate`:
+`AVAudioEngine` taps the default input, and an `AVAudioConverter` resamples whatever the device produces to 16 kHz mono float32. The device chooses its own buffer size and it is never the 1280 samples the models want, so `ChunkAccumulator` holds the remainder between buffers and emits only whole chunks — dropping the remainder instead would punch a silent gap into the audio every few frames, which reads to the detector as a word cut in half.
 
-- **Start Listening / Stop Listening** — toggles dictation (changes label based on state)
-- **Last Transcriptions** — up to 5 recent transcriptions; clicking one pastes it into the active app
-- **Settings...** — opens the settings window
-- **About Overhear** — standard macOS about panel
-- **Quit Overhear**
+Recovery covers two distinct failures:
 
-## Settings
+- The stream fails **to open** — no input device, device busy. Capture emits `.interrupted` and retries every second until it succeeds.
+- An open stream **stops delivering**. More than `timeout` (3s) without a single buffer is treated as a lost device: the tap is torn down and the stream reopened. Audio arrives every few tens of milliseconds on a healthy stream even during silence, so the margin is wide.
 
-All settings live in `AppSettings.shared`, backed by `UserDefaults` and published via Combine.
+`AVAudioEngineConfigurationChange` also fires when the device is swapped, and shortcuts the watchdog rather than replacing it: a device that simply stops producing — a sleeping USB interface, a virtual device whose host quit — never posts one.
 
-| Setting | Key | Default | Effect |
-|---|---|---|---|
-| Start listening on launch | `dictateOnLaunch` | on | Sends `activate` automatically on the first `idle` after launch |
-| Show overlay window while listening | `showOverlay` | on | Whether the floating overlay appears during dictation |
-| Cancel word | `cancelWord` | Alexa | Which wake word model cancels the current batch |
-| Recognition languages | `selectedLanguages` | `en`, `pl` | Whisper language set; at least one must be selected |
+Dictation does not survive either case: the engine returns to idle and the user starts again.
 
-Because the engine takes its language set and cancel word as launch arguments, changing either one
-requires a restart. `AppDelegate` observes both and calls `scheduleRestart()`, which debounces for
-1 second before stopping and relaunching the engine — so toggling several languages in a row
-produces a single restart rather than one per toggle. The overlay and launch toggles apply live
-and never restart the engine.
+## Wake Word Detection
 
-## Hot Words
+`WakeWordDetector` is a port of openWakeWord's streaming inference, running the same `.onnx` files. Three graphs in sequence, per 1280-sample chunk:
 
-The cancel word is an openwakeword model. Four ship with the library and are always listed:
-Alexa, Hey Jarvis, Hey Mycroft, Hey Rhasspy.
+1. `melspectrogram.onnx` — the chunk plus three hops of history (1760 samples) becomes 8 mel frames of 32 bins, transformed by `x/10 + 2` to match the range the next model was trained against.
+2. `embedding_model.onnx` — Google's `speech_embedding`, turning the last 76 mel frames into a 96-value vector.
+3. The per-word head — the last 16 of those vectors become one score. Above 0.5 is a detection.
 
-Custom models can be added in Settings, either from a local `.onnx` file or by URL. They are
-copied into `~/Library/Application Support/Overhear/models/`, and `HotWordService` lists every
-`.onnx` file in that directory at launch. The display name is derived from the filename —
-`my_word.onnx` becomes "My Word". Removing a custom word deletes the file; if it was the selected
-cancel word, the selection falls back to Alexa.
+Only the third stage is per-word, which is why a custom model is a few hundred kilobytes rather than a whole network. The tensor names of the word heads differ between models (`onnx::Flatten_0` in alexa, `x.1` in hey_jarvis), so `ONNXModel` reads them off the session instead of hardcoding.
 
-Built-in words are passed to the engine by name (`alexa`); custom ones are passed as an
-absolute path. Both forms are accepted by `openwakeword`'s `wakeword_models` argument.
+The buffering mirrors `AudioFeatures._streaming_features` in openwakeword frame for frame, including seeding the feature buffer with embeddings of four seconds of noise on reset — without it the first sixteen frames after a reset are scored against zeros, far outside anything the head saw in training. `WakeWordDetectorTests` pins the port to scores measured from the Python original on the same clips: 0.999999 for "alexa", 0.000328 for unrelated speech. It matches both to within 0.0001.
 
-## Python Engine — Key Decisions
+## Dictation Loop
 
-- **Audio capture**: `sounddevice` with 16kHz mono float32, 1280-sample chunks (80ms — what openwakeword expects).
-- **Audio device recovery**: The audio stream is wrapped in a retry loop covering two distinct failures. If the stream fails *to open* — no input device, device busy — a `warning` is emitted and the open is retried every second until it succeeds. If an open stream stops delivering audio, a watchdog notices: PortAudio does not raise when the default input device disappears mid-session, it simply stops invoking the callback, so `check_audio_alive()` treats more than `AUDIO_TIMEOUT` (3s) without a single buffer as a lost device, tears the stream down and re-opens it. Audio arrives every 80ms on a healthy stream even during silence, so the margin is wide.
+`DictationEngine` is an actor running two tasks: a pump that drains `AudioCapture` into a queue, and the loop that consumes it. They are separate because the recorder spends most of its life waiting on that queue — if it were also the thing feeding it, nothing would ever arrive.
 
-  Dictation does not survive either case: the engine returns to idle and the user starts again.
-- **Cancel word**: Audio is converted to int16 before passing to openwakeword (it expects int16, not float32). Detection threshold is 0.5. During dictation, the cancel word discards the current batch but does not stop dictation. It is checked in two places: on every chunk while recording, and — via `check_queued_wake_word` — against the audio that buffered up while Whisper was running, so a cancel spoken during transcription still suppresses the result. If no cancel word is found in that buffered audio, the chunks are put back on the queue so the next batch doesn't lose its opening words.
-- **Dictation mode**: Records in batches — accumulates chunks until 1.5s of silence, then transcribes that batch and keeps listening. Batches are capped at 30s. A batch in which the level never crossed the silence threshold is discarded without transcribing; there is no minimum-duration filter beyond that, deliberately — Whisper's VAD already yields empty text for non-vocal noise, and real one-word utterances are too close to any workable threshold to cut safely. Activated/deactivated via commands from the Swift host. Stopping is a hard stop: an utterance still being recorded is discarded, and a transcription still running when the stop arrives is dropped rather than pasted — nothing reaches the user's document after they press Stop.
-- **Language detection**: When multiple languages are configured, `detect_language()` runs first on the audio, scores are filtered to the selected language set, and the best match is used for transcription. Single language skips detection.
-- **Whisper model**: `base` model with int8 quantization on CPU. Good balance of speed and accuracy for dictation.
+- **Batching.** Chunks accumulate until 1.5s of silence, then that batch is transcribed and listening continues. Batches are capped at 30s. A batch in which the level never crossed the silence threshold (0.008 mean absolute amplitude) is discarded without transcribing; there is no minimum-duration filter beyond that, deliberately — Whisper's VAD already yields empty text for non-vocal noise, and real one-word utterances are too close to any workable threshold to cut safely.
+- **Cancel word.** Checked in two places: on every chunk while recording, and against the audio that buffered up while Whisper was running, so a cancel spoken during transcription still suppresses the result. If no cancel word is found in that buffered audio, the chunks go back on the queue so the next batch doesn't lose its opening words.
+- **Stopping is a hard stop.** An utterance still being recorded is discarded, and a transcription still running when the stop arrives is dropped rather than pasted — nothing reaches the user's document after they press Stop.
+
+## Transcription
+
+WhisperKit's `base` model with CoreML, the same Whisper weights faster-whisper used, running on the Neural Engine.
+
+**Language detection** differs from the Python engine, and not by choice. faster-whisper returned a probability for every language, so the old code could rank *within* the user's selected set and pick the best of those. WhisperKit's `langProbs` carries only the language it sampled — the other entries are absent, and the values it does carry are log probabilities, so a missing entry cannot be defaulted to zero and compared. Instead: with one language selected there is no detection at all; with several, Whisper's own answer is used when it is one of the selected languages, and otherwise the alphabetically first selected language is the fallback, so the choice is the same every launch.
 
 ## Text Injection
 
@@ -177,18 +157,58 @@ Uses the pasteboard approach rather than CGEvent key simulation or Accessibility
 
 This works reliably across all macOS apps without requiring Accessibility permissions for the target app.
 
-## Overlay UI States
+## Settings
 
-The floating window transitions between states with animated crossfades:
+All settings live in `AppSettings.shared`, backed by `UserDefaults` and published via Combine.
 
-| State | Visual | Background |
-|---|---|---|
-| Ready | Static dots + "Ready" | Black 30% opacity |
-| Listening | Animated audio bars + "Listening..." | Frosted material |
-| Transcribing | Spinner + "Transcribing..." | Frosted material |
-| Cancelled | Shaking red bars + "Cancelled" (1s) | Frosted material |
+| Setting | Key | Default | Effect |
+|---|---|---|---|
+| Start listening on launch | `dictateOnLaunch` | on | Sends `activate` automatically on the first `idle` after launch |
+| Show overlay window while listening | `showOverlay` | on | Whether the floating overlay appears during dictation |
+| Cancel word | `cancelWord` | Alexa | Which wake word model cancels the current batch |
+| Recognition languages | `selectedLanguages` | `en`, `pl` | Whisper language set; at least one must be selected |
 
-The overlay appears when dictation activates and hides when it deactivates. Can be toggled off in Settings.
+The engine takes its language set and cancel word when it starts, so changing either one restarts it. `AppDelegate` observes both and calls `scheduleRestart()`, which debounces for 1 second — so toggling several languages in a row produces a single restart rather than one per toggle. Whisper stays loaded across a restart: neither setting affects the model, and reloading it would turn a settings toggle into a multi-second stall. The overlay and launch toggles apply live and never restart the engine.
+
+`selectedLanguageCodes` is a `Set`, whose iteration order changes between launches, so `EngineController` sorts it before handing it over — the single-language shortcut and the detection fallback both depend on that order.
+
+## Hot Words
+
+The cancel word is an openWakeWord model. Four are offered built in: Alexa, Hey Jarvis, Hey Mycroft, Hey Rhasspy.
+
+They are **downloaded on first launch rather than shipped inside the app**, which is a licensing decision, not a size one. openWakeWord's pre-trained word models are CC BY-NC-SA 4.0 — only the melspectrogram and Google embedding models are Apache 2.0 — so bundling them would attach those terms to a distribution of Overhear itself. `ModelSetup` fetches them from openWakeWord's own release assets, which is what the Python engine did through `download_models()`.
+
+Custom models can be added in Settings, either from a local `.onnx` file or by URL. They land in the same directory, `~/Library/Application Support/Overhear/models/`, and `HotWordService` lists every `.onnx` file there at launch. The display name is derived from the filename — `my_word.onnx` becomes "My Word". Removing a custom word deletes the file; if it was the selected cancel word, the selection falls back to Alexa.
+
+Built-in words are stored in settings by name (`alexa`) so the stored value stays readable; `HotWord.modelPath` resolves that to the downloaded file. Custom words already carry an absolute path and are used as-is.
+
+## Permissions Required
+
+- **Microphone**: the engine captures audio to hear the cancel word and the dictation itself. The prompt is now attributed to Overhear directly rather than to a Python subprocess.
+- **Accessibility**: needed for CGEvent-based Cmd+V paste simulation (System Settings > Privacy > Accessibility). Called "inserting text in your apps" in the UI, because that is what it buys the user.
+
+`AppDelegate.start()` checks both before anything else runs — ahead of the first-launch model download, so a fresh Mac isn't asked to wait for a download that can't lead to working dictation. When either is missing, `PermissionsWindow` explains what each permission is for and offers a button per permission; the launch continues into `bootstrap()` the moment both are granted.
+
+`PermissionsService` decides what a button does, since macOS shows its own dialog only while the answer is still open — and only once per launch:
+
+| State | Button |
+|---|---|
+| Never answered, not yet asked this launch | Trigger the macOS dialog |
+| Already asked this launch, or previously denied | Open the relevant System Settings pane |
+| Granted | Replaced by a checkmark |
+
+Neither grant arrives as a notification — Accessibility is switched on in System Settings with the app none the wiser, and the microphone switch is just as silent — so the service polls once a second while the window is open. Closing the window stops the polling; the state is still refreshed whenever the menu bar menu opens, which is also where a **Grant Permissions…** item replaces **Start Listening** until both are in place.
+
+## Testing
+
+`swift test` runs the suite. The interesting parts:
+
+- `WakeWordDetectorTests` — the golden test for the openWakeWord port, asserting against scores measured from the Python original.
+- `DictationEngineTests` — drives the loop with a scripted audio source and real wake word models: batching, silence discarding, cancel-word behaviour, the stop rules, and device loss.
+- `EngineControllerTests` — engine events reaching `AppState` and the pasteboard, the layer the menu bar and overlay render from.
+- `ChunkAccumulatorTests` — that no sample is lost or duplicated across awkward buffer boundaries.
+- `TranscriberTests` — real WhisperKit, opt-in via `OVERHEAR_RUN_MODEL_TESTS=1` because it downloads model weights.
+- `AudioCaptureTests` — the real microphone, opt-in via `OVERHEAR_RUN_AUDIO_TESTS=1` because CI has no input device.
 
 ## Linting
 
@@ -198,75 +218,10 @@ SwiftLint is included as an SPM plugin and runs automatically as a pre-commit ho
 swift package plugin --allow-writing-to-package-directory swiftlint lint
 ```
 
-## Setup & Dependencies
-
-**Python** (managed via venv):
-- `openwakeword` — wake word detection (ONNX models)
-- `faster-whisper` — CTranslate2-based Whisper inference
-- `sounddevice` — cross-platform audio capture
-- `numpy`
-
-**Swift**: SwiftLint (via SPM plugin). Uses AppKit, SwiftUI, Combine, CryptoKit, Carbon (for key codes).
+## Building
 
 ```bash
-./scripts/setup.sh   # creates venv, installs deps, downloads wake word models
-swift build           # builds the Swift app
-.build/debug/Overhear # run
+swift build            # builds the app
+.build/debug/Overhear  # run it
+./scripts/build.sh     # release .app bundle in dist/
 ```
-
-### First-launch setup in the distributed app
-
-A downloaded copy of the app has no Python environment, so `AppDelegate.bootstrap()` builds one
-before starting the engine. `scripts/install.sh` ships inside the bundle at
-`Contents/Resources/install.sh`, and `EngineInstaller` runs it with explicit
-`--venv` / `--requirements` / `--python` paths, creating
-`~/Library/Application Support/Overhear/.venv`.
-
-The script prints its user-facing steps with a `>>> ` prefix; the installer shows those in the
-setup window and writes the full output to `~/Library/Application Support/Overhear/install.log`.
-On success the script stamps the environment with the SHA-256 of the `requirements.txt` it
-installed from (`.venv/.overhear-requirements`), and `EngineInstaller.decide(…)` reads it back on
-later launches:
-
-| Situation | Outcome |
-|---|---|
-| No venv anywhere | Install |
-| A venv that isn't the managed one (source checkout) | Skip — the developer owns that environment |
-| Managed venv, stamp matches `requirements.txt` | Skip |
-| Managed venv, stamp missing (interrupted install) or stale | Install |
-
-A Mac with no Python at all needs one thing before any of that: probing `/usr/bin/python3` asks
-macOS to install the Xcode command line tools, which then happens in the system's own window and
-tells the app nothing when it ends. `EngineInstaller.awaitInstallerPython()` polls every two seconds
-for the interpreter to appear — without re-running the stub, which would only talk over the dialog
-the user is answering — and setup carries on by itself the moment it does, rather than sitting in
-"Preparing…" until the app is quit and reopened.
-
-Setup can also be run from the terminal — `./Overhear.app/Contents/Resources/install.sh` is the
-same script, and the app then finds the finished environment and skips its own run.
-
-## Permissions Required
-
-- **Microphone**: the engine captures audio to hear the wake word and the dictation itself
-- **Accessibility**: needed for CGEvent-based Cmd+V paste simulation (System Settings > Privacy > Accessibility).
-  Called "inserting text in your apps" in the UI, because that is what it buys the user.
-
-`AppDelegate.start()` checks both before anything else runs — ahead of the first-launch setup, so a
-fresh Mac isn't asked to wait several minutes for an install that can't lead to working dictation.
-When either is missing, `PermissionsWindow` explains what each permission is for and offers a button
-per permission; the launch continues into `bootstrap()` the moment both are granted.
-
-`PermissionsService` decides what a button does, since macOS shows its own dialog only while the
-answer is still open — and only once per launch:
-
-| State | Button |
-|---|---|
-| Never answered, not yet asked this launch | Trigger the macOS dialog |
-| Already asked this launch, or previously denied | Open the relevant System Settings pane |
-| Granted | Replaced by a checkmark |
-
-Neither grant arrives as a notification — Accessibility is switched on in System Settings with the
-app none the wiser, and the microphone switch is just as silent — so the service polls once a second
-while the window is open. Closing the window stops the polling; the state is still refreshed
-whenever the menu bar menu opens, which is also where a **Grant Permissions…** item replaces
-**Start Listening** until both are in place.
