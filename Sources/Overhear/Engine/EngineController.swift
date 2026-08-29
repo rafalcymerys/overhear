@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 
 /// Owns the engine and translates its events into app state.
@@ -26,6 +27,7 @@ final class EngineController {
 
     private var engine: DictationEngine?
     private var listener: Task<Void, Never>?
+    private var translationObservation: AnyCancellable?
 
     init(appState: AppState,
          injector: TextInjecting = PasteboardTextInjector(),
@@ -63,8 +65,17 @@ final class EngineController {
         let languages = settings.selectedLanguageCodes.sorted()
         let cancelWordPath = settings.cancelWord.modelPath(in: modelsDirectory)
 
+        // Pushed in rather than passed to start(...): it applies to the next
+        // batch, where a language change rebuilds the engine.
+        let translates = settings.translateUnsupported
+        translationObservation = settings.$translateUnsupported
+            .sink { value in
+                Task { await engine.setTranslatesUnsupported(value) }
+            }
+
         listener = Task { [weak self] in
             let events = await engine.events()
+            await engine.setTranslatesUnsupported(translates)
             await engine.start(languages: languages, cancelWordPath: cancelWordPath)
             for await event in events {
                 guard let self else { return }
@@ -87,6 +98,7 @@ final class EngineController {
 
         listener?.cancel()
         listener = nil
+        translationObservation = nil
 
         let engine = self.engine
         self.engine = nil

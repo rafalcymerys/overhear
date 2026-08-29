@@ -96,6 +96,8 @@ After transcription completes, the engine returns to **Ready** if still dictatin
 | `Engine/ONNXModel.swift` | Thin wrapper over one ONNX Runtime session |
 | `Engine/Transcriber.swift` | WhisperKit: model loading, language detection, transcription |
 | `Engine/AnnotationFilter.swift` | Strips Whisper's non-speech annotations from a transcription |
+| `Engine/DecodePolicy.swift` | Chooses the language and task Whisper decodes a batch with |
+| `Engine/LanguageDetector.swift` | Scores every language in one detection pass, so the user's can be ranked |
 | `Engine/ModelSetup.swift` | Downloads the wake word models on first launch |
 | `Engine/EngineEvent.swift` | The event vocabulary and engine errors |
 | `SetupWindow.swift` | First-launch setup window — progress, failure detail, Try Again |
@@ -147,7 +149,20 @@ WhisperKit's `base` model with CoreML — small, fast and multilingual, running 
 
 **Non-speech annotations.** Given a cough or a pause, Whisper describes the sound rather than transcribing speech — `[ Pause ]`, `[BLANK_AUDIO]`, `(coughing)` — and in a dictation app that description is pasted into the user's document. Whisper has two defences against this and neither is usable here: `DecodingOptions.supressTokens` defaults to empty, with the call that would fill it left as `// nonSpeechTokens() // TODO`, and that function does not exist in the package; and every segment's `noSpeechProb` is hardcoded to `0`, so `noSpeechThreshold` can never fire. So `AnnotationFilter` strips the annotations from the text instead. Square brackets and musical notes go unconditionally — nobody dictates them — while parentheses are governed by a setting, since a speaker could plausibly produce one. It runs in `EngineController` rather than `Transcriber` so the setting applies without restarting the engine.
 
-**Language detection** cannot be constrained to the selected set, which is a limit worth knowing about. WhisperKit's `langProbs` carries only the language it sampled: the other entries are absent, and the values it does carry are log probabilities, so a missing entry cannot be defaulted to zero and ranked against the rest. Instead: with one language selected there is no detection at all; with several, Whisper's own answer is used when it is one of the selected languages, and otherwise the alphabetically first selected language is the fallback, so the choice is the same every launch.
+**Language detection and the decode plan.** Whisper is never asked to translate — the task has always been `.transcribe` — but the decoder is prefilled with a language token, and `options.language ?? Constants.defaultLanguageCode` makes that token `<|en|>` whenever no language is given. Telling Whisper that Polish audio is English makes it render the speech as English, which to a user is indistinguishable from the app translating behind their back. Choosing that token is therefore the whole game, and `DecodePolicy` owns the choice:
+
+| Detected | Translate setting off | on |
+|---|---|---|
+| A selected language | Transcribe in that language | Transcribe in that language |
+| Anything else | Transcribe in the detected language | Translate to English |
+
+The selected languages are authoritative: output stays inside them unless translation is deliberately turned on. What makes that safe is that the choice *among* them is the model's, not a fixed rule. Two earlier versions used a fixed rule and both produced R-98's symptom — falling back to the alphabetically first selected language turned every misdetection into English, and skipping detection when only one language was selected turned all foreign speech into that language.
+
+Ranking the user's languages needs a score for each, and `WhisperKit.detectLangauge` reports only the one it sampled. `LanguageDetector` therefore repeats what that method does — pad, mel, encode, one decoder step — but hands `textDecoder.detectLanguage` a `TokenSampling` implementation that reads the whole language row of the logits on the way past. Same single inference, ninety-nine scores instead of one. On the `base` model a Polish clip scores `pl` at 23.2 against `en` at 15.5, which is the margin that keeps Polish Polish.
+
+The cost is coupling: this calls WhisperKit's encoder and decoder directly rather than its one-line helper, so a future release could require rework. It is confined to `LanguageDetector`.
+
+Translation is English-only. Whisper has a single `<|translate|>` token and no target-language token, so no other destination is possible.
 
 ## Text Injection
 
@@ -170,9 +185,10 @@ All settings live in `AppSettings.shared`, backed by `UserDefaults` and publishe
 | Show overlay window while listening | `showOverlay` | on | Whether the floating overlay appears during dictation |
 | Cancel word | `cancelWord` | Alexa | Which wake word model cancels the current batch |
 | Strip transcription annotations | `stripTranscriptionAnnotations` | on | Whether `(coughing)` and the like are dropped instead of pasted |
+| Translate unsupported languages | `translateUnsupportedLanguages` | off | Whether speech in an unselected language is translated to English |
 | Recognition languages | `selectedLanguages` | `en`, `pl` | Whisper language set; at least one must be selected |
 
-The engine takes its language set and cancel word when it starts, so changing either one restarts it. The annotation setting does not: it is read on every transcription, so it applies live. `AppDelegate` observes both and calls `scheduleRestart()`, which debounces for 1 second — so toggling several languages in a row produces a single restart rather than one per toggle. Whisper stays loaded across a restart: neither setting affects the model, and reloading it would turn a settings toggle into a multi-second stall. The overlay and launch toggles apply live and never restart the engine.
+The engine takes its language set and cancel word when it starts, so changing either one restarts it. The annotation and translation settings do not: both are read per batch, so they apply live. `AppDelegate` observes both and calls `scheduleRestart()`, which debounces for 1 second — so toggling several languages in a row produces a single restart rather than one per toggle. Whisper stays loaded across a restart: neither setting affects the model, and reloading it would turn a settings toggle into a multi-second stall. The overlay and launch toggles apply live and never restart the engine.
 
 `selectedLanguageCodes` is a `Set`, whose iteration order changes between launches, so `EngineController` sorts it before handing it over — the single-language shortcut and the detection fallback both depend on that order.
 
@@ -211,6 +227,7 @@ Neither grant arrives as a notification — Accessibility is switched on in Syst
 - `DictationEngineTests` — drives the loop with a scripted audio source and real wake word models: batching, silence discarding, cancel-word behaviour, the stop rules, and device loss.
 - `EngineControllerTests` — engine events reaching `AppState` and the pasteboard, the layer the menu bar and overlay render from.
 - `AnnotationFilterTests` — that Whisper's descriptions of non-speech never reach the document, using the strings from the bug report.
+- `DecodePolicyTests` — the table above, including that a misdetected language is never forced to English.
 - `ChunkAccumulatorTests` — that no sample is lost or duplicated across awkward buffer boundaries.
 - `TranscriberTests` — real WhisperKit, opt-in via `OVERHEAR_RUN_MODEL_TESTS=1` because it downloads model weights.
 - `AudioCaptureTests` — the real microphone, opt-in via `OVERHEAR_RUN_AUDIO_TESTS=1` because CI has no input device.

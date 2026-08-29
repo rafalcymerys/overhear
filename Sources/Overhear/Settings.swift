@@ -103,6 +103,7 @@ final class AppSettings: ObservableObject {
     private let dictateOnLaunchKey = "dictateOnLaunch"
     private let cancelWordKey = "cancelWord"
     private let stripAnnotationsKey = "stripTranscriptionAnnotations"
+    private let translateUnsupportedKey = "translateUnsupportedLanguages"
 
     private let defaults: UserDefaults
 
@@ -143,6 +144,17 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    /// Whether speech in a language the user did not select is translated to
+    /// English. A selected language is never translated, whatever this says.
+    ///
+    /// Off by default — the point of the setting is to make translation a
+    /// choice rather than something that happens by accident.
+    @Published var translateUnsupported: Bool {
+        didSet {
+            defaults.set(translateUnsupported, forKey: translateUnsupportedKey)
+        }
+    }
+
     var selectedLanguages: [WhisperLanguage] {
         WhisperLanguage.all.filter { selectedLanguageCodes.contains($0.code) }
     }
@@ -174,6 +186,7 @@ final class AppSettings: ObservableObject {
         } else {
             stripAnnotations = true
         }
+        translateUnsupported = defaults.bool(forKey: translateUnsupportedKey)
         cancelWord = HotWord.defaultWord
         if let saved = defaults.string(forKey: cancelWordKey) {
             let candidates = availableHotWords ?? HotWordService.shared.allHotWords

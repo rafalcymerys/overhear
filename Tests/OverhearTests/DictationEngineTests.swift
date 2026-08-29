@@ -22,7 +22,9 @@ final class DictationEngineTests: XCTestCase {
 
         func load() async throws {}
 
-        func transcribe(_ audio: [Float], languages: [String]) async throws -> Transcription {
+        func transcribe(_ audio: [Float],
+                        languages: [String],
+                        translatesUnsupported: Bool) async throws -> Transcription {
             batches.append(audio)
             return Transcription(text: text, language: languages.first)
         }

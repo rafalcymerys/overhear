@@ -11,7 +11,9 @@ struct Transcription: Equatable {
 /// be tested without loading a multi-hundred-megabyte model.
 protocol Transcribing: Sendable {
     func load() async throws
-    func transcribe(_ audio: [Float], languages: [String]) async throws -> Transcription
+    func transcribe(_ audio: [Float],
+                    languages: [String],
+                    translatesUnsupported: Bool) async throws -> Transcription
 }
 
 /// Speech to text, via WhisperKit's CoreML Whisper.
@@ -58,15 +60,21 @@ actor Transcriber: Transcribing {
     ///
     /// With several languages configured, detection runs first and its result
     /// is passed to the decode explicitly: Whisper transcribes better when told
-    /// the language than when left to infer it mid-decode.
-    func transcribe(_ audio: [Float], languages: [String]) async throws -> Transcription {
+    /// the language than when left to infer it mid-decode. What to do with that
+    /// answer is `DecodePolicy`'s decision, not this method's.
+    func transcribe(_ audio: [Float],
+                    languages: [String],
+                    translatesUnsupported: Bool) async throws -> Transcription {
         guard let whisper else { return Transcription(text: "", language: nil) }
 
-        let language = try await resolveLanguage(whisper: whisper, audio: audio, languages: languages)
+        let scores = try await LanguageDetector.scores(for: audio, using: whisper)
+        let policy = DecodePolicy(selected: languages, translatesUnsupported: translatesUnsupported)
+        let plan = policy.plan(from: scores)
+
         let options = DecodingOptions(
             verbose: false,
-            task: .transcribe,
-            language: language,
+            task: plan.task,
+            language: plan.language,
             chunkingStrategy: .vad
         )
 
@@ -77,33 +85,7 @@ actor Transcriber: Transcribing {
             .joined(separator: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        return Transcription(text: text, language: language)
+        return Transcription(text: text, language: plan.language)
     }
 
-    /// Which language to decode this batch as.
-    ///
-    /// One language selected means no detection at all — the user already
-    /// answered the question.
-    ///
-    /// With several, Whisper is asked — but its answer cannot be constrained to
-    /// the selected set, because `langProbs` carries only the one language it
-    /// sampled. The other entries simply aren't there, and the values it does
-    /// carry are log probabilities, so a missing entry cannot be defaulted to
-    /// zero and ranked against the rest. So: take Whisper's answer when it is one
-    /// of the user's languages, and otherwise fall back rather than decode as a
-    /// language they never asked for.
-    private func resolveLanguage(whisper: WhisperKit,
-                                 audio: [Float],
-                                 languages: [String]) async throws -> String? {
-        guard languages.count > 1 else { return languages.first }
-
-        let detection = try await whisper.detectLangauge(audioArray: audio)
-        if languages.contains(detection.language) {
-            return detection.language
-        }
-        // Heard something outside the selected set — a half-word, background
-        // noise. Sorted rather than first-in-set so the fallback is the same
-        // every launch.
-        return languages.sorted().first
-    }
 }

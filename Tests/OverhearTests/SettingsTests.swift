@@ -13,7 +13,16 @@ final class SettingsTests: OverhearTestCase {
         XCTAssertTrue(settings.showOverlay)
         XCTAssertTrue(settings.dictateOnLaunch)
         XCTAssertTrue(settings.stripAnnotations, "annotations are filtered unless the user opts out")
+        XCTAssertFalse(settings.translateUnsupported, "translation is a choice, not something that happens by accident")
         XCTAssertEqual(settings.cancelWord, HotWord.defaultWord)
+    }
+
+    func testTranslateUnsupportedRoundTripsWhenTurnedOn() {
+        let defaults = makeDefaults()
+        AppSettings(defaults: defaults, availableHotWords: HotWord.builtIn).translateUnsupported = true
+
+        let reloaded = AppSettings(defaults: defaults, availableHotWords: HotWord.builtIn)
+        XCTAssertTrue(reloaded.translateUnsupported)
     }
 
     /// Off has to survive a relaunch, which a plain `bool(forKey:)` read would

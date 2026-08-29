@@ -43,6 +43,12 @@ actor DictationEngine {
     private static let maxQueuedChunks = 125
     private var isDictating = false
     private var hasAudio = false
+
+    /// Whether speech in an unselected language should be translated to
+    /// English. Held rather than taken at `start(...)` like `languages`: it
+    /// only affects a decode flag, and baking it in would mean reloading the
+    /// models to toggle it.
+    private var translatesUnsupported = false
     private var languages: [String] = ["en"]
     private var cancelWordPath: String = ""
 
@@ -100,6 +106,11 @@ actor DictationEngine {
 
     func activate() {
         isDictating = true
+    }
+
+    /// Applied to the next batch — no restart, unlike a language change.
+    func setTranslatesUnsupported(_ translates: Bool) {
+        translatesUnsupported = translates
     }
 
     func deactivate() {
@@ -182,7 +193,11 @@ actor DictationEngine {
             emit(.transcribing)
             let result: Transcription
             do {
-                result = try await transcriber.transcribe(audio, languages: languages)
+                result = try await transcriber.transcribe(
+                    audio,
+                    languages: languages,
+                    translatesUnsupported: translatesUnsupported
+                )
             } catch {
                 emit(.error("Transcription failed: \(error.localizedDescription)"))
                 continue

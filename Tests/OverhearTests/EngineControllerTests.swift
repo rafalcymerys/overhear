@@ -19,7 +19,9 @@ final class EngineControllerTests: OverhearTestCase {
         }
 
         func load() async throws {}
-        func transcribe(_ audio: [Float], languages: [String]) async throws -> Transcription {
+        func transcribe(_ audio: [Float],
+                        languages: [String],
+                        translatesUnsupported: Bool) async throws -> Transcription {
             Transcription(text: text, language: "en")
         }
     }

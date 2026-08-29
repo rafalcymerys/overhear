@@ -22,6 +22,14 @@ struct GeneralSettingsView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("Translate unsupported languages", isOn: $settings.translateUnsupported)
+                    Text("Speech in a language you have not selected is translated to English.\nThe languages you select are always transcribed as themselves.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             } header: {
                 Text("Transcription")
             }
