@@ -72,8 +72,10 @@ enum SettingsTab: String, CaseIterable {
 /// and it overrides any frame set by hand.
 @MainActor
 final class SettingsWindowController: NSObject {
-    private var window: NSWindow?
-    private var selected: SettingsTab = .general
+    /// Exposed for tests, which assert on the window's title and size as
+    /// panes are selected.
+    private(set) var window: NSWindow?
+    private(set) var selected: SettingsTab = .general
 
     func show() {
         if window == nil {
@@ -126,7 +128,7 @@ final class SettingsWindowController: NSObject {
     /// The blank matters. Animating a resize with the old pane still in place
     /// stretches and clips it on the way, which reads as a glitch; leaving the
     /// window empty for the couple of frames it takes reads as deliberate.
-    private func select(_ tab: SettingsTab) {
+    func select(_ tab: SettingsTab) {
         guard tab != selected, let window else { return }
         selected = tab
 
