@@ -1,4 +1,3 @@
-import AVFoundation
 import OnnxRuntimeBindings
 import XCTest
 @testable import Overhear
@@ -27,13 +26,13 @@ final class WakeWordDetectorTests: XCTestCase {
 
     func testScoresWakeWordNearCertainty() throws {
         let detector = try makeDetector()
-        let score = try highestScore(detector: detector, fixture: "alexa")
+        let score = try highestScore(detector: detector, sample: .alexa)
         XCTAssertEqual(score, 0.999999, accuracy: 0.0001, "matches openWakeWord's reference score for this clip")
     }
 
     func testIgnoresUnrelatedSpeech() throws {
         let detector = try makeDetector()
-        let score = try highestScore(detector: detector, fixture: "unrelated_speech")
+        let score = try highestScore(detector: detector, sample: .sentenceEn)
         XCTAssertEqual(score, 0.000328, accuracy: 0.0001, "matches openWakeWord's reference score for this clip")
     }
 
@@ -41,9 +40,9 @@ final class WakeWordDetectorTests: XCTestCase {
     /// what happens after every cancel.
     func testDetectsAgainAfterReset() throws {
         let detector = try makeDetector()
-        let first = try highestScore(detector: detector, fixture: "alexa")
+        let first = try highestScore(detector: detector, sample: .alexa)
         detector.reset()
-        let second = try highestScore(detector: detector, fixture: "alexa")
+        let second = try highestScore(detector: detector, sample: .alexa)
         XCTAssertGreaterThan(first, 0.9)
         XCTAssertGreaterThan(second, 0.9)
     }
@@ -63,8 +62,8 @@ final class WakeWordDetectorTests: XCTestCase {
         )
     }
 
-    private func highestScore(detector: WakeWordDetector, fixture: String) throws -> Float {
-        let samples = try loadFixture(fixture)
+    private func highestScore(detector: WakeWordDetector, sample: SyntheticSample) throws -> Float {
+        let samples = try padded(sample)
         var best: Float = 0
         var index = 0
         while index + WakeWordDetector.chunkSamples <= samples.count {
@@ -75,23 +74,11 @@ final class WakeWordDetectorTests: XCTestCase {
         return best
     }
 
-    /// Loads a fixture as int16-scaled floats, padded with a second of silence
-    /// at each end. The padding matches how openWakeWord evaluates clips: a
-    /// short utterance with no lead-in never fills the 16-frame window.
-    private func loadFixture(_ name: String) throws -> [Float] {
-        let url = try XCTUnwrap(Bundle.module.url(forResource: "Fixtures/\(name)", withExtension: "wav"))
-        let file = try AVAudioFile(forReading: url)
-        XCTAssertEqual(file.processingFormat.sampleRate, 16000)
-
-        let buffer = try XCTUnwrap(AVAudioPCMBuffer(
-            pcmFormat: file.processingFormat,
-            frameCapacity: AVAudioFrameCount(file.length)
-        ))
-        try file.read(into: buffer)
-        let channel = try XCTUnwrap(buffer.floatChannelData?[0])
-
+    /// A sample as int16-scaled floats, padded with a second of silence at each
+    /// end. The padding matches how openWakeWord evaluates clips: a short
+    /// utterance with no lead-in never fills the 16-frame window.
+    private func padded(_ sample: SyntheticSample) throws -> [Float] {
         let padding = [Float](repeating: 0, count: 16000)
-        let audio = (0..<Int(buffer.frameLength)).map { channel[$0] * 32767 }
-        return padding + audio + padding
+        return padding + (try sample.loadForDetector()) + padding
     }
 }

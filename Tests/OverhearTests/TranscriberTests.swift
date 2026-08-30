@@ -1,4 +1,3 @@
-import AVFoundation
 import XCTest
 @testable import Overhear
 
@@ -20,7 +19,7 @@ final class TranscriberTests: XCTestCase {
         let transcriber = Transcriber()
         try await transcriber.load()
 
-        let audio = try loadFixture("unrelated_speech")
+        let audio = try SyntheticSample.sentenceEn.load()
         let result = try await transcriber.transcribe(audio, languages: ["en"], translatesUnsupported: false)
 
         let text = result.text.lowercased()
@@ -36,14 +35,14 @@ final class TranscriberTests: XCTestCase {
         try await transcriber.load()
 
         let english = try await transcriber.transcribe(
-            try loadFixture("unrelated_speech"),
+            try SyntheticSample.sentenceEn.load(),
             languages: ["en", "pl"],
             translatesUnsupported: false
         )
         XCTAssertEqual(english.language, "en")
 
         let polish = try await transcriber.transcribe(
-            try loadFixture("polish_speech"),
+            try SyntheticSample.sentencePl.load(),
             languages: ["en", "pl"],
             translatesUnsupported: false
         )
@@ -70,7 +69,7 @@ final class TranscriberTests: XCTestCase {
         try await transcriber.load()
 
         let result = try await transcriber.transcribe(
-            try loadFixture("polish_speech"),
+            try SyntheticSample.sentencePl.load(),
             languages: ["en", "pl"],
             translatesUnsupported: false
         )
@@ -89,7 +88,7 @@ final class TranscriberTests: XCTestCase {
         try await transcriber.load()
 
         let result = try await transcriber.transcribe(
-            try loadFixture("german_speech"),
+            try SyntheticSample.gutenTagDe.load(),
             languages: ["en", "de"],
             translatesUnsupported: false
         )
@@ -108,7 +107,7 @@ final class TranscriberTests: XCTestCase {
         try await transcriber.load()
 
         let result = try await transcriber.transcribe(
-            try loadFixture("german_speech"),
+            try SyntheticSample.gutenTagDe.load(),
             languages: ["en"],
             translatesUnsupported: false
         )
@@ -123,7 +122,7 @@ final class TranscriberTests: XCTestCase {
         try await transcriber.load()
 
         let result = try await transcriber.transcribe(
-            try loadFixture("german_speech"),
+            try SyntheticSample.gutenTagDe.load(),
             languages: ["en"],
             translatesUnsupported: true
         )
@@ -135,15 +134,4 @@ final class TranscriberTests: XCTestCase {
         )
     }
 
-    private func loadFixture(_ name: String) throws -> [Float] {
-        let url = try XCTUnwrap(Bundle.module.url(forResource: "Fixtures/\(name)", withExtension: "wav"))
-        let file = try AVAudioFile(forReading: url)
-        let buffer = try XCTUnwrap(AVAudioPCMBuffer(
-            pcmFormat: file.processingFormat,
-            frameCapacity: AVAudioFrameCount(file.length)
-        ))
-        try file.read(into: buffer)
-        let channel = try XCTUnwrap(buffer.floatChannelData?[0])
-        return (0..<Int(buffer.frameLength)).map { channel[$0] }
-    }
 }

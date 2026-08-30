@@ -22,8 +22,7 @@ let package = Package(
         .testTarget(
             name: "OverhearTests",
             dependencies: ["Overhear"],
-            path: "Tests/OverhearTests",
-            resources: [.copy("Fixtures")]
+            path: "Tests/OverhearTests"
         ),
     ]
 )

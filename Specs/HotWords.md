@@ -79,7 +79,7 @@ attempt.
 4. Start dictation and say the custom phrase while speaking.
 
 Assert: the batch is discarded and the cancelled state is shown.
-Assert: `alexa` no longer cancels.
+Assert: `Alexa` no longer cancels.
 
 ## Removes a custom word
 
@@ -97,7 +97,7 @@ Assert: the file is removed from
 2. Remove it with the trash button.
 
 Assert: **Cancel word** changes to Alexa.
-Assert: dictation still cancels on `alexa` after the engine reloads.
+Assert: dictation still cancels on `Alexa` after the engine reloads.
 
 ## Installing a file that replaces an existing one
 
@@ -122,7 +122,7 @@ anywhere in the interface.
    classifier — to `broken_word.onnx`.
 2. Install it from file.
 3. Select it as the **Cancel word** and wait for the engine to reload.
-4. Start dictation and say `alexa`, then say the phrase the model was meant for.
+4. Start dictation and say `Alexa`, then say the phrase the model was meant for.
 
 Assert: the user is told the model cannot be used.
 

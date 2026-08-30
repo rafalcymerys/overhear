@@ -8,7 +8,7 @@ and the pasteboard mechanics of the insertion itself.
 1. Open **Settings… → General** and confirm **Strip transcription annotations**
    is on.
 2. Start dictation with TextEdit focused.
-3. Say `coughing`.
+3. Say `Coughing`.
 4. Wait three seconds.
 
 Assert: nothing is inserted into the document.
@@ -19,7 +19,7 @@ Assert: dictation stays active.
 
 1. Confirm **Strip transcription annotations** is on.
 2. Start dictation with TextEdit focused.
-3. Cough, then immediately say `sentence-en` without pausing between them.
+3. Cough, then immediately say `SentenceEn` without pausing between them.
 
 Assert: the spoken sentence is inserted.
 Assert: the inserted text contains no bracketed or parenthesised description
@@ -30,7 +30,7 @@ such as `(coughing)` or `[ Pause ]`.
 1. Open **Settings… → General** and turn **Strip transcription annotations**
    off.
 2. Start dictation with TextEdit focused.
-3. Say `coughing`.
+3. Say `Coughing`.
 
 Assert: whatever the model produces is inserted, including any parenthesised
 description.
@@ -41,7 +41,7 @@ engine reload.
 
 1. Turn **Strip transcription annotations** off.
 2. Start dictation with TextEdit focused.
-3. Say `silence` for several seconds, then `background-noise`.
+3. Say `Silence` for several seconds, then `BackgroundNoise`.
 
 Assert: no inserted text contains `[ Pause ]`, `[BLANK_AUDIO]` or any other
 square-bracketed description, with the setting off.
@@ -50,7 +50,7 @@ square-bracketed description, with the setting off.
 
 1. Confirm **Strip transcription annotations** is on.
 2. Start dictation with TextEdit focused.
-3. Say `paragraph-en`.
+3. Say `ParagraphEn`.
 
 Assert: the inserted text keeps its commas, full stops and casing.
 Assert: no words are removed.
@@ -59,7 +59,7 @@ Assert: no words are removed.
 
 1. Copy a distinctive string to the clipboard.
 2. Start dictation with TextEdit focused.
-3. Say `hello-en` and wait for the insertion.
+3. Say `HelloEn` and wait for the insertion.
 4. Wait one second, then press Cmd+V.
 
 Assert: the pasted content is the string from step 1.
@@ -85,7 +85,7 @@ is replaced by a transcription.
 
 1. Select Polish.
 2. Start dictation with TextEdit focused.
-3. Say `sentence-pl`.
+3. Say `SentencePl`.
 
 Assert: Polish diacritics are inserted correctly.
 Assert: no characters are replaced by escapes or question marks.
@@ -94,7 +94,7 @@ Assert: no characters are replaced by escapes or question marks.
 
 1. Start dictation.
 2. Focus an application with no editable text field, such as the Finder desktop.
-3. Say `hello-en`.
+3. Say `HelloEn`.
 
 Assert: the app does not crash or hang.
 Assert: the transcription is added to **Last Transcriptions**.

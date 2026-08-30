@@ -31,7 +31,7 @@ Assert: **Selected Languages** never shows "No languages selected".
 
 1. Select English and Polish.
 2. Start dictation with TextEdit focused.
-3. Say `sentence-pl`, pause, then say `sentence-en`.
+3. Say `SentencePl`, pause, then say `SentenceEn`.
 
 Assert: the Polish utterance is inserted in Polish.
 Assert: the English utterance is inserted in English.
@@ -41,7 +41,7 @@ Assert: neither is translated into the other.
 
 1. Select English and Polish.
 2. Start dictation with TextEdit focused.
-3. Say `dzien-dobry-pl`, pause, and repeat five times.
+3. Say `DzienDobryPl`, pause, and repeat five times.
 
 Assert: every insertion is Polish.
 Assert: no insertion contains an English rendering such as "good morning" or
@@ -51,7 +51,7 @@ Assert: no insertion contains an English rendering such as "good morning" or
 
 1. Select Polish only.
 2. Start dictation with TextEdit focused.
-3. Say `sentence-pl`.
+3. Say `SentencePl`.
 
 Assert: the utterance is inserted in Polish.
 
@@ -60,7 +60,7 @@ Assert: the utterance is inserted in Polish.
 1. Select English only.
 2. Ensure **Translate unsupported languages** is off.
 3. Start dictation with TextEdit focused.
-4. Say `guten-tag-de`.
+4. Say `GutenTagDe`.
 
 Assert: the inserted text is English.
 Assert: no German text is inserted.
@@ -75,7 +75,7 @@ behaviour for someone who selected one language and then spoke another.
 1. Select English only.
 2. Open **Settings… → General** and turn **Translate unsupported languages** on.
 3. Start dictation with TextEdit focused.
-4. Say `guten-tag-de`.
+4. Say `GutenTagDe`.
 
 Assert: the inserted text is an English translation of the German.
 Assert: no engine reload happens when the setting is toggled — dictation stays
@@ -88,7 +88,7 @@ English, since English is the only selected language.
 1. Select English and Polish.
 2. Turn **Translate unsupported languages** on.
 3. Start dictation with TextEdit focused.
-4. Say `sentence-pl`.
+4. Say `SentencePl`.
 
 Assert: the utterance is inserted in Polish.
 Assert: it is not translated into English.
@@ -97,8 +97,8 @@ Assert: it is not translated into English.
 
 1. Select English and Polish.
 2. Start dictation with TextEdit focused.
-3. Say `sentence-pl`, pause, then say `sentence-en`, pause, then say
-   `bonjour-fr`.
+3. Say `SentencePl`, pause, then say `SentenceEn`, pause, then say
+   `BonjourFr`.
 
 Assert: the Polish utterance is inserted in Polish.
 Assert: the English utterance is inserted in English.
@@ -109,7 +109,7 @@ model scores higher, not in a fixed one of the two.
 
 1. Select English and Polish.
 2. Start dictation with TextEdit focused.
-3. Say `mixed-en-pl` as one utterance.
+3. Say `MixedEnPl` as one utterance.
 
 Assert: a single insertion arrives.
 Assert: the insertion is in one of the two selected languages.

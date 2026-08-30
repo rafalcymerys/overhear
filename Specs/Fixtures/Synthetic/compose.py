@@ -35,7 +35,7 @@ def silence(seconds):
 
 # The user says nothing for five seconds. Digital silence rather than room
 # tone: the engine's own threshold is what these specs exercise.
-write("silence.wav", silence(5.0))
+write("Silence.wav", silence(5.0))
 
 
 # A cough: a sharp burst of band-limited noise with a fast attack and a short
@@ -63,7 +63,7 @@ cough.extend(cough_burst(0.45, 22000, seed=1))
 cough.extend(silence(0.30))
 cough.extend(cough_burst(0.38, 17000, seed=2))
 cough.extend(silence(0.60))
-write("coughing.wav", cough)
+write("Coughing.wav", cough)
 
 
 # Background noise with no speech in it: a low hum plus intermittent clicks,
@@ -86,12 +86,12 @@ for i in range(int(RATE * 8.0)):
         if start in click_at:
             value += rng.uniform(-9000, 9000) * math.exp(-40.0 * (i - start) / RATE)
     noise.append(value)
-write("background-noise.wav", noise)
+write("BackgroundNoise.wav", noise)
 
 
 # Whispered speech: the sample is defined by being too quiet to cross the
 # engine's level threshold, so the amplitude is what matters, not the timbre.
-write("quiet-en.wav", [s * 0.012 for s in read("_quiet-source.wav")])
+write("QuietEn.wav", [s * 0.012 for s in read("_quiet-source.wav")])
 
 
 # One utterance that switches language mid-sentence, assembled from the two
@@ -99,14 +99,14 @@ write("quiet-en.wav", [s * 0.012 for s in read("_quiet-source.wav")])
 mixed = []
 for part in ("_mixed-a.wav", "_mixed-b.wav", "_mixed-c.wav"):
     mixed.extend(read(part))
-write("mixed-en-pl.wav", mixed)
+write("MixedEnPl.wav", mixed)
 
 
 # A sentence, a pause long enough for transcription to start, then the cancel
 # word. The engine ends a batch after 1.5s of silence, so the gap sits under
 # that and the cancel word lands while Whisper is still running.
 during = []
-during.extend(read("sentence-en.wav"))
+during.extend(read("SentenceEn.wav"))
 during.extend(silence(1.2))
-during.extend(read("alexa.wav"))
-write("alexa-during-transcription.wav", during)
+during.extend(read("Alexa.wav"))
+write("AlexaDuringTranscription.wav", during)

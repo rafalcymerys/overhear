@@ -7,7 +7,7 @@ another application.
 
 1. Set a specific input device as the system default in System Settings.
 2. Open Overhear and start dictation.
-3. Say `hello-en`.
+3. Say `HelloEn`.
 
 Assert: the utterance is transcribed.
 Assert: the macOS microphone indicator shows Overhear using the microphone.
@@ -28,7 +28,7 @@ Assert: no partial transcription is inserted.
 
 1. From the previous scenario, plug the microphone back in.
 2. Wait five seconds.
-3. Start dictation and say `hello-en`.
+3. Start dictation and say `HelloEn`.
 
 Assert: the app does not need restarting.
 Assert: the utterance is transcribed.
@@ -37,7 +37,7 @@ Assert: the utterance is transcribed.
 
 1. Start dictation with the built-in microphone.
 2. Change the system default input to another device in System Settings.
-3. Wait five seconds, then start dictation again and say `hello-en`.
+3. Wait five seconds, then start dictation again and say `HelloEn`.
 
 Assert: dictation stops when the device changes.
 Assert: the new device is used afterwards.
@@ -57,7 +57,7 @@ Assert: connecting a device afterwards lets dictation start without relaunching.
 ## Speaking immediately after starting dictation
 
 1. Ensure dictation is stopped.
-2. Choose **Start Listening** and begin speaking `sentence-en` within half a
+2. Choose **Start Listening** and begin speaking `SentenceEn` within half a
    second.
 
 Assert: the utterance is transcribed.
@@ -66,7 +66,7 @@ Assert: the opening word is not clipped.
 ## Microphone shared with another application
 
 1. Start a call in another application that holds the microphone.
-2. Start dictation in Overhear and say `hello-en`.
+2. Start dictation in Overhear and say `HelloEn`.
 
 Assert: the utterance is transcribed.
 Assert: the other application keeps working.

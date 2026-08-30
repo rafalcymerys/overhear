@@ -1,4 +1,3 @@
-import AVFoundation
 import XCTest
 @testable import Overhear
 
@@ -73,7 +72,7 @@ final class DictationEngineTests: XCTestCase {
         try await harness.waitFor(.ready)
 
         harness.audio.sendSpeech(seconds: 0.5)
-        harness.audio.send(samples: try loadFixture("alexa"))
+        harness.audio.send(samples: try SyntheticSample.alexa.load())
 
         try await harness.waitFor(.wakeWordCancel)
 
@@ -170,15 +169,4 @@ final class DictationEngineTests: XCTestCase {
         return Harness(engine: engine, audio: audio, transcriber: transcriber, collector: collector)
     }
 
-    private func loadFixture(_ name: String) throws -> [Float] {
-        let url = try XCTUnwrap(Bundle.module.url(forResource: "Fixtures/\(name)", withExtension: "wav"))
-        let file = try AVAudioFile(forReading: url)
-        let buffer = try XCTUnwrap(AVAudioPCMBuffer(
-            pcmFormat: file.processingFormat,
-            frameCapacity: AVAudioFrameCount(file.length)
-        ))
-        try file.read(into: buffer)
-        let channel = try XCTUnwrap(buffer.floatChannelData?[0])
-        return (0..<Int(buffer.frameLength)).map { channel[$0] }
-    }
 }
