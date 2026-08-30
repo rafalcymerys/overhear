@@ -11,17 +11,11 @@ import XCTest
 /// implementation over these exact clips: 0.999999 for "alexa", 0.000328 for
 /// unrelated speech.
 final class WakeWordDetectorTests: XCTestCase {
-    /// Models are shared across tests and across runs — six files, ~6MB, and
-    /// re-downloading them per test would dominate the suite.
-    private static var modelsDirectory: URL {
-        URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("overhear-test-models")
-    }
+    private static var modelsDirectory: URL { EngineTestModels.directory }
 
     override func setUp() async throws {
         try await super.setUp()
-        let setup = await ModelSetup(directory: Self.modelsDirectory)
-        try await setup.ensureModels()
+        try await EngineTestModels.ensure()
     }
 
     func testScoresWakeWordNearCertainty() throws {
@@ -36,6 +30,26 @@ final class WakeWordDetectorTests: XCTestCase {
         XCTAssertEqual(score, 0.000328, accuracy: 0.0001, "matches openWakeWord's reference score for this clip")
     }
 
+    /// Speech in another language is not the cancel word either — the user
+    /// dictating Polish must not have their batch thrown away.
+    func testIgnoresSpeechInAnotherLanguage() throws {
+        let detector = try makeDetector()
+        let score = try highestScore(detector: detector, sample: .sentencePl)
+        XCTAssertLessThan(score, 0.1, "Polish dictation should not read as \"alexa\"")
+    }
+
+    /// Choosing another cancel word means that word and no other: each model
+    /// hears its own phrase and ignores the others'.
+    func testEachWordModelHearsOnlyItsOwnWord() throws {
+        let jarvis = try makeDetector(word: HotWord.builtIn[1])
+        XCTAssertGreaterThan(try highestScore(detector: jarvis, sample: .heyJarvis), 0.9)
+        XCTAssertLessThan(try highestScore(detector: jarvis, sample: .alexa), 0.1,
+                          "Alexa must not cancel once Hey Jarvis is the cancel word")
+
+        let alexa = try makeDetector()
+        XCTAssertLessThan(try highestScore(detector: alexa, sample: .heyJarvis), 0.1)
+    }
+
     /// A reset has to leave the detector able to hear the word again — that is
     /// what happens after every cancel.
     func testDetectsAgainAfterReset() throws {
@@ -47,13 +61,13 @@ final class WakeWordDetectorTests: XCTestCase {
         XCTAssertGreaterThan(second, 0.9)
     }
 
-    private func makeDetector() throws -> WakeWordDetector {
+    private func makeDetector(word: HotWord = .defaultWord) throws -> WakeWordDetector {
         let env = try ORTEnv(loggingLevel: .warning)
         let directory = Self.modelsDirectory
         return try WakeWordDetector(
             // Resolved the way the app resolves it, so a change to how models
             // are named on disk fails the assertion rather than the file lookup.
-            wordModelPath: HotWord.defaultWord.modelPath(in: directory),
+            wordModelPath: word.modelPath(in: directory),
             featureModels: FeatureModelPaths(
                 melspectrogram: directory.appendingPathComponent("melspectrogram.onnx").path,
                 embedding: directory.appendingPathComponent("embedding_model.onnx").path

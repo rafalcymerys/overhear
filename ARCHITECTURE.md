@@ -221,15 +221,16 @@ Neither grant arrives as a notification — Accessibility is switched on in Syst
 
 ## Testing
 
-`swift test` runs the suite. The interesting parts:
+`swift test` runs the suite. The scenarios come from `Specs/`, and the audio they name is loaded from `Specs/Fixtures/Synthetic` through `SyntheticSample`, so a spec and the test that covers it are hearing the same recording. The interesting parts:
 
-- `WakeWordDetectorTests` — the golden test for the openWakeWord port, asserting against scores measured from openWakeWord's own implementation.
-- `DictationEngineTests` — drives the loop with a scripted audio source and real wake word models: batching, silence discarding, cancel-word behaviour, the stop rules, and device loss.
-- `EngineControllerTests` — engine events reaching `AppState` and the pasteboard, the layer the menu bar and overlay render from.
+- `WakeWordDetectorTests` — the golden test for the openWakeWord port, asserting against scores measured from openWakeWord's own implementation, and that each word model hears only its own phrase.
+- `DictationEngineTests` — drives the loop with a scripted audio source and real wake word models: batching, the thirty-second cap, silence and levels below the speech threshold, the stop rules, and losing and regaining the microphone.
+- `CancelWordTests` — `Specs/CancelWord.md` against the same harness, covering all three places the word can land: mid-utterance, at the end of one, and in the backlog that piles up while Whisper is running.
+- `EngineControllerTests` — engine events reaching `AppState` and the pasteboard, the layer the menu bar and overlay render from, including the settings that apply without rebuilding the engine.
 - `AnnotationFilterTests` — that Whisper's descriptions of non-speech never reach the document, using the strings from the bug report.
 - `DecodePolicyTests` — the table above, including that a misdetected language is never forced to English.
 - `ChunkAccumulatorTests` — that no sample is lost or duplicated across awkward buffer boundaries.
-- `TranscriberTests` — real WhisperKit, opt-in via `OVERHEAR_RUN_MODEL_TESTS=1` because it downloads model weights.
+- `TranscriberTests` — real WhisperKit, opt-in via `OVERHEAR_RUN_MODEL_TESTS=1` because it downloads model weights: the language scenarios from `Specs/Languages.md`, and what a cough comes back as.
 - `AudioCaptureTests` — the real microphone, opt-in via `OVERHEAR_RUN_AUDIO_TESTS=1` because CI has no input device.
 
 ## Linting

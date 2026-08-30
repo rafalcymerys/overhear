@@ -134,4 +134,134 @@ final class TranscriberTests: XCTestCase {
         )
     }
 
+    /// Selecting one language and speaking it is the ordinary case, and it has
+    /// to work without English anywhere in the configuration.
+    func testASingleSelectedLanguageIsTranscribedAsItself() async throws {
+        let transcriber = Transcriber()
+        try await transcriber.load()
+
+        let result = try await transcriber.transcribe(
+            try SyntheticSample.sentencePl.load(),
+            languages: ["pl"],
+            translatesUnsupported: false
+        )
+
+        XCTAssertEqual(result.language, "pl")
+        XCTAssertTrue(
+            result.text.lowercased().contains("dobry"),
+            "expected Polish back, got: \(result.text)"
+        )
+    }
+
+    /// R-98 was intermittent — the same phrase came back English some of the
+    /// time — so one pass proves less than a handful of them.
+    func testPolishStaysPolishAcrossRepeatedUtterances() async throws {
+        let transcriber = Transcriber()
+        try await transcriber.load()
+
+        let audio = try SyntheticSample.dzienDobryPl.load()
+        for attempt in 1...5 {
+            let result = try await transcriber.transcribe(
+                audio,
+                languages: ["en", "pl"],
+                translatesUnsupported: false
+            )
+            XCTAssertEqual(result.language, "pl", "attempt \(attempt) left Polish")
+            for english in ["good morning", "good day", "hello"] {
+                XCTAssertFalse(
+                    result.text.lowercased().contains(english),
+                    "attempt \(attempt) came back English: \(result.text)"
+                )
+            }
+        }
+    }
+
+    /// The translation setting governs languages the user did not select. One
+    /// they did select is transcribed as itself whatever it says.
+    func testTranslationDoesNotTouchASelectedLanguage() async throws {
+        let transcriber = Transcriber()
+        try await transcriber.load()
+
+        let result = try await transcriber.transcribe(
+            try SyntheticSample.sentencePl.load(),
+            languages: ["en", "pl"],
+            translatesUnsupported: true
+        )
+
+        XCTAssertEqual(result.language, "pl")
+        XCTAssertTrue(
+            result.text.lowercased().contains("dobry"),
+            "Polish was translated despite being selected: \(result.text)"
+        )
+    }
+
+    /// Speech in a language the user did not select comes back in one they did
+    /// — whichever the model scores higher, not a fixed one of the two.
+    func testAnUnselectedLanguageIsDecodedAsOneOfTheSelectedOnes() async throws {
+        let transcriber = Transcriber()
+        try await transcriber.load()
+
+        let result = try await transcriber.transcribe(
+            try SyntheticSample.bonjourFr.load(),
+            languages: ["en", "pl"],
+            translatesUnsupported: false
+        )
+
+        let language = try XCTUnwrap(result.language)
+        XCTAssertTrue(["en", "pl"].contains(language), "output left the selected languages: \(language)")
+        XCTAssertFalse(result.text.isEmpty)
+    }
+
+    /// An utterance that switches language halfway is still one utterance: one
+    /// transcription, in one of the languages selected.
+    func testAnUtteranceInTwoLanguagesComesBackAsOne() async throws {
+        let transcriber = Transcriber()
+        try await transcriber.load()
+
+        let result = try await transcriber.transcribe(
+            try SyntheticSample.mixedEnPl.load(),
+            languages: ["en", "pl"],
+            translatesUnsupported: false
+        )
+
+        let language = try XCTUnwrap(result.language)
+        XCTAssertTrue(["en", "pl"].contains(language))
+        XCTAssertFalse(result.text.isEmpty, "the utterance should not come back empty")
+    }
+
+    // MARK: - What comes back that is not speech
+
+    /// R-97 against the real model: a cough is described rather than
+    /// transcribed, and the description is what the filter exists to remove.
+    func testNonSpeechComesBackAsAnAnnotationTheFilterRemoves() async throws {
+        let transcriber = Transcriber()
+        try await transcriber.load()
+
+        let result = try await transcriber.transcribe(
+            try SyntheticSample.coughing.load(),
+            languages: ["en"],
+            translatesUnsupported: false
+        )
+
+        let spoken = AnnotationFilter(stripsParentheses: true).filter(result.text)
+        XCTAssertTrue(spoken.isEmpty, "a cough should leave nothing to paste, got: \(result.text)")
+    }
+
+    /// Ordinary dictation keeps its punctuation and casing on the way through —
+    /// the filter is aimed at annotations, not at sentences.
+    func testOrdinarySpeechKeepsItsPunctuation() async throws {
+        let transcriber = Transcriber()
+        try await transcriber.load()
+
+        let result = try await transcriber.transcribe(
+            try SyntheticSample.paragraphEn.load(),
+            languages: ["en"],
+            translatesUnsupported: false
+        )
+
+        XCTAssertTrue(result.text.contains("."), "expected sentences, got: \(result.text)")
+        XCTAssertTrue(result.text.contains(where: \.isUppercase), "expected casing, got: \(result.text)")
+        XCTAssertEqual(AnnotationFilter(stripsParentheses: true).filter(result.text), result.text,
+                       "nothing in ordinary dictation looks like an annotation")
+    }
 }

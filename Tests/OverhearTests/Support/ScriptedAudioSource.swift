@@ -54,23 +54,53 @@ final class ScriptedAudioSource: AudioSource, @unchecked Sendable {
         }
     }
 
+    /// Feed audio a burst at a time, pausing so the engine can keep up.
+    ///
+    /// The engine's handover queue holds ten seconds and drops whatever
+    /// overflows it, so audio handed over faster than the recorder consumes it
+    /// is lost before the recorder ever sees it. Real capture delivers a chunk
+    /// every 80ms; this is the same shape, only faster, and it is what any test
+    /// feeding more than a few seconds at once wants.
+    func sendPaced(samples: [Float], inBurstsOf burst: Int = 8, gap: Duration = .milliseconds(10)) async {
+        var index = 0
+        var sent = 0
+        while index + WakeWordDetector.chunkSamples <= samples.count {
+            send(.chunk(Array(samples[index..<(index + WakeWordDetector.chunkSamples)])))
+            index += WakeWordDetector.chunkSamples
+            sent += 1
+            if sent % burst == 0 {
+                try? await Task.sleep(for: gap)
+            }
+        }
+    }
+
     /// Feed `seconds` of silence — how a batch is brought to an end.
     func sendSilence(seconds: Double) {
-        let chunks = Int(seconds * Double(AudioCapture.sampleRate) / Double(WakeWordDetector.chunkSamples))
-        for _ in 0..<chunks {
-            send(.chunk([Float](repeating: 0, count: WakeWordDetector.chunkSamples)))
-        }
+        send(samples: Self.silence(seconds: seconds))
     }
 
     /// Feed `seconds` of audio loud enough to read as speech.
     func sendSpeech(seconds: Double) {
+        send(samples: Self.speech(seconds: seconds))
+    }
+
+    /// Feed `seconds` of speech at a rate the engine can drain.
+    func sendPacedSpeech(seconds: Double) async {
+        await sendPaced(samples: Self.speech(seconds: seconds))
+    }
+
+    static func silence(seconds: Double) -> [Float] {
+        [Float](repeating: 0, count: sampleCount(for: seconds))
+    }
+
+    /// A tone at a level the engine reads as speech, and that the wake word
+    /// models score near zero.
+    static func speech(seconds: Double) -> [Float] {
+        (0..<sampleCount(for: seconds)).map { sin(Float($0) * 0.05) * 0.3 }
+    }
+
+    private static func sampleCount(for seconds: Double) -> Int {
         let chunks = Int(seconds * Double(AudioCapture.sampleRate) / Double(WakeWordDetector.chunkSamples))
-        for chunk in 0..<chunks {
-            let samples = (0..<WakeWordDetector.chunkSamples).map { sample -> Float in
-                let phase = Float(chunk * WakeWordDetector.chunkSamples + sample) * 0.05
-                return sin(phase) * 0.3
-            }
-            send(.chunk(samples))
-        }
+        return chunks * WakeWordDetector.chunkSamples
     }
 }

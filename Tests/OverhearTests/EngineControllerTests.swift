@@ -1,3 +1,4 @@
+import Combine
 import XCTest
 @testable import Overhear
 
@@ -6,30 +7,11 @@ import XCTest
 /// from here, so a mismapped event is a visibly wrong app.
 @MainActor
 final class EngineControllerTests: OverhearTestCase {
-    private static var modelsDirectory: URL {
-        URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("overhear-test-models")
-    }
-
-    private actor StubTranscriber: Transcribing {
-        private let text: String
-
-        init(text: String = "hello world") {
-            self.text = text
-        }
-
-        func load() async throws {}
-        func transcribe(_ audio: [Float],
-                        languages: [String],
-                        translatesUnsupported: Bool) async throws -> Transcription {
-            Transcription(text: text, language: "en")
-        }
-    }
+    private static var modelsDirectory: URL { EngineTestModels.directory }
 
     override func setUp() async throws {
         try await super.setUp()
-        let setup = ModelSetup(directory: Self.modelsDirectory)
-        try await setup.ensureModels()
+        try await EngineTestModels.ensure()
     }
 
     func testDrivesStateThroughADictationAndPastesTheResult() async throws {
@@ -61,6 +43,24 @@ final class EngineControllerTests: OverhearTestCase {
         audio.sendSilence(seconds: 2.0)
         await waitUntil("text is pasted") { injector.injected == ["hello world"] }
         XCTAssertEqual(appState.recentTranscriptions, ["hello world"], "it should also reach the menu")
+    }
+
+    /// The menu bar icon and the overlay are drawn from `status` alone, so the
+    /// whole cycle has to be published — a missed `transcribing` is a spinner
+    /// the user never sees.
+    func testEveryStateInTheCycleIsPublished() async throws {
+        let log = StatusLog()
+        let harness = try await makeHarness(transcribing: "hello world")
+        defer { harness.controller.stop() }
+
+        let subscription = harness.appState.$status.sink { log.record($0) }
+        defer { subscription.cancel() }
+
+        try await harness.dictateOneBatch()
+        await waitUntil("text is pasted") { !harness.injector.injected.isEmpty }
+
+        XCTAssertTrue(log.recorded.follows([.ready, .listening, .transcribing, .ready]),
+                      "expected the dictation cycle, saw \(log.recorded)")
     }
 
     /// A failure to load has to surface — a menu bar app that silently does
@@ -102,6 +102,103 @@ final class EngineControllerTests: OverhearTestCase {
         XCTAssertNil(appState.errorMessage)
     }
 
+    /// Dictation stopped and started again keeps what was already transcribed:
+    /// the menu is a session-long list, not a per-utterance one.
+    func testEarlierTranscriptionsSurviveStoppingAndStartingAgain() async throws {
+        let harness = try await makeHarness(transcribing: "hello world")
+        defer { harness.controller.stop() }
+
+        try await harness.dictateOneBatch()
+        await waitUntil("the first utterance is pasted") { harness.injector.injected.count == 1 }
+
+        harness.controller.deactivate()
+        await waitUntil("dictation stops") { !harness.appState.status.isActive }
+
+        harness.controller.activate()
+        await waitUntil("dictation is ready again") { harness.appState.status == .ready }
+        try await harness.dictateOneBatch()
+
+        await waitUntil("the second utterance is pasted") { harness.injector.injected.count == 2 }
+        XCTAssertEqual(harness.appState.recentTranscriptions, ["hello world", "hello world"],
+                       "the earlier transcription is still listed")
+    }
+
+    // MARK: - The cancel word, as the user sees it
+
+    /// Cancelling has to be visible — the shaking red bars in the menu bar and
+    /// the overlay are `showCancelled` — and nothing may reach the document.
+    func testCancellingShowsTheCancelledStateAndPastesNothing() async throws {
+        let harness = try await makeHarness(transcribing: "hello world")
+        defer { harness.controller.stop() }
+
+        harness.audio.sendSpeech(seconds: 0.5)
+        harness.audio.send(samples: try SyntheticSample.alexa.load())
+
+        await waitUntil("the cancelled state is shown") { harness.appState.showCancelled }
+        XCTAssertEqual(harness.appState.status, .ready, "dictation carries on after a cancel")
+        XCTAssertTrue(harness.injector.injected.isEmpty, "nothing is pasted")
+        XCTAssertTrue(harness.appState.recentTranscriptions.isEmpty, "nothing reaches the menu")
+    }
+
+    // MARK: - Settings that apply without a reload
+
+    /// Turning translation on reaches the running engine: the next batch is
+    /// decoded with it, and the audio source is never torn down.
+    func testTranslationAppliesToTheNextBatchWithoutAReload() async throws {
+        let transcriber = StubTranscriber()
+        let harness = try await makeHarness(transcriber: transcriber)
+        defer { harness.controller.stop() }
+
+        try await harness.dictateOneBatch()
+        await waitUntil("the first utterance is pasted") { harness.injector.injected.count == 1 }
+
+        harness.settings.translateUnsupported = true
+        try await harness.dictateOneBatch()
+        await waitUntil("the second utterance is pasted") { harness.injector.injected.count == 2 }
+
+        let requests = await transcriber.recordedRequests()
+        XCTAssertEqual(requests.map(\.translatesUnsupported), [false, true],
+                       "the setting applies to the next batch")
+        XCTAssertFalse(harness.audio.isStopped, "toggling it must not rebuild the engine")
+        XCTAssertTrue(harness.appState.status.isActive, "dictation stays active")
+    }
+
+    /// The same for annotation stripping, which is read per transcription
+    /// rather than baked into the engine.
+    func testAnnotationStrippingCanBeTurnedOffMidSession() async throws {
+        let harness = try await makeHarness(transcribing: "(coughing) hello world")
+        defer { harness.controller.stop() }
+
+        try await harness.dictateOneBatch()
+        await waitUntil("the annotation is stripped") { harness.injector.injected == ["hello world"] }
+
+        harness.settings.stripAnnotations = false
+        try await harness.dictateOneBatch()
+
+        await waitUntil("the annotation is kept") {
+            harness.injector.injected == ["hello world", "(coughing) hello world"]
+        }
+        XCTAssertFalse(harness.audio.isStopped, "toggling it must not rebuild the engine")
+    }
+
+    /// The languages reach the engine in a stable order. They are held as a
+    /// `Set`, whose iteration order changes between launches, and the decode
+    /// falls back to the first one when detection cannot run — an unsorted
+    /// hand-over makes that fallback a different language each time.
+    func testTheSelectedLanguagesReachTheTranscriberSorted() async throws {
+        let transcriber = StubTranscriber()
+        let harness = try await makeHarness(transcriber: transcriber) {
+            $0.selectedLanguageCodes = ["pl", "en", "de"]
+        }
+        defer { harness.controller.stop() }
+
+        try await harness.dictateOneBatch()
+        await waitUntil("the batch is transcribed") { !harness.injector.injected.isEmpty }
+
+        let requests = await transcriber.recordedRequests()
+        XCTAssertEqual(requests.first?.languages, ["de", "en", "pl"])
+    }
+
     // MARK: - R-97
 
     /// The bug as reported: with nobody speaking, Whisper described the sound it
@@ -137,6 +234,22 @@ final class EngineControllerTests: OverhearTestCase {
         await waitUntil("text is pasted") { harness.injector.injected == ["(coughing) hello world"] }
     }
 
+    /// Room noise is loud enough to be recorded as a batch — the level
+    /// threshold does not catch it — so what keeps it out of the document is
+    /// what Whisper makes of it, and the filter on the way past.
+    func testNoiseWithNoSpeechInItNeverReachesTheDocument() async throws {
+        let harness = try await makeHarness(transcribing: "[BLANK_AUDIO]")
+        defer { harness.controller.stop() }
+
+        await harness.audio.sendPaced(samples: try SyntheticSample.backgroundNoise.load())
+        harness.audio.sendSilence(seconds: 2.0)
+        try await Task.sleep(for: .milliseconds(400))
+
+        XCTAssertTrue(harness.injector.injected.isEmpty, "noise is not dictation")
+        XCTAssertTrue(harness.appState.recentTranscriptions.isEmpty)
+        XCTAssertTrue(harness.appState.status.isActive, "dictation stays active")
+    }
+
     // MARK: - Harness
 
     private struct Harness {
@@ -144,6 +257,7 @@ final class EngineControllerTests: OverhearTestCase {
         let appState: AppState
         let injector: SpyInjector
         let audio: ScriptedAudioSource
+        let settings: AppSettings
 
         /// Speak, pause, and let the batch run through transcription.
         func dictateOneBatch() async throws {
@@ -155,6 +269,11 @@ final class EngineControllerTests: OverhearTestCase {
 
     private func makeHarness(transcribing text: String,
                              configure: (AppSettings) -> Void = { _ in }) async throws -> Harness {
+        try await makeHarness(transcriber: StubTranscriber(text: text), configure: configure)
+    }
+
+    private func makeHarness(transcriber: any Transcribing,
+                             configure: (AppSettings) -> Void = { _ in }) async throws -> Harness {
         let appState = AppState()
         let injector = SpyInjector()
         let audio = ScriptedAudioSource()
@@ -165,7 +284,7 @@ final class EngineControllerTests: OverhearTestCase {
             appState: appState,
             injector: injector,
             modelsDirectory: Self.modelsDirectory,
-            transcriber: StubTranscriber(text: text),
+            transcriber: transcriber,
             makeAudioSource: { audio },
             settings: settings
         )
@@ -176,6 +295,39 @@ final class EngineControllerTests: OverhearTestCase {
         controller.activate()
         await waitUntil("engine is ready") { appState.status == .ready }
 
-        return Harness(controller: controller, appState: appState, injector: injector, audio: audio)
+        return Harness(controller: controller,
+                       appState: appState,
+                       injector: injector,
+                       audio: audio,
+                       settings: settings)
+    }
+}
+
+/// Every status the app published, in order.
+///
+/// Polling `appState.status` sees only where it happens to land; the states the
+/// icon renders pass through in milliseconds.
+private final class StatusLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [EngineStatus] = []
+
+    func record(_ status: EngineStatus) {
+        lock.withLock { values.append(status) }
+    }
+
+    var recorded: [EngineStatus] {
+        lock.withLock { values }
+    }
+}
+
+private extension Array where Element == EngineStatus {
+    /// Whether these statuses appear in order, with anything in between.
+    func follows(_ expected: [EngineStatus]) -> Bool {
+        var remaining = expected[...]
+        for status in self where status == remaining.first {
+            remaining = remaining.dropFirst()
+            if remaining.isEmpty { return true }
+        }
+        return remaining.isEmpty
     }
 }
