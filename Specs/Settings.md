@@ -7,33 +7,34 @@ persist.
 
 1. Click the menu bar icon and choose **Settings…**.
 
-Assert: the window opens with a toolbar of three items: General, Hot Words and
-Languages.
+Assert: the window opens with a toolbar of three items: General, Transcription
+and Hot Words.
 Assert: General is selected and its toolbar item is highlighted.
 Assert: the window title is "General".
 
 ## Switches panes
 
 1. Open Settings.
-2. Click **Hot Words**.
-3. Click **Languages**.
+2. Click **Transcription**.
+3. Click **Hot Words**.
 4. Click **General**.
 
 Assert: each click changes the window title to the pane name.
-Assert: the window resizes to fit each pane, with General shortest and Languages
-tallest.
+Assert: the window resizes to fit each pane, with General shortest and
+Transcription tallest.
 Assert: the window stays anchored at its top-left corner while resizing.
 Assert: the pane's contents appear only after the resize completes.
 Assert: clicking the pane that is already selected does nothing.
 
 ## Scrolls the language list
 
-1. Open **Settings… → Languages**.
-2. Scroll to the bottom of the language list.
+1. Open **Settings… → Transcription**.
+2. Open the **Languages** pull-down in the **Active Model** card.
+3. Scroll to the bottom of the language list.
 
 Assert: the window does not grow to fit the whole list.
-Assert: the list scrolls inside the window.
-Assert: the search field stays reachable.
+Assert: the list scrolls inside the pull-down.
+Assert: the search field at the top of the pull-down stays reachable.
 
 ## General pane contents
 
@@ -72,8 +73,8 @@ automatically.
 ## Settings persist across restarts
 
 1. Change every setting from its default: turn the three General toggles to
-   their opposite, pick a different cancel word, and change the language
-   selection.
+   their opposite, pick a different cancel word, activate a different model,
+   and change the language selection.
 2. Quit Overhear and open it again.
 3. Open each settings pane.
 
@@ -82,7 +83,7 @@ Assert: a setting turned off stays off rather than reverting to its default.
 
 ## Reopening settings returns to General [to review]
 
-1. Open Settings and switch to **Languages**.
+1. Open Settings and switch to **Transcription**.
 2. Close the window.
 3. Open **Settings…** again.
 

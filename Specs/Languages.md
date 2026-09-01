@@ -3,29 +3,58 @@
 Selecting the languages to recognise, how speech is matched against them, and
 what happens to speech in a language that is not selected.
 
+The languages a model can recognise are a property of that model, so the
+selection lives in the **Languages** row of the **Active Model** card in
+**Settings… → Transcription**. The model itself is
+`Specs/TranscriptionModel.md`.
+
 ## Selects and deselects languages
 
-1. Open **Settings… → Languages**.
-2. Observe **Selected Languages**.
-3. Type "pol" into the search field.
-4. Tick Polish in the list below.
+1. Open **Settings… → Transcription**.
+2. Click the control in the **Languages** row.
+3. Type "pol" into the search field at the top of the pull-down.
+4. Tick Polish.
 5. Clear the search and untick English.
 
 Assert: the default selection on a fresh install is English and Polish.
-Assert: each selected language appears as a chip under **Selected Languages**.
+Assert: the pull-down lists every language the active model supports, each with
+its code.
+Assert: the selected languages are ticked and sorted to the top.
 Assert: searching filters by both language name and code.
-Assert: ticking a language adds its chip immediately.
-Assert: unticking removes it.
+Assert: the pull-down stays open as languages are ticked and unticked.
+Assert: the row's summary updates with each tick.
+
+## Summarises the selection on the closed control
+
+1. Open **Settings… → Transcription** with English selected.
+2. Add Polish, then add three more languages.
+3. Close the pull-down after each change.
+
+Assert: one language reads as its name, such as "English".
+Assert: two read as both names, such as "English, Polish".
+Assert: more than two are shortened, such as "English, Polish & 3 more".
+Assert: the summary never widens the window.
 
 ## Refuses to leave no language selected
 
-1. Open **Settings… → Languages** with a single language selected.
-2. Try to untick that language.
-3. Try to remove its chip under **Selected Languages**.
+1. Open **Settings… → Transcription** with a single language selected.
+2. Open the **Languages** pull-down and try to untick that language.
 
-Assert: the language stays selected.
-Assert: the chip offers no remove button when it is the only one.
-Assert: **Selected Languages** never shows "No languages selected".
+Assert: the language stays ticked.
+Assert: the row never summarises the selection as "No languages selected".
+
+## Dims what the active model cannot transcribe
+
+1. Select English and Polish.
+2. Activate Parakeet TDT 0.6B v2, which supports English only.
+3. Open the **Languages** pull-down.
+
+Assert: English is ticked and the languages the model cannot transcribe are
+listed dimmed rather than hidden.
+Assert: a dimmed language cannot be ticked.
+Assert: the pull-down says the dimmed languages are unsupported by this model.
+Assert: activating a multilingual model again restores Polish to the selection
+without the user reselecting it.
 
 ## Transcribes a selected language as itself
 
@@ -117,8 +146,8 @@ Assert: the insertion is in one of the two selected languages.
 ## Changing the language selection reloads the engine
 
 1. Start dictation and confirm the active state.
-2. Open **Settings… → Languages** and tick three more languages in quick
-   succession.
+2. Open **Settings… → Transcription** and tick three more languages in the
+   **Languages** pull-down in quick succession.
 3. Watch the menu bar icon.
 
 Assert: the engine reloads once rather than once per language.
@@ -127,7 +156,7 @@ Assert: the reload starts about a second after the last change.
 ## Dictation does not resume after a language change [to review]
 
 1. Start dictation and confirm the active state in the menu bar.
-2. Open **Settings… → Languages** and change the selection.
+2. Open **Settings… → Transcription** and change the selection.
 3. Wait for the reload to finish and look at the menu bar icon.
 
 Assert: dictation is active after the reload, or the user is told it stopped.
@@ -139,7 +168,7 @@ indication is the menu bar icon changing back to the idle state.
 
 1. Select a distinctive set of languages, such as German and Japanese.
 2. Quit Overhear and open it again.
-3. Open **Settings… → Languages**.
+3. Open **Settings… → Transcription**.
 
 Assert: the same set is selected.
-Assert: the chips match the selection made before quitting.
+Assert: the row's summary matches the selection made before quitting.
