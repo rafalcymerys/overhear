@@ -25,7 +25,7 @@ Everything runs in a single Swift app. Audio capture, wake word detection and tr
 |  DictationEngine (actor) ── batching, cancel, stop rules     |
 |       ├── AudioCapture ...... AVAudioEngine, 16kHz mono      |
 |       ├── WakeWordDetector .. openWakeWord models on ORT     |
-|       └── WhisperTranscriber ....... WhisperKit or FluidAudio        |
+|       └── Transcribing ...... WhisperKit or FluidAudio       |
 +-------------------------------------------------------------+
 ```
 
@@ -84,40 +84,93 @@ After transcription completes, the engine returns to **Ready** if still dictatin
 
 ## Key Components
 
+The source is laid out by feature, matching the way `Specs/` divides the
+behaviour — a spec has one obvious place to land.
+
+### `App/`
+
 | File | Role |
 |---|---|
 | `OverhearApp.swift` | App entry point, accessory (no dock icon) |
 | `AppDelegate.swift` | Menu bar setup, permission gate, model setup, engine lifecycle, settings observation |
 | `AppState.swift` | Observable state enum: stopped, installing, loading, idle, ready, listening, transcribing, error |
-| `Engine/EngineController.swift` | Owns the engine, maps its events onto `AppState`, injects text |
-| `Engine/DictationEngine.swift` | The dictation loop: batching, cancel word, stop rules |
-| `Engine/AudioCapture.swift` | `AVAudioEngine` capture, resampling, device-loss recovery |
-| `Engine/ChunkAccumulator.swift` | Re-slices arbitrary buffers into exact 1280-sample chunks |
-| `Engine/WakeWordDetector.swift` | openWakeWord's three-stage inference, in Swift |
-| `Engine/ONNXModel.swift` | Thin wrapper over one ONNX Runtime session |
-| `Engine/Transcribing.swift` | The engine seam: `Transcription`, `Transcribing`, and the factory that picks an engine |
-| `Engine/WhisperTranscriber.swift` | WhisperKit: model loading, language detection, transcription |
-| `Engine/ParakeetTranscriber.swift` | FluidAudio: model loading, transcription, the language check |
-| `Engine/ParakeetVariant.swift` | The one place that knows FluidAudio's names for the models offered |
-| `Engine/AnnotationFilter.swift` | Strips Whisper's non-speech annotations from a transcription |
-| `Engine/DecodePolicy.swift` | Chooses the language and task Whisper decodes a batch with |
-| `Engine/LanguageDetector.swift` | Scores every language in one detection pass, so the user's can be ranked |
-| `Engine/ModelSetup.swift` | Downloads the wake word models on first launch |
-| `Engine/EngineEvent.swift` | The event vocabulary and engine errors |
-| `SetupWindow.swift` | First-launch setup window — progress, failure detail, Try Again |
-| `Permissions.swift` | Microphone and Accessibility state, asking for them, and watching for grants made in System Settings |
-| `PermissionsWindow.swift` | Launch-time permissions window — one explanation and one button per permission |
-| `OverlayWindow.swift` | Floating status window (top-right corner) |
-| `MenuBarIcon.swift` | SwiftUI view embedded in NSStatusItem |
-| `TextInjector.swift` | Pastes transcribed text via pasteboard + simulated Cmd+V, restores previous clipboard |
-| `Settings.swift` | `AppSettings` (UserDefaults-backed), `WhisperLanguage` catalog, `HotWord` model |
-| `SettingsView.swift` | The General and Hot Words panes |
+
+### `Engine/`
+
+| File | Role |
+|---|---|
+| `EngineController.swift` | Owns the engine, maps its events onto `AppState`, injects text |
+| `DictationEngine.swift` | The dictation loop: batching, cancel word, stop rules |
+| `AudioCapture.swift` | `AVAudioEngine` capture, resampling, device-loss recovery |
+| `ChunkAccumulator.swift` | Re-slices arbitrary buffers into exact 1280-sample chunks |
+| `EngineEvent.swift` | The event vocabulary and engine errors |
+
+### `Engine/Transcribers/`
+
+| File | Role |
+|---|---|
+| `Transcribing.swift` | The engine seam: `Transcription`, `Transcribing`, and the factory that picks an engine |
+| `WhisperTranscriber.swift` | WhisperKit: model loading, language detection, transcription |
+| `ParakeetTranscriber.swift` | FluidAudio: model loading, transcription, the language check |
+| `ParakeetVariant.swift` | The one place that knows FluidAudio's names for the models offered |
+| `DecodePolicy.swift` | Chooses the language and task Whisper decodes a batch with |
+| `LanguageDetector.swift` | Scores every language in one detection pass, so the user's can be ranked |
+| `AnnotationFilter.swift` | Strips a model's descriptions of non-speech from a transcription |
+
+### `Engine/WakeWord/`
+
+| File | Role |
+|---|---|
+| `WakeWordDetector.swift` | openWakeWord's three-stage inference, in Swift |
+| `ONNXModel.swift` | Thin wrapper over one ONNX Runtime session |
+| `ModelSetup.swift` | Downloads the wake word models on first launch |
+
+### `Models/`
+
+| File | Role |
+|---|---|
 | `TranscriptionModel.swift` | The model catalogue: engines, variants, sizes, supported languages |
 | `TranscriptionModelService.swift` | What is downloaded, downloading, activated and removed |
-| `TranscriptionSettingsView.swift` | The Transcription pane: active model, its languages |
+
+### `HotWords/`
+
+| File | Role |
+|---|---|
+| `HotWordService.swift` | Discovers, installs (file or URL), and removes custom `.onnx` cancel word models |
+| `HotWord+Models.swift` | Resolves a hot word to the file its model lives in |
+
+### `Permissions/`
+
+| File | Role |
+|---|---|
+| `Permissions.swift` | Microphone and Accessibility state, asking for them, and watching for grants made in System Settings |
+| `PermissionsWindow.swift` | Launch-time permissions window — one explanation and one button per permission |
+
+### `Settings/`
+
+| File | Role |
+|---|---|
+| `Settings.swift` | `AppSettings` (UserDefaults-backed), `RecognitionLanguage` catalog, `HotWord` model |
+| `SettingsWindow.swift` | The window and its toolbar of panes |
+| `SettingsView.swift` | The General and Hot Words panes |
+| `TranscriptionSettingsView.swift` | The Transcription pane: active model, its languages, translation |
 | `AvailableModels.swift` | The catalogue half of that pane, grouped by engine |
 | `LanguagePicker.swift` | The language multi-select popover |
-| `HotWordService.swift` | Discovers, installs (file or URL), and removes custom `.onnx` cancel word models |
+
+### `StatusDisplay/`
+
+| File | Role |
+|---|---|
+| `MenuBarIcon.swift` | SwiftUI view embedded in NSStatusItem |
+| `LiveMark.swift` | The animated mark the icon and overlay share |
+| `OverlayWindow.swift` | Floating status window (top-right corner) |
+| `SetupWindow.swift` | First-launch setup window — progress, failure detail, Try Again |
+
+### Top level
+
+| File | Role |
+|---|---|
+| `TextInjector.swift` | Pastes transcribed text via pasteboard + simulated Cmd+V, restores previous clipboard |
 
 ## Audio Capture
 
@@ -243,7 +296,7 @@ Neither grant arrives as a notification — Accessibility is switched on in Syst
 
 ## Testing
 
-`swift test` runs the suite. The scenarios come from `Specs/`, and the audio they name is loaded from `Specs/Fixtures/Synthetic` through `SyntheticSample`, so a spec and the test that covers it are hearing the same recording. The interesting parts:
+`swift test` runs the suite. `Tests/OverhearTests/` mirrors the source layout, so a file and the tests that cover it sit at the same path under each — with `Support/` holding the harnesses and fakes the suites share. The scenarios come from `Specs/`, and the audio they name is loaded from `Specs/Fixtures/Synthetic` through `SyntheticSample`, so a spec and the test that covers it are hearing the same recording. The interesting parts:
 
 - `WakeWordDetectorTests` — the golden test for the openWakeWord port, asserting against scores measured from openWakeWord's own implementation, and that each word model hears only its own phrase.
 - `DictationEngineTests` — drives the loop with a scripted audio source and real wake word models: batching, the thirty-second cap, silence and levels below the speech threshold, the stop rules, and losing and regaining the microphone.
