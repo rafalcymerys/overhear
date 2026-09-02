@@ -41,9 +41,10 @@ Assert: the search field at the top of the pull-down stays reachable.
 1. Open **Settings… → General**.
 
 Assert: the pane offers **Start listening on launch**, **Show overlay window
-while listening**, **Strip transcription annotations** and **Translate
-unsupported languages**.
-Assert: on a fresh install the first three are on and the fourth is off.
+while listening** and **Strip transcription annotations**.
+Assert: on a fresh install all three are on.
+Assert: translation is not offered here — it belongs to the active model, in
+**Settings… → Transcription**.
 Assert: the transcription settings sit under a **Transcription** heading.
 Assert: each transcription setting's explanation appears inside the same group
 box as its checkbox.

@@ -46,6 +46,11 @@ Assert: a **Languages** row sits directly under the active model, inside the
 same card.
 Assert: the row's control summarises the selection, such as "English, Polish".
 Assert: an explanation states how many languages the active model recognises.
+Assert: **Translate unsupported languages** sits directly beneath the languages
+row, inside the same card.
+Assert: it is ticked or not as the user last left it, and its explanation says
+that unselected speech is translated to English while selected languages are
+transcribed as themselves.
 Assert: the languages a model supports are a property of the model shown above
 them, not a separate pane.
 
@@ -184,11 +189,28 @@ Assert: the utterance is inserted.
 Assert: the Whisper models stay downloaded and are still listed.
 Assert: switching back to a Whisper model is one click on **Activate** and does
 not download anything again.
-Assert: **Translate unsupported languages** is gone from the General pane while
-the Parakeet model is active, and returns when a Whisper model is.
+Assert: **Translate unsupported languages** is unticked and cannot be changed
+while the Parakeet model is active, and its explanation says the model cannot
+translate.
+Assert: activating a Whisper model again makes it usable, ticked or not as the
+user last left it — a model that could not honour the setting did not clear
+it.
 Assert: punctuation, capitalisation and how numbers are written may differ
 between the engines. The same sentence dictated under each is not expected to
 come back identical.
+
+## Translation is a property of the model
+
+1. Open **Settings… → Transcription** with a Whisper model active.
+2. Turn **Translate unsupported languages** on.
+3. Activate a Parakeet model.
+4. Open **Settings… → General**.
+
+Assert: the checkbox is unticked and disabled once Parakeet is active, rather
+than hidden.
+Assert: the General pane offers no translation setting — it belongs to the
+model that decides whether it can happen.
+Assert: activating the Whisper model again shows it ticked.
 
 ## Speech outside the selected languages under Parakeet
 

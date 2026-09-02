@@ -101,11 +101,13 @@ behaviour for someone who selected one language and then spoke another.
 
 ## Translates unsupported speech when the setting is on
 
-Whisper only. The setting is hidden while a Parakeet model is active, since
-that engine has no translate task — see `Specs/TranscriptionModel.md`.
+Whisper only. The setting sits under the languages row in the Active Model
+card, and a model with no translate task leaves it unticked and disabled — see
+`Specs/TranscriptionModel.md`.
 
 1. Select English only.
-2. Open **Settings… → General** and turn **Translate unsupported languages** on.
+2. Open **Settings… → Transcription** and turn **Translate unsupported
+   languages** on, beneath the languages row.
 3. Start dictation with TextEdit focused.
 4. Say `GutenTagDe`.
 

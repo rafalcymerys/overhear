@@ -28,6 +28,7 @@ struct TranscriptionSettingsView: View {
             Section {
                 activeModel
                 languages
+                translation
             } header: {
                 Text("Active Model")
             }
@@ -145,6 +146,39 @@ struct TranscriptionSettingsView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    /// Translation sits with the languages because that is what it is about:
+    /// what happens to speech in a language the user did not select.
+    ///
+    /// Shown for every model rather than hidden for the ones that cannot do it.
+    /// A model without a translate task leaves the box unticked and disabled —
+    /// which says "this model will not do that" — where hiding the row would
+    /// leave someone hunting for a setting they remember having.
+    private var translation: some View {
+        let canTranslate = settings.activeModel.engine.canTranslate
+        return VStack(alignment: .leading, spacing: 4) {
+            Toggle("Translate unsupported languages", isOn: Binding(
+                get: { canTranslate && settings.translateUnsupported },
+                // The stored value is left alone while it cannot apply, so
+                // activating a model that can translate again restores what the
+                // user chose rather than a default.
+                set: { if canTranslate { settings.translateUnsupported = $0 } }
+            ))
+            .disabled(!canTranslate)
+            Text(translationExplanation)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var translationExplanation: String {
+        let model = settings.activeModel
+        guard model.engine.canTranslate else {
+            return "\(model.displayName) cannot translate. Speech in a language you have not selected is transcribed in one you have."
+        }
+        return "Speech in a language you have not selected is translated to English. The languages you select are always transcribed as themselves."
     }
 
     /// The selection, as it reads on the closed control. Long selections are
