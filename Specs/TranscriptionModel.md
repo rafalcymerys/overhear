@@ -30,8 +30,10 @@ Assert: the pane opens with an **Active Model** section above everything else.
 Assert: the section names the model as the user knows it, such as "Whisper
 Base", not a repository or variant identifier such as
 `openai_whisper-base`.
-Assert: it states how many languages the model recognises, how much space it
-takes on disk, and that it runs on the Neural Engine.
+Assert: it states how much space the model takes on disk and that it runs on
+the Neural Engine.
+Assert: it does not repeat the language count, which the **Languages** row
+below it carries.
 Assert: it shows a status indicator reading **Ready** once the model is loaded.
 Assert: the indicator reads **Loading…** while the model loads, and says so
 when loading failed rather than showing **Ready**.
@@ -43,8 +45,7 @@ when loading failed rather than showing **Ready**.
 Assert: a **Languages** row sits directly under the active model, inside the
 same card.
 Assert: the row's control summarises the selection, such as "English, Polish".
-Assert: an explanation states how many languages the active model recognises and
-that activating an English-only model narrows the list.
+Assert: an explanation states how many languages the active model recognises.
 Assert: the languages a model supports are a property of the model shown above
 them, not a separate pane.
 

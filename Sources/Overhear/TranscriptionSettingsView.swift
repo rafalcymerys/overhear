@@ -33,11 +33,12 @@ struct TranscriptionSettingsView: View {
             }
 
             Section {
-                AvailableModels(models: models)
+                AvailableModels(models: models, settings: settings)
             } header: {
                 Text("Available Models")
             } footer: {
-                Text("\(byteCount(models.diskUsage)) used by downloaded models. Removing a model frees its space; the active model cannot be removed.")
+                Text("\(byteCount(models.diskUsage)) used by downloaded models")
+                    .font(.caption2)
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -61,7 +62,7 @@ struct TranscriptionSettingsView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(model.displayName)
                     .fontWeight(.semibold)
-                Text("\(model.languageSummary) · \(byteCount(models.diskUsage(of: model))) on disk · running on the Neural Engine")
+                Text("\(byteCount(models.diskUsage(of: model))) on disk · running on the Neural Engine")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -166,7 +167,7 @@ struct TranscriptionSettingsView: View {
             return "\(model.displayName) transcribes \(model.languageSummary), so \(names) is not in use. It comes back when a model that supports it is activated."
         }
         if model.supportsEveryLanguage {
-            return "This model recognises \(model.supportedLanguages.count) languages. Activating an English-only model narrows the list."
+            return "This model recognises \(model.supportedLanguages.count) languages."
         }
         return "\(model.displayName) recognises \(model.languageSummary)."
     }

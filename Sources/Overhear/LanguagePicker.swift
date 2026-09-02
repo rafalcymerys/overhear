@@ -44,7 +44,7 @@ struct LanguagePicker: View {
             }
             .frame(height: 240)
 
-            Text("At least one language stays selected. Fewer languages improves accuracy.")
+            Text("At least one language needs to be selected. Fewer languages improves accuracy.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

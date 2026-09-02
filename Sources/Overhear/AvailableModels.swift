@@ -8,6 +8,12 @@ import SwiftUI
 struct AvailableModels: View {
     @ObservedObject var models: TranscriptionModelService
 
+    /// Observed as well as the service: which model is active lives in
+    /// settings, and a list that watches only the service keeps the Active mark
+    /// — and the Activate and remove buttons — on whichever model was active
+    /// when it last drew.
+    @ObservedObject var settings: AppSettings
+
     /// Engines start expanded. Collapsing is for getting a long catalogue out
     /// of the way, not the state a pane should open in.
     @State private var collapsedEngines: Set<TranscriptionEngineKind> = []
@@ -76,7 +82,7 @@ struct AvailableModels: View {
                                   models catalogue: [TranscriptionModel],
                                   collapsed: Bool) -> String {
         guard collapsed else { return engine.summary }
-        if catalogue.contains(where: { models.isActive($0) }) {
+        if catalogue.contains(where: { isActive($0) }) {
             return "active model inside"
         }
         let downloaded = catalogue.filter { models.isDownloaded($0) }.count
@@ -104,7 +110,7 @@ struct AvailableModels: View {
     /// a retry, or the download control.
     @ViewBuilder
     private func controls(for model: TranscriptionModel) -> some View {
-        if models.isActive(model) {
+        if isActive(model) {
             Label("Active", systemImage: "checkmark")
                 .font(.caption.weight(.semibold))
                 .labelStyle(.titleAndIcon)
@@ -166,6 +172,10 @@ struct AvailableModels: View {
             parts.append(note)
         }
         return parts.joined(separator: " · ")
+    }
+
+    private func isActive(_ model: TranscriptionModel) -> Bool {
+        settings.activeModelID == model.id
     }
 
     private func byteCount(_ bytes: Int64) -> String {
