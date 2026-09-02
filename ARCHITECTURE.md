@@ -123,7 +123,7 @@ behaviour — a spec has one obvious place to land.
 |---|---|
 | `WakeWordDetector.swift` | openWakeWord's three-stage inference, in Swift |
 | `ONNXModel.swift` | Thin wrapper over one ONNX Runtime session |
-| `ModelSetup.swift` | Downloads the wake word models on first launch |
+| `WakeWordSetup.swift` | Downloads the wake word models on first launch |
 
 ### `Models/`
 
@@ -271,7 +271,7 @@ The engine takes its language set, cancel word and model when it starts, so chan
 
 The cancel word is an openWakeWord model. Four are offered built in: Alexa, Hey Jarvis, Hey Mycroft, Hey Rhasspy.
 
-They are **downloaded on first launch rather than shipped inside the app**, which is a licensing decision, not a size one. openWakeWord's pre-trained word models are CC BY-NC-SA 4.0 — only the melspectrogram and Google embedding models are Apache 2.0 — so bundling them would attach those terms to a distribution of Overhear itself. `ModelSetup` fetches them from openWakeWord's own release assets.
+They are **downloaded on first launch rather than shipped inside the app**, which is a licensing decision, not a size one. openWakeWord's pre-trained word models are CC BY-NC-SA 4.0 — only the melspectrogram and Google embedding models are Apache 2.0 — so bundling them would attach those terms to a distribution of Overhear itself. `WakeWordSetup` fetches them from openWakeWord's own release assets.
 
 Custom models can be added in Settings, either from a local `.onnx` file or by URL. They land in the same directory, `~/Library/Application Support/Overhear/models/`, and `HotWordService` lists every `.onnx` file there at launch. The display name is derived from the filename — `my_word.onnx` becomes "My Word". Removing a custom word deletes the file; if it was the selected cancel word, the selection falls back to Alexa.
 

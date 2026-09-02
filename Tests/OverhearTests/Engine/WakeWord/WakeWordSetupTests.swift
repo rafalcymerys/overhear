@@ -2,7 +2,7 @@ import XCTest
 @testable import Overhear
 
 @MainActor
-final class ModelSetupTests: OverhearTestCase {
+final class WakeWordSetupTests: OverhearTestCase {
     /// Writes a stand-in file wherever a download is requested, and records
     /// what was asked for.
     private final class FakeRemote: @unchecked Sendable {
@@ -24,27 +24,27 @@ final class ModelSetupTests: OverhearTestCase {
 
     func testDownloadsEveryRequiredModelOnFirstRun() async throws {
         let remote = FakeRemote()
-        let setup = ModelSetup(directory: tempDirectory, fetch: { try await remote.fetch($0) })
+        let setup = WakeWordSetup(directory: tempDirectory, fetch: { try await remote.fetch($0) })
 
         XCTAssertFalse(setup.isComplete)
         try await setup.ensureModels()
 
         // Fetched under the release's versioned asset names...
-        XCTAssertEqual(Set(remote.requested), Set(ModelSetup.modelAssets.values))
+        XCTAssertEqual(Set(remote.requested), Set(WakeWordSetup.modelAssets.values))
         // ...and stored under the unversioned ones.
         let onDisk = try FileManager.default.contentsOfDirectory(atPath: tempDirectory.path)
-        XCTAssertEqual(Set(onDisk), Set(ModelSetup.requiredFiles))
+        XCTAssertEqual(Set(onDisk), Set(WakeWordSetup.requiredFiles))
         XCTAssertTrue(setup.isComplete)
     }
 
     /// Every launch after the first: nothing missing, so nothing fetched.
     func testDownloadsNothingWhenModelsArePresent() async throws {
         let remote = FakeRemote()
-        let setup = ModelSetup(directory: tempDirectory, fetch: { try await remote.fetch($0) })
+        let setup = WakeWordSetup(directory: tempDirectory, fetch: { try await remote.fetch($0) })
         try await setup.ensureModels()
 
         let second = FakeRemote()
-        let again = ModelSetup(directory: tempDirectory, fetch: { try await second.fetch($0) })
+        let again = WakeWordSetup(directory: tempDirectory, fetch: { try await second.fetch($0) })
         try await again.ensureModels()
 
         XCTAssertTrue(second.requested.isEmpty)
@@ -55,7 +55,7 @@ final class ModelSetupTests: OverhearTestCase {
     func testAFailedDownloadReportsAndLeavesSetupIncomplete() async throws {
         let remote = FakeRemote()
         remote.failing = ["embedding_model.onnx"]
-        let setup = ModelSetup(directory: tempDirectory, fetch: { try await remote.fetch($0) })
+        let setup = WakeWordSetup(directory: tempDirectory, fetch: { try await remote.fetch($0) })
 
         do {
             try await setup.ensureModels()
@@ -71,7 +71,7 @@ final class ModelSetupTests: OverhearTestCase {
     func testResolvesBuiltInWordsToDownloadedFiles() {
         let alexa = HotWord.defaultWord
         XCTAssertTrue(alexa.modelPath().hasSuffix("alexa.onnx"))
-        XCTAssertTrue(ModelSetup.requiredFiles.contains("alexa.onnx"))
+        XCTAssertTrue(WakeWordSetup.requiredFiles.contains("alexa.onnx"))
 
         // Custom words already carry an absolute path and must be left alone.
         let custom = HotWord.custom(path: "/tmp/my_word.onnx", name: "My Word")
@@ -82,17 +82,17 @@ final class ModelSetupTests: OverhearTestCase {
     /// ones the release publishes. `HotWordService` turns a filename into a
     /// display name, so a suffix here would reach Settings as "Alexa V0.1".
     func testStoresModelsWithoutTheReleaseVersionSuffix() {
-        for file in ModelSetup.requiredFiles {
+        for file in WakeWordSetup.requiredFiles {
             XCTAssertFalse(file.contains("_v0."), "\(file) would be displayed with its version")
         }
-        XCTAssertEqual(ModelSetup.modelAssets["alexa.onnx"], "alexa_v0.1.onnx", "but it is fetched from the versioned asset")
+        XCTAssertEqual(WakeWordSetup.modelAssets["alexa.onnx"], "alexa_v0.1.onnx", "but it is fetched from the versioned asset")
     }
 
     /// Every word offered in Settings needs a model that setup actually fetches.
     func testEveryBuiltInWordIsDownloaded() {
         for word in HotWord.builtIn {
             let file = URL(fileURLWithPath: word.modelPath()).lastPathComponent
-            XCTAssertTrue(ModelSetup.requiredFiles.contains(file), "\(word.displayName) has no model to load")
+            XCTAssertTrue(WakeWordSetup.requiredFiles.contains(file), "\(word.displayName) has no model to load")
         }
     }
 }

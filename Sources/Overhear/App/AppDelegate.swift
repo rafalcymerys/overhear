@@ -9,7 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var engine: EngineController!
     private var overlay: OverlayController!
-    private let modelSetup = ModelSetup()
+    private let wakeWordSetup = WakeWordSetup()
     private var setupWindow: SetupWindowController!
     private let permissions = PermissionsService()
     private var permissionsWindow: PermissionsWindowController!
@@ -75,7 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
 
-        setupWindow = SetupWindowController(setup: modelSetup, onRetry: { [weak self] in
+        setupWindow = SetupWindowController(setup: wakeWordSetup, onRetry: { [weak self] in
             self?.bootstrap()
         })
         permissionsWindow = PermissionsWindowController(permissions: permissions)
@@ -112,7 +112,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// doesn't have them yet. That is what makes the distributed app runnable
     /// by unzipping and opening it, with no terminal step.
     private func bootstrap() {
-        guard !modelSetup.isComplete else {
+        guard !wakeWordSetup.isComplete else {
             startEngine()
             return
         }
@@ -123,7 +123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         Task { @MainActor in
             do {
-                try await modelSetup.ensureModels()
+                try await wakeWordSetup.ensureModels()
                 setupWindow.close()
                 startEngine()
             } catch {

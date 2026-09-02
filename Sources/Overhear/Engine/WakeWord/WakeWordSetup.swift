@@ -9,7 +9,7 @@ import Foundation
 /// launch from openWakeWord's own release assets keeps this app's MIT terms
 /// unencumbered.
 @MainActor
-final class ModelSetup: ObservableObject {
+final class WakeWordSetup: ObservableObject {
     /// openWakeWord's official release assets. The repo publishes `.tflite` and
     /// `.onnx` side by side under the same tag.
     static let releaseBase = "https://github.com/dscripka/openWakeWord/releases/download/v0.5.1"
@@ -62,7 +62,7 @@ final class ModelSetup: ObservableObject {
     ///     models live together and are found the same way.
     ///   - fetch: how to pull a file down. Injected so tests never hit the network.
     init(directory: URL = HotWord.modelsDirectory,
-         fetch: @escaping @Sendable (URL) async throws -> URL = ModelSetup.defaultFetch) {
+         fetch: @escaping @Sendable (URL) async throws -> URL = WakeWordSetup.defaultFetch) {
         self.directory = directory
         self.fetch = fetch
     }

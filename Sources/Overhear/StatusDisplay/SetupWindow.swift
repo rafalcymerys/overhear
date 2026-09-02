@@ -8,10 +8,10 @@ import SwiftUI
 @MainActor
 final class SetupWindowController {
     private var window: NSWindow?
-    private let setup: ModelSetup
+    private let setup: WakeWordSetup
     private let onRetry: () -> Void
 
-    init(setup: ModelSetup, onRetry: @escaping () -> Void) {
+    init(setup: WakeWordSetup, onRetry: @escaping () -> Void) {
         self.setup = setup
         self.onRetry = onRetry
     }
@@ -47,7 +47,7 @@ final class SetupWindowController {
 }
 
 struct SetupView: View {
-    @ObservedObject var setup: ModelSetup
+    @ObservedObject var setup: WakeWordSetup
     var onRetry: () -> Void
     var onQuit: () -> Void
 

@@ -181,7 +181,7 @@ final class HotWordServiceTests: OverhearTestCase {
     /// picker, offer "Melspectrogram" as a cancel word, and put a trash button
     /// next to a file every other word depends on.
     func testManagedModelsAreNotListedAsCustomHotWords() throws {
-        for file in ModelSetup.requiredFiles {
+        for file in WakeWordSetup.requiredFiles {
             try Data("model".utf8).write(to: modelsDirectory.appendingPathComponent(file))
         }
         try Data("model".utf8).write(to: modelsDirectory.appendingPathComponent("my_word.onnx"))

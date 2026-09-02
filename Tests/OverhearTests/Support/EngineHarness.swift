@@ -13,7 +13,7 @@ enum EngineTestModels {
     }
 
     static func ensure() async throws {
-        let setup = await ModelSetup(directory: directory)
+        let setup = await WakeWordSetup(directory: directory)
         try await setup.ensureModels()
     }
 }

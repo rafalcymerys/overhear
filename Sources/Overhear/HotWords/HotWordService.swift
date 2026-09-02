@@ -40,7 +40,7 @@ final class HotWordService: ObservableObject {
             // same directory, and they are not the user's to see or delete —
             // listing them would offer "Melspectrogram" as a cancel word and
             // put a trash button next to a file every word depends on.
-            .filter { $0.hasSuffix(".onnx") && !ModelSetup.requiredFiles.contains($0) }
+            .filter { $0.hasSuffix(".onnx") && !WakeWordSetup.requiredFiles.contains($0) }
             .sorted()
             .map { filename in
                 let path = modelsDirectory.appendingPathComponent(filename).path
