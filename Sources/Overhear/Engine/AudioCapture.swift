@@ -51,6 +51,10 @@ final class AudioCapture: AudioSource, @unchecked Sendable {
     private var isTapped = false
     private var configurationObserver: NSObjectProtocol?
 
+    /// Built from the format the buffers actually arrive in, and kept until
+    /// that format changes.
+    private var converter: AVAudioConverter?
+
     private lazy var outputFormat = AVAudioFormat(
         commonFormat: .pcmFormatFloat32,
         sampleRate: Self.sampleRate,
@@ -118,7 +122,7 @@ final class AudioCapture: AudioSource, @unchecked Sendable {
         guard inputFormat.sampleRate > 0, let outputFormat else {
             throw EngineError.audioUnavailable("no input device")
         }
-        guard let converter = AVAudioConverter(from: inputFormat, to: outputFormat) else {
+        guard AVAudioConverter(from: inputFormat, to: outputFormat) != nil else {
             throw EngineError.audioUnavailable("cannot convert \(Int(inputFormat.sampleRate))Hz input")
         }
 
@@ -126,8 +130,14 @@ final class AudioCapture: AudioSource, @unchecked Sendable {
         // single buffer is caught by the same watchdog as one that dies later.
         touch()
 
-        input.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { [weak self] buffer, _ in
-            self?.receive(buffer, using: converter, to: outputFormat)
+        // The tap is installed with no format of its own. Handing it the format
+        // read a moment ago aborts the process inside AVFAudio — "Input HW
+        // format and tap format not matching" — when the device reconfigures
+        // between the read and the install, which reopening after a restart
+        // makes likely. `nil` means whatever the node is actually producing,
+        // and the converter is built from the buffers themselves to match.
+        input.installTap(onBus: 0, bufferSize: 4096, format: nil) { [weak self] buffer, _ in
+            self?.receive(buffer, to: outputFormat)
         }
         isTapped = true
 
@@ -148,7 +158,10 @@ final class AudioCapture: AudioSource, @unchecked Sendable {
         if engine.isRunning {
             engine.stop()
         }
-        lock.withLock { accumulator.reset() }
+        lock.withLock {
+            accumulator.reset()
+            converter = nil
+        }
     }
 
     /// A device change replaces the engine's input node, which silently
@@ -164,10 +177,10 @@ final class AudioCapture: AudioSource, @unchecked Sendable {
         }
     }
 
-    private func receive(_ buffer: AVAudioPCMBuffer,
-                         using converter: AVAudioConverter,
-                         to format: AVAudioFormat) {
+    private func receive(_ buffer: AVAudioPCMBuffer, to format: AVAudioFormat) {
         touch()
+
+        guard let converter = converter(from: buffer.format, to: format) else { return }
 
         let ratio = format.sampleRate / converter.inputFormat.sampleRate
         let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 1024
@@ -188,6 +201,17 @@ final class AudioCapture: AudioSource, @unchecked Sendable {
 
         let samples = UnsafeBufferPointer(start: channel, count: Int(converted.frameLength))
         emitChunks(from: samples)
+    }
+
+    /// The converter for the format the buffers are arriving in, rebuilt when
+    /// that changes under us — a device swap can hand the same tap a different
+    /// sample rate.
+    private func converter(from input: AVAudioFormat, to output: AVAudioFormat) -> AVAudioConverter? {
+        lock.withLock {
+            if let converter, converter.inputFormat == input { return converter }
+            converter = AVAudioConverter(from: input, to: output)
+            return converter
+        }
     }
 
     private func emitChunks(from samples: UnsafeBufferPointer<Float>) {
