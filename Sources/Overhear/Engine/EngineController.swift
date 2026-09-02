@@ -38,7 +38,7 @@ final class EngineController {
     init(appState: AppState,
          injector: TextInjecting = PasteboardTextInjector(),
          modelsDirectory: URL = HotWord.modelsDirectory,
-         makeTranscriber: @escaping @Sendable (TranscriptionModel) -> any Transcribing = { Transcriber(model: $0) },
+         makeTranscriber: @escaping @Sendable (TranscriptionModel) -> any Transcribing = { TranscriberFactory.make(for: $0) },
          makeAudioSource: @escaping @Sendable () -> any AudioSource = { AudioCapture() },
          settings: AppSettings? = nil) {
         self.appState = appState

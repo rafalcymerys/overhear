@@ -66,4 +66,15 @@ final class AnnotationFilterTests: XCTestCase {
         XCTAssertEqual(strict.filter(""), "")
         XCTAssertEqual(strict.filter("   "), "")
     }
+
+    /// The property every engine's output depends on: ordinary prose goes
+    /// through untouched. Parakeet punctuates and capitalises differently from
+    /// Whisper, and none of that may be mistaken for an annotation.
+    func testOrdinaryProsePassesThroughUnchanged() {
+        let filter = AnnotationFilter(stripsParentheses: true)
+        let prose = "We shipped it on Tuesday, and the tests — all 175 of them — passed."
+
+        XCTAssertEqual(filter.filter(prose), prose)
+    }
+
 }

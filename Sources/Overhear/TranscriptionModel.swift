@@ -16,6 +16,21 @@ enum TranscriptionEngineKind: String, Codable, CaseIterable, Hashable {
         }
     }
 
+    /// The directory this engine's weights live in, beneath Application
+    /// Support. Renaming a case orphans hundreds of megabytes on every install
+    /// that already downloaded something.
+    var directoryName: String { rawValue }
+
+    /// Whether this engine can render speech in an unselected language as
+    /// English. Whisper has a translate task; Parakeet has none, so the setting
+    /// is hidden rather than left to do nothing.
+    var canTranslate: Bool {
+        switch self {
+        case .whisper: return true
+        case .parakeet: return false
+        }
+    }
+
     /// The few words under the group heading, saying what the engine is for.
     var summary: String {
         switch self {
@@ -63,9 +78,9 @@ struct TranscriptionModel: Identifiable, Hashable, Sendable {
         return languageCodes.contains(code)
     }
 
-    var supportedLanguages: [WhisperLanguage] {
-        guard let languageCodes else { return WhisperLanguage.all }
-        return WhisperLanguage.all.filter { languageCodes.contains($0.code) }
+    var supportedLanguages: [RecognitionLanguage] {
+        guard let languageCodes else { return RecognitionLanguage.all }
+        return RecognitionLanguage.all.filter { languageCodes.contains($0.code) }
     }
 
     /// How the languages read in the card: "99 languages", or "English only"
@@ -80,12 +95,6 @@ struct TranscriptionModel: Identifiable, Hashable, Sendable {
 }
 
 /// Every model Overhear can run, in the order the pane lists them.
-///
-/// Whisper only, for now. `TranscriptionEngineKind` carries `.parakeet` and
-/// every path below is written against the engine rather than against Whisper,
-/// but no Parakeet model is offered until there is a transcriber that can run
-/// one — a row that downloads six hundred megabytes and then cannot transcribe
-/// would be worse than no row.
 enum ModelCatalog {
     static let whisperTiny = TranscriptionModel(
         id: "whisper-tiny",
@@ -140,9 +149,55 @@ enum ModelCatalog {
         note: "most accurate"
     )
 
-    static let all: [TranscriptionModel] = [
+    /// NVIDIA's transducer model, English only. Faster than Whisper at
+    /// comparable accuracy on English, and unable to transcribe anything else.
+    static let parakeetV2 = TranscriptionModel(
+        id: "parakeet-tdt-0.6b-v2",
+        engine: .parakeet,
+        name: "TDT 0.6B v2",
+        variant: ParakeetVariant.v2.variant,
+        downloadSize: 452 * 1_000_000,
+        languageCodes: ["en"],
+        note: nil
+    )
+
+    /// The multilingual build of the same model.
+    ///
+    /// The languages are the twenty-four the model was trained on that Overhear
+    /// also lists — not FluidAudio's `Language`, which is a script classifier
+    /// for the decode hint and names several the model never saw. Claiming one
+    /// of those would put a language in the picker that comes back as noise,
+    /// which is R-98 in a new engine. The twenty-fifth, Maltese, is missing from
+    /// `RecognitionLanguage.all` rather than from the model.
+    static let parakeetV3 = TranscriptionModel(
+        id: "parakeet-tdt-0.6b-v3",
+        engine: .parakeet,
+        name: "TDT 0.6B v3",
+        variant: ParakeetVariant.v3.variant,
+        downloadSize: 470 * 1_000_000,
+        languageCodes: [
+            "bg", "cs", "da", "de", "el", "en", "es", "et", "fi", "fr", "hr", "hu",
+            "it", "lt", "lv", "nl", "pl", "pt", "ro", "ru", "sk", "sl", "sv", "uk",
+        ],
+        note: nil
+    )
+
+    private static let whisperModels: [TranscriptionModel] = [
         whisperTiny, whisperBase, whisperBaseEnglish, whisperSmall, whisperLargeTurbo,
     ]
+
+    private static let parakeetModels: [TranscriptionModel] = [parakeetV2, parakeetV3]
+
+    /// Parakeet's weights are compiled for the Neural Engine and its loader
+    /// refuses anything else, so on an Intel Mac the models are not offered at
+    /// all rather than offered and then failing after half a gigabyte. The
+    /// group disappears with them — `grouped(_:)` drops an engine with nothing
+    /// in it.
+    #if arch(arm64)
+    static let all: [TranscriptionModel] = whisperModels + parakeetModels
+    #else
+    static let all: [TranscriptionModel] = whisperModels
+    #endif
 
     /// Small, fast and multilingual — the balance dictation wants, where a
     /// batch has to come back before the user has finished their next sentence.

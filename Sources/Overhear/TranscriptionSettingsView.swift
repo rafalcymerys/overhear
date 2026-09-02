@@ -151,7 +151,7 @@ struct TranscriptionSettingsView: View {
     /// counted rather than listed — a row that widens with every language
     /// would widen the window with it.
     private var languageSummary: String {
-        let selected = WhisperLanguage.all.filter { settings.effectiveLanguageCodes.contains($0.code) }
+        let selected = RecognitionLanguage.all.filter { settings.effectiveLanguageCodes.contains($0.code) }
         switch selected.count {
         case 0: return "None"
         case 1, 2: return selected.map(\.name).joined(separator: ", ")

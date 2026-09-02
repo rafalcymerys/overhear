@@ -25,7 +25,7 @@ Everything runs in a single Swift app. Audio capture, wake word detection and tr
 |  DictationEngine (actor) ── batching, cancel, stop rules     |
 |       ├── AudioCapture ...... AVAudioEngine, 16kHz mono      |
 |       ├── WakeWordDetector .. openWakeWord models on ORT     |
-|       └── Transcriber ....... WhisperKit (CoreML Whisper)    |
+|       └── WhisperTranscriber ....... WhisperKit or FluidAudio        |
 +-------------------------------------------------------------+
 ```
 
@@ -40,6 +40,7 @@ That boundary is also what makes the engine testable: `DictationEngineTests` dri
 | Package | Used for |
 |---|---|
 | [argmax-oss-swift](https://github.com/argmaxinc/argmax-oss-swift) (`WhisperKit`) | Whisper transcription on CoreML |
+| [FluidAudio](https://github.com/FluidInference/FluidAudio) | Parakeet transcription on CoreML |
 | [onnxruntime-swift-package-manager](https://github.com/microsoft/onnxruntime-swift-package-manager) | Running openWakeWord's `.onnx` models |
 | [SwiftLintPlugins](https://github.com/SimplyDanny/SwiftLintPlugins) | Linting |
 
@@ -51,7 +52,7 @@ ONNX Runtime links statically, so the built `.app` is three files: the binary, `
 
 | Event | Meaning |
 |---|---|
-| `status` | Loading progress (`loading_models`, `wake_word_ready`, `whisper_ready`) |
+| `status` | Loading progress (`loading_models`, `wake_word_ready`, `transcriber_ready`) |
 | `idle` | Engine initialized or dictation stopped — waiting for activation |
 | `ready` | Dictation active, waiting for speech |
 | `speechStart` | Audio level crossed the silence threshold — user is speaking |
@@ -94,7 +95,10 @@ After transcription completes, the engine returns to **Ready** if still dictatin
 | `Engine/ChunkAccumulator.swift` | Re-slices arbitrary buffers into exact 1280-sample chunks |
 | `Engine/WakeWordDetector.swift` | openWakeWord's three-stage inference, in Swift |
 | `Engine/ONNXModel.swift` | Thin wrapper over one ONNX Runtime session |
-| `Engine/Transcriber.swift` | WhisperKit: model loading, language detection, transcription |
+| `Engine/Transcribing.swift` | The engine seam: `Transcription`, `Transcribing`, and the factory that picks an engine |
+| `Engine/WhisperTranscriber.swift` | WhisperKit: model loading, language detection, transcription |
+| `Engine/ParakeetTranscriber.swift` | FluidAudio: model loading, transcription, the language check |
+| `Engine/ParakeetVariant.swift` | The one place that knows FluidAudio's names for the models offered |
 | `Engine/AnnotationFilter.swift` | Strips Whisper's non-speech annotations from a transcription |
 | `Engine/DecodePolicy.swift` | Chooses the language and task Whisper decodes a batch with |
 | `Engine/LanguageDetector.swift` | Scores every language in one detection pass, so the user's can be ranked |
@@ -152,7 +156,11 @@ The buffering mirrors `AudioFeatures._streaming_features` in openWakeWord frame 
 
 WhisperKit with CoreML, running on the Neural Engine. Which model is up to the user: `ModelCatalog` offers Whisper's tiny, base, base.en, small and large-v3 turbo, and `base` is the default — small, fast and multilingual, the balance dictation wants.
 
-**Managing the models.** `TranscriptionModelService` owns what is on disk. A model is "downloaded" when its snapshot folder under the download base holds a compiled `.mlmodelc`, which is what tells a finished download from the directory a cancelled one left behind; cancelling or failing deletes the partial folder for the same reason. Downloads run per model with progress, so several can run at once and dictation continues on the model already loaded throughout — the service never loads a model, it only writes files and the `activeTranscriptionModel` setting.
+**Two engines.** `Transcribing` is the whole contract: audio in, text and a language out. `TranscriberFactory` picks the implementation from `model.engine`, and `EngineController` rebuilds the transcriber whenever the active model changes. Whisper is told which language to decode and can be asked to translate; Parakeet decides for itself, takes at most a hint, and cannot translate at all — so the translate setting is hidden from the General pane while a Parakeet model is active, rather than left visible and inert.
+
+That difference is why Parakeet checks its own output. The selected languages cannot constrain the decode, so `ParakeetTranscriber` reads the language of the text it produced — `NLLanguageRecognizer`, since `ASRResult` carries no language — and drops a transcription that landed outside the selection. Short or uncertain text is kept: a guess is not grounds for throwing away what someone said. The decoder state is fresh per batch, because batches are separated by a pause and can be discarded whole (a cancel word in the backlog, a stop mid-transcription), and carrying state forward would let cancelled speech condition the next utterance.
+
+**Managing the models.** `TranscriptionModelService` owns what is on disk. Each engine gets a directory beneath Application Support — `whisper/` and `parakeet/` — and lays its own tree out inside it, because both libraries default to somewhere unsuitable (`~/Documents/huggingface`, `~/.cache/fluidaudio`). What counts as downloaded is asked of the engine: a compiled `.mlmodelc` for Whisper, and for Parakeet `AsrModels.modelsExist`, because a Parakeet model is four bundles plus a separately-fetched vocabulary and "contains something compiled" would call it finished as soon as the first bundle landed. A download that cancels, fails, or finishes incomplete deletes its folder rather than leaving something that looks like a model and cannot load. Downloads run per model with progress, so several can run at once and dictation continues on the model already loaded throughout — the service never loads a model, it only writes files and the `activeTranscriptionModel` setting.
 
 Activating is therefore just that setting changing. `AppDelegate` observes it and reloads the engine at once rather than on the restart debounce, since activating is one deliberate click rather than the three ticks a language change can be. Stopping the engine first is what discards the audio dictated so far: the event listener goes with it, so a batch that was mid-transcription cannot arrive and be pasted against the model that has just been swapped out. Dictation resumes afterwards if it was running.
 
@@ -160,7 +168,7 @@ Activating is therefore just that setting changing. `AppDelegate` observes it an
 
 **Models and languages.** A model that is not multilingual constrains what can be recognised, so the language selection lives with the model in the Transcription pane rather than in a pane of its own. The selection is never edited by that constraint: `selectedLanguageCodes` stays whatever the user picked and `effectiveLanguageCodes` — what the engine is given — is that set narrowed to what the active model supports. Activating `base.en` with English and Polish selected makes Polish inert rather than forgetting it, and activating a multilingual model brings it back. The picker dims unsupported languages in place for the same reason.
 
-**Non-speech annotations.** Given a cough or a pause, Whisper describes the sound rather than transcribing speech — `[ Pause ]`, `[BLANK_AUDIO]`, `(coughing)` — and in a dictation app that description is pasted into the user's document. Whisper has two defences against this and neither is usable here: `DecodingOptions.supressTokens` defaults to empty, with the call that would fill it left as `// nonSpeechTokens() // TODO`, and that function does not exist in the package; and every segment's `noSpeechProb` is hardcoded to `0`, so `noSpeechThreshold` can never fire. So `AnnotationFilter` strips the annotations from the text instead. Square brackets and musical notes go unconditionally — nobody dictates them — while parentheses are governed by a setting, since a speaker could plausibly produce one. It runs in `EngineController` rather than `Transcriber` so the setting applies without restarting the engine.
+**Non-speech annotations.** Given a cough or a pause, Whisper describes the sound rather than transcribing speech — `[ Pause ]`, `[BLANK_AUDIO]`, `(coughing)` — and in a dictation app that description is pasted into the user's document. Whisper has two defences against this and neither is usable here: `DecodingOptions.supressTokens` defaults to empty, with the call that would fill it left as `// nonSpeechTokens() // TODO`, and that function does not exist in the package; and every segment's `noSpeechProb` is hardcoded to `0`, so `noSpeechThreshold` can never fire. So `AnnotationFilter` strips the annotations from the text instead. Square brackets and musical notes go unconditionally — nobody dictates them — while parentheses are governed by a setting, since a speaker could plausibly produce one. It runs in `EngineController` rather than `WhisperTranscriber` so the setting applies without restarting the engine.
 
 **Language detection and the decode plan.** Whisper is never asked to translate — the task has always been `.transcribe` — but the decoder is prefilled with a language token, and `options.language ?? Constants.defaultLanguageCode` makes that token `<|en|>` whenever no language is given. Telling Whisper that Polish audio is English makes it render the speech as English, which to a user is indistinguishable from the app translating behind their back. Choosing that token is therefore the whole game, and `DecodePolicy` owns the choice:
 
@@ -244,7 +252,7 @@ Neither grant arrives as a notification — Accessibility is switched on in Syst
 - `AnnotationFilterTests` — that Whisper's descriptions of non-speech never reach the document, using the strings from the bug report.
 - `DecodePolicyTests` — the table above, including that a misdetected language is never forced to English.
 - `ChunkAccumulatorTests` — that no sample is lost or duplicated across awkward buffer boundaries.
-- `TranscriberTests` — real WhisperKit, opt-in via `OVERHEAR_RUN_MODEL_TESTS=1` because it downloads model weights: the language scenarios from `Specs/Languages.md`, and what a cough comes back as.
+- `WhisperTranscriberTests` — real WhisperKit, opt-in via `OVERHEAR_RUN_MODEL_TESTS=1` because it downloads model weights: the language scenarios from `Specs/Languages.md`, and what a cough comes back as.
 - `AudioCaptureTests` — the real microphone, opt-in via `OVERHEAR_RUN_AUDIO_TESTS=1` because CI has no input device.
 
 ## Linting

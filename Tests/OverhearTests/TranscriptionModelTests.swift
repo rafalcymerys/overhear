@@ -13,24 +13,23 @@ final class TranscriptionModelTests: OverhearTestCase {
     // MARK: - The catalogue
 
     func testGroupsModelsByEngineInAFixedOrder() {
-        let parakeet = TranscriptionModel(
-            id: "parakeet-test", engine: .parakeet, name: "TDT 0.6B v2",
-            variant: "tdt-0.6b-v2", downloadSize: 620 * 1_000_000,
-            languageCodes: ["en"], note: nil
-        )
-        let groups = ModelCatalog.grouped(ModelCatalog.all + [parakeet])
+        let groups = ModelCatalog.grouped()
 
         XCTAssertEqual(groups.map(\.engine), [.whisper, .parakeet])
         XCTAssertEqual(groups[0].models.map(\.name),
                        ["Tiny", "Base", "Base English", "Small", "Large v3 Turbo"])
-        XCTAssertEqual(groups[1].models.map(\.name), ["TDT 0.6B v2"])
+        XCTAssertEqual(groups[1].models.map(\.name), ["TDT 0.6B v2", "TDT 0.6B v3"])
     }
 
     /// An engine with nothing to offer gets no heading — a "Parakeet" group
-    /// with no rows under it reads as a broken pane.
+    /// with no rows under it reads as a broken pane, which is what an Intel Mac
+    /// would otherwise show.
     func testAnEngineWithNoModelsGetsNoGroup() {
-        XCTAssertEqual(ModelCatalog.grouped().map(\.engine), [.whisper])
+        let whisperOnly = ModelCatalog.all.filter { $0.engine == .whisper }
+        XCTAssertEqual(ModelCatalog.grouped(whisperOnly).map(\.engine), [.whisper])
     }
+
+    // MARK: - Removing
 
     /// The pane must never put a repository path in front of anyone.
     func testNoModelIsNamedAfterItsVariant() {
@@ -47,14 +46,14 @@ final class TranscriptionModelTests: OverhearTestCase {
 
     func testLanguageSummaryReadsAsACountOrAsTheOneLanguage() {
         XCTAssertEqual(ModelCatalog.whisperBase.languageSummary,
-                       "\(WhisperLanguage.all.count) languages")
+                       "\(RecognitionLanguage.all.count) languages")
         XCTAssertEqual(ModelCatalog.whisperBaseEnglish.languageSummary, "English only")
     }
 
     // MARK: - A fresh install
 
     func testFreshInstallHasWhisperBaseActiveAndNothingDownloaded() {
-        let service = makeService()
+        let service = makeModelService()
 
         XCTAssertEqual(service.activeModel, ModelCatalog.whisperBase)
         XCTAssertTrue(service.downloadedIDs.isEmpty)
@@ -66,7 +65,7 @@ final class TranscriptionModelTests: OverhearTestCase {
     // MARK: - Downloading
 
     func testDownloadingAModelLeavesItDownloadedButNotActive() async {
-        let service = makeService()
+        let service = makeModelService()
         let model = ModelCatalog.whisperSmall
 
         service.startDownload(model)
@@ -81,12 +80,12 @@ final class TranscriptionModelTests: OverhearTestCase {
 
     func testProgressIsReportedWhileADownloadRuns() async {
         var reported: [Double] = []
-        let service = makeService(download: { model, base, report in
+        let service = makeModelService(download: { model, base, report in
             for fraction in [0.25, 0.5, 0.75] {
                 report(fraction)
                 await Task.yield()
             }
-            Self.writeModel(model, into: base)
+            FakeModelDownload.write(model, into: base)
         })
 
         let model = ModelCatalog.whisperSmall
@@ -102,7 +101,7 @@ final class TranscriptionModelTests: OverhearTestCase {
 
     /// Two rows, two downloads, neither one touching the other.
     func testTwoDownloadsRunWithoutDisturbingEachOther() async {
-        let service = makeService()
+        let service = makeModelService()
         let first = ModelCatalog.whisperSmall
         let second = ModelCatalog.whisperTiny
 
@@ -119,7 +118,7 @@ final class TranscriptionModelTests: OverhearTestCase {
     /// download only writes files, and never touches the setting the engine
     /// reads.
     func testDownloadingDoesNotDisturbTheActiveModel() async {
-        let service = makeService()
+        let service = makeModelService()
         service.startDownload(ModelCatalog.whisperBase)
         await settle(service, ModelCatalog.whisperBase)
         service.activate(ModelCatalog.whisperBase)
@@ -131,9 +130,9 @@ final class TranscriptionModelTests: OverhearTestCase {
     }
 
     func testCancellingADownloadLeavesNoPartialFiles() async {
-        let started = Expectation()
+        let started = DownloadStarted()
         let attempts = TestBox(0)
-        let service = makeService(download: { model, base, _ in
+        let service = makeModelService(download: { model, base, _ in
             let attempt = attempts.mutate { count -> Int in
                 count += 1
                 return count
@@ -148,7 +147,7 @@ final class TranscriptionModelTests: OverhearTestCase {
                 try await Task.sleep(for: .seconds(30))
                 return
             }
-            Self.writeModel(model, into: base)
+            FakeModelDownload.write(model, into: base)
         })
 
         let model = ModelCatalog.whisperSmall
@@ -169,9 +168,9 @@ final class TranscriptionModelTests: OverhearTestCase {
 
     func testAFailedDownloadIsReportedAndRetryable() async {
         let shouldFail = TestBox(true)
-        let service = makeService(download: { model, base, _ in
-            if shouldFail.value { throw TestError.offline }
-            Self.writeModel(model, into: base)
+        let service = makeModelService(download: { model, base, _ in
+            if shouldFail.value { throw ModelTestError.offline }
+            FakeModelDownload.write(model, into: base)
         })
 
         let model = ModelCatalog.whisperSmall
@@ -195,7 +194,7 @@ final class TranscriptionModelTests: OverhearTestCase {
     // MARK: - Activating
 
     func testOnlyADownloadedModelCanBeActivated() async {
-        let service = makeService()
+        let service = makeModelService()
         let model = ModelCatalog.whisperSmall
 
         XCTAssertFalse(service.activate(model))
@@ -209,7 +208,7 @@ final class TranscriptionModelTests: OverhearTestCase {
     }
 
     func testActivatingMovesTheActiveMarkAndLeavesTheOldModelDownloaded() async {
-        let service = makeService()
+        let service = makeModelService()
         for model in [ModelCatalog.whisperBase, ModelCatalog.whisperSmall] {
             service.startDownload(model)
             await settle(service, model)
@@ -224,10 +223,8 @@ final class TranscriptionModelTests: OverhearTestCase {
         XCTAssertEqual(ModelCatalog.all.filter { service.isActive($0) }.count, 1)
     }
 
-    // MARK: - Removing
-
     func testRemovingAModelDeletesItsFilesAndFreesTheSpace() async {
-        let service = makeService()
+        let service = makeModelService()
         let model = ModelCatalog.whisperSmall
         service.startDownload(model)
         await settle(service, model)
@@ -242,7 +239,7 @@ final class TranscriptionModelTests: OverhearTestCase {
     }
 
     func testTheActiveModelCannotBeRemoved() async {
-        let service = makeService()
+        let service = makeModelService()
         let model = ModelCatalog.whisperBase
         service.startDownload(model)
         await settle(service, model)
@@ -254,7 +251,7 @@ final class TranscriptionModelTests: OverhearTestCase {
     }
 
     func testDiskUsageCountsEveryDownloadedModel() async {
-        let service = makeService()
+        let service = makeModelService()
         service.startDownload(ModelCatalog.whisperBase)
         await settle(service, ModelCatalog.whisperBase)
         let one = service.diskUsage
@@ -274,9 +271,9 @@ final class TranscriptionModelTests: OverhearTestCase {
 
     func testTheActiveModelIsFetchedWhenItsFilesAreGone() async {
         let fetched = TestBox<[String]>([])
-        let service = makeService(download: { model, base, _ in
+        let service = makeModelService(download: { model, base, _ in
             fetched.mutate { $0.append(model.id) }
-            Self.writeModel(model, into: base)
+            FakeModelDownload.write(model, into: base)
         })
 
         await service.ensureActiveModelAvailable()
@@ -290,9 +287,9 @@ final class TranscriptionModelTests: OverhearTestCase {
 
     func testAnAvailableActiveModelIsNotFetchedAgain() async {
         let fetched = TestBox(0)
-        let service = makeService(download: { model, base, _ in
+        let service = makeModelService(download: { model, base, _ in
             fetched.mutate { $0 += 1 }
-            Self.writeModel(model, into: base)
+            FakeModelDownload.write(model, into: base)
         })
 
         service.startDownload(ModelCatalog.whisperBase)
@@ -300,51 +297,5 @@ final class TranscriptionModelTests: OverhearTestCase {
         await service.ensureActiveModelAvailable()
 
         XCTAssertEqual(fetched.value, 1, "nothing was re-downloaded on the second pass")
-    }
-
-    // MARK: - Support
-
-    private func makeService(download: TranscriptionModelService.Downloader? = nil,
-                             settings: AppSettings? = nil) -> TranscriptionModelService {
-        TranscriptionModelService(
-            baseDirectory: tempDirectory,
-            settings: settings ?? AppSettings(defaults: makeDefaults(), availableHotWords: HotWord.builtIn),
-            download: download ?? { model, base, report in
-                report(1)
-                Self.writeModel(model, into: base)
-            }
-        )
-    }
-
-    /// What a finished download leaves behind: the folder WhisperKit's snapshot
-    /// lands in, holding the compiled models.
-    nonisolated private static func writeModel(_ model: TranscriptionModel, into base: URL) {
-        let folder = base
-            .appendingPathComponent("models/argmaxinc/whisperkit-coreml")
-            .appendingPathComponent("openai_whisper-\(model.variant)")
-        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        for part in ["AudioEncoder.mlmodelc", "TextDecoder.mlmodelc"] {
-            let file = folder.appendingPathComponent(part)
-            try? Data(repeating: 7, count: 4096).write(to: file)
-        }
-    }
-
-    /// Wait for whatever the service is doing to a model to finish.
-    private func settle(_ service: TranscriptionModelService, _ model: TranscriptionModel) async {
-        await waitUntil("\(model.displayName) settles") { !service.isDownloading(model) }
-    }
-}
-
-private enum TestError: Error, LocalizedError {
-    case offline
-    var errorDescription: String? { "The network connection was lost." }
-}
-
-/// A one-shot signal, for a download that has to be caught mid-flight.
-private actor Expectation {
-    private var fulfilled = false
-    func fulfil() { fulfilled = true }
-    func wait() async {
-        while !fulfilled { await Task.yield() }
     }
 }

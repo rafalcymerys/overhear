@@ -1,26 +1,11 @@
 import Foundation
 import WhisperKit
 
-/// One batch of speech, turned into text.
-struct Transcription: Equatable {
-    var text: String
-    var language: String?
-}
-
-/// How the engine turns audio into text. A protocol so the dictation loop can
-/// be tested without loading a multi-hundred-megabyte model.
-protocol Transcribing: Sendable {
-    func load() async throws
-    func transcribe(_ audio: [Float],
-                    languages: [String],
-                    translatesUnsupported: Bool) async throws -> Transcription
-}
-
 /// Speech to text, via WhisperKit's CoreML Whisper.
 ///
 /// The weights are Whisper's own, converted for CoreML, so inference runs on the
 /// Neural Engine rather than the CPU.
-actor Transcriber: Transcribing {
+actor WhisperTranscriber: Transcribing {
     /// Which model to load. Fixed for the life of the transcriber — activating
     /// another one builds a new transcriber rather than swapping the weights
     /// under this one.
@@ -38,7 +23,7 @@ actor Transcriber: Transcribing {
     /// is given, and `HotWordService` lists that same directory looking for the
     /// user's `.onnx` files.
     static var downloadBase: URL {
-        TranscriptionModelService.defaultBaseDirectory
+        TranscriptionModelService.defaultBaseDirectory(for: .whisper)
     }
 
     private var whisper: WhisperKit?

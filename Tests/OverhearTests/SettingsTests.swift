@@ -108,7 +108,7 @@ final class SettingsTests: OverhearTestCase {
     // Language catalog invariants the settings UI relies on
 
     func testLanguageCatalogHasNoDuplicateCodes() {
-        let codes = WhisperLanguage.all.map(\.code)
+        let codes = RecognitionLanguage.all.map(\.code)
         XCTAssertEqual(Set(codes).count, codes.count)
     }
 
@@ -178,6 +178,26 @@ final class SettingsTests: OverhearTestCase {
 
         XCTAssertEqual(settings.selectedLanguageCodes, ["en", "pl"], "the stored selection was never edited")
         XCTAssertEqual(settings.effectiveLanguageCodes, ["en", "pl"])
+    }
+
+    /// The narrowing is not Whisper's alone — Parakeet's English-only build
+    /// constrains the selection the same way.
+    func testAnEnglishOnlyParakeetModelNarrowsTheLanguagesToo() {
+        let settings = AppSettings(defaults: makeDefaults(), availableHotWords: HotWord.builtIn)
+        settings.selectedLanguageCodes = ["en", "pl"]
+        settings.activeModelID = ModelCatalog.parakeetV2.id
+
+        XCTAssertEqual(settings.effectiveLanguageCodes, ["en"])
+        XCTAssertEqual(settings.unsupportedSelectedLanguages.map(\.code), ["pl"])
+
+        settings.activeModelID = ModelCatalog.parakeetV3.id
+        XCTAssertEqual(settings.effectiveLanguageCodes, ["en", "pl"], "v3 speaks both")
+    }
+
+    /// Only Whisper can translate, and the General pane keys the row off this.
+    func testOnlyWhisperReportsThatItCanTranslate() {
+        XCTAssertTrue(TranscriptionEngineKind.whisper.canTranslate)
+        XCTAssertFalse(TranscriptionEngineKind.parakeet.canTranslate)
     }
 
     /// Selecting only languages the model cannot do must still leave the engine

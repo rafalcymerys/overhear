@@ -260,7 +260,7 @@ final class DictationEngineTests: XCTestCase {
     func testStaysLoadingUntilAudioArrives() async throws {
         let harness = await makeEngineHarness(primed: false)
 
-        try await harness.waitFor(.status("whisper_ready"))
+        try await harness.waitFor(.status("transcriber_ready"))
         try await harness.neverSees(.idle, within: .seconds(1))
 
         harness.audio.sendSilence(seconds: 0.2)

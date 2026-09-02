@@ -6,8 +6,8 @@ import XCTest
 ///
 /// Skipped by default: the first run downloads and compiles a few hundred
 /// megabytes of CoreML model. Run it with
-/// `OVERHEAR_RUN_MODEL_TESTS=1 swift test --filter TranscriberTests`.
-final class TranscriberTests: XCTestCase {
+/// `OVERHEAR_RUN_MODEL_TESTS=1 swift test --filter WhisperTranscriberTests`.
+final class WhisperTranscriberTests: XCTestCase {
     override func setUpWithError() throws {
         try XCTSkipUnless(
             ProcessInfo.processInfo.environment["OVERHEAR_RUN_MODEL_TESTS"] == "1",
@@ -16,7 +16,7 @@ final class TranscriberTests: XCTestCase {
     }
 
     func testTranscribesSpeech() async throws {
-        let transcriber = Transcriber()
+        let transcriber = WhisperTranscriber()
         try await transcriber.load()
 
         let audio = try SyntheticSample.sentenceEn.load()
@@ -31,7 +31,7 @@ final class TranscriberTests: XCTestCase {
     /// The default setup is English plus Polish, so detection has to actually
     /// tell them apart — not merely return whichever is listed first.
     func testDetectsWhichOfTheSelectedLanguagesWasSpoken() async throws {
-        let transcriber = Transcriber()
+        let transcriber = WhisperTranscriber()
         try await transcriber.load()
 
         let english = try await transcriber.transcribe(
@@ -65,7 +65,7 @@ final class TranscriberTests: XCTestCase {
     /// Polish. `base` scores this clip pl=23.2 against en=15.5, so honouring the
     /// ranking is what keeps it Polish.
     func testSelectedLanguagesWinOverTheAlternatives() async throws {
-        let transcriber = Transcriber()
+        let transcriber = WhisperTranscriber()
         try await transcriber.load()
 
         let result = try await transcriber.transcribe(
@@ -84,7 +84,7 @@ final class TranscriberTests: XCTestCase {
     /// A language the user selected is transcribed as itself even when another
     /// language is a plausible reading of the audio.
     func testAnUnselectedLanguageDoesNotWinOverASelectedOne() async throws {
-        let transcriber = Transcriber()
+        let transcriber = WhisperTranscriber()
         try await transcriber.load()
 
         let result = try await transcriber.transcribe(
@@ -103,7 +103,7 @@ final class TranscriberTests: XCTestCase {
     /// With only English selected, German stays inside the configuration rather
     /// than producing German text — selecting a language has to mean something.
     func testOutputStaysInsideTheSelectedLanguages() async throws {
-        let transcriber = Transcriber()
+        let transcriber = WhisperTranscriber()
         try await transcriber.load()
 
         let result = try await transcriber.transcribe(
@@ -118,7 +118,7 @@ final class TranscriberTests: XCTestCase {
     /// Turning translation on is the one case where output leaves the selected
     /// languages: the batch is decoded as what was actually spoken, translated.
     func testTranslationLeavesTheSelectedLanguages() async throws {
-        let transcriber = Transcriber()
+        let transcriber = WhisperTranscriber()
         try await transcriber.load()
 
         let result = try await transcriber.transcribe(
@@ -137,7 +137,7 @@ final class TranscriberTests: XCTestCase {
     /// Selecting one language and speaking it is the ordinary case, and it has
     /// to work without English anywhere in the configuration.
     func testASingleSelectedLanguageIsTranscribedAsItself() async throws {
-        let transcriber = Transcriber()
+        let transcriber = WhisperTranscriber()
         try await transcriber.load()
 
         let result = try await transcriber.transcribe(
@@ -156,7 +156,7 @@ final class TranscriberTests: XCTestCase {
     /// R-98 was intermittent — the same phrase came back English some of the
     /// time — so one pass proves less than a handful of them.
     func testPolishStaysPolishAcrossRepeatedUtterances() async throws {
-        let transcriber = Transcriber()
+        let transcriber = WhisperTranscriber()
         try await transcriber.load()
 
         let audio = try SyntheticSample.dzienDobryPl.load()
@@ -179,7 +179,7 @@ final class TranscriberTests: XCTestCase {
     /// The translation setting governs languages the user did not select. One
     /// they did select is transcribed as itself whatever it says.
     func testTranslationDoesNotTouchASelectedLanguage() async throws {
-        let transcriber = Transcriber()
+        let transcriber = WhisperTranscriber()
         try await transcriber.load()
 
         let result = try await transcriber.transcribe(
@@ -198,7 +198,7 @@ final class TranscriberTests: XCTestCase {
     /// Speech in a language the user did not select comes back in one they did
     /// — whichever the model scores higher, not a fixed one of the two.
     func testAnUnselectedLanguageIsDecodedAsOneOfTheSelectedOnes() async throws {
-        let transcriber = Transcriber()
+        let transcriber = WhisperTranscriber()
         try await transcriber.load()
 
         let result = try await transcriber.transcribe(
@@ -215,7 +215,7 @@ final class TranscriberTests: XCTestCase {
     /// An utterance that switches language halfway is still one utterance: one
     /// transcription, in one of the languages selected.
     func testAnUtteranceInTwoLanguagesComesBackAsOne() async throws {
-        let transcriber = Transcriber()
+        let transcriber = WhisperTranscriber()
         try await transcriber.load()
 
         let result = try await transcriber.transcribe(
@@ -234,7 +234,7 @@ final class TranscriberTests: XCTestCase {
     /// R-97 against the real model: a cough is described rather than
     /// transcribed, and the description is what the filter exists to remove.
     func testNonSpeechComesBackAsAnAnnotationTheFilterRemoves() async throws {
-        let transcriber = Transcriber()
+        let transcriber = WhisperTranscriber()
         try await transcriber.load()
 
         let result = try await transcriber.transcribe(
@@ -250,7 +250,7 @@ final class TranscriberTests: XCTestCase {
     /// Ordinary dictation keeps its punctuation and casing on the way through —
     /// the filter is aimed at annotations, not at sentences.
     func testOrdinarySpeechKeepsItsPunctuation() async throws {
-        let transcriber = Transcriber()
+        let transcriber = WhisperTranscriber()
         try await transcriber.load()
 
         let result = try await transcriber.transcribe(

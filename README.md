@@ -66,7 +66,7 @@ Transcription tests are opt-in, because they pull down a few hundred megabytes o
 Whisper weights:
 
 ```bash
-OVERHEAR_RUN_MODEL_TESTS=1 swift test --filter TranscriberTests
+OVERHEAR_RUN_MODEL_TESTS=1 swift test --filter WhisperTranscriberTests
 ```
 
 ### Linting

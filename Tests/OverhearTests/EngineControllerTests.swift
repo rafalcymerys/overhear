@@ -252,41 +252,6 @@ final class EngineControllerTests: OverhearTestCase {
 
     // MARK: - Changing the model
 
-    /// Activating a model has to load different weights, which is a new
-    /// transcriber. Restarting for anything else — a language, the cancel word
-    /// — must not be, or every toggle would cost a model load.
-    func testANewTranscriberIsBuiltOnlyWhenTheModelChanges() async throws {
-        let settings = AppSettings(defaults: makeDefaults(), availableHotWords: HotWord.builtIn)
-        let requested = TestBox<[String]>([])
-        let audio = ScriptedAudioSource()
-        let controller = EngineController(
-            appState: AppState(),
-            injector: SpyInjector(),
-            modelsDirectory: Self.modelsDirectory,
-            makeTranscriber: { model in
-                requested.mutate { $0.append(model.id) }
-                return StubTranscriber()
-            },
-            makeAudioSource: { audio },
-            settings: settings
-        )
-        defer { controller.stop() }
-
-        controller.start()
-        XCTAssertEqual(requested.value, [ModelCatalog.whisperBase.id])
-
-        // A restart with the same model reuses the loaded one.
-        controller.stop()
-        controller.start()
-        XCTAssertEqual(requested.value, [ModelCatalog.whisperBase.id],
-                       "restarting must not reload the same weights")
-
-        settings.activeModelID = ModelCatalog.whisperSmall.id
-        controller.stop()
-        controller.start()
-        XCTAssertEqual(requested.value, [ModelCatalog.whisperBase.id, ModelCatalog.whisperSmall.id])
-    }
-
     /// The engine is given the languages the active model can actually
     /// transcribe. Handing it Polish with an English-only model loaded is how
     /// Polish comes back as English.

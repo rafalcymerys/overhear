@@ -25,6 +25,15 @@ cp .build/release/Overhear "$APP_DIR/Contents/MacOS/Overhear"
 cp Resources/Info.plist "$APP_DIR/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
 
+# Resource bundles the dependencies expect beside the binary. SwiftPM leaves
+# them in .build/release; `Bundle.module` looks for them next to the executable
+# or in Contents/Resources, and a package that reaches for one it cannot find
+# traps — in the packaged app only, never in `swift run` or the tests.
+for bundle in .build/release/*.bundle; do
+    [ -e "$bundle" ] || continue
+    cp -R "$bundle" "$APP_DIR/Contents/Resources/"
+done
+
 # Create zip (from inside dist/ so paths aren't prefixed with dist/)
 echo "Packaging..."
 (cd "$PROJECT_DIR/dist" && zip -r Overhear.zip Overhear.app -x "*.DS_Store" > /dev/null)

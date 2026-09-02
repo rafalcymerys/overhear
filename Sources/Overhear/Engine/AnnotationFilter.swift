@@ -1,14 +1,19 @@
 import Foundation
 
-/// Removes Whisper's non-speech annotations from a transcription.
+/// Removes a model's descriptions of non-speech from a transcription.
 ///
-/// Asked to transcribe a cough or a pause, Whisper often describes the sound
+/// Asked to transcribe a cough or a pause, a model often describes the sound
 /// instead of transcribing speech — `[ Pause ]`, `[BLANK_AUDIO]`, `(coughing)`,
 /// `♪ music ♪`. In a dictation app that text is pasted straight into whatever
 /// the user is typing in, so it has to be caught somewhere.
 ///
-/// It has to be caught *here*, rather than by asking Whisper not to produce it,
-/// because both of the model's own defences are inert in WhisperKit:
+/// It runs for every engine. Nothing it strips is text a dictating user wants
+/// literally, whichever model produced it, and making it Whisper-only would
+/// leave the user's "strip annotations" setting silently doing nothing under
+/// another engine.
+///
+/// For Whisper it has to be caught *here*, rather than by asking the model not
+/// to produce it, because both of its own defences are inert in WhisperKit:
 /// `DecodingOptions.supressTokens` defaults to empty, with the call that would
 /// fill it left commented out and never written, and every segment's
 /// `noSpeechProb` is hardcoded to zero, so `noSpeechThreshold` never fires.

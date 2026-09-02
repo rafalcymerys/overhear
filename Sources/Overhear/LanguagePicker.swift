@@ -10,7 +10,7 @@ struct LanguagePicker: View {
     @ObservedObject var settings: AppSettings
     @State private var searchText = ""
 
-    private var matches: [WhisperLanguage] {
+    private var matches: [RecognitionLanguage] {
         guard !searchText.isEmpty else { return ordered }
         return ordered.filter {
             $0.name.localizedCaseInsensitiveContains(searchText) ||
@@ -20,9 +20,9 @@ struct LanguagePicker: View {
 
     /// Selected first, so what is in use is not somewhere down a list of
     /// ninety-nine.
-    private var ordered: [WhisperLanguage] {
+    private var ordered: [RecognitionLanguage] {
         let selected = settings.effectiveLanguageCodes
-        return WhisperLanguage.all.sorted { lhs, rhs in
+        return RecognitionLanguage.all.sorted { lhs, rhs in
             let left = selected.contains(lhs.code)
             let right = selected.contains(rhs.code)
             if left != right { return left }
@@ -54,7 +54,7 @@ struct LanguagePicker: View {
     }
 
     @ViewBuilder
-    private func row(_ language: WhisperLanguage) -> some View {
+    private func row(_ language: RecognitionLanguage) -> some View {
         let supported = settings.activeModel.supports(language.code)
         let isOn = settings.effectiveLanguageCodes.contains(language.code)
 

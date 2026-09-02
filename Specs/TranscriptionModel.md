@@ -60,9 +60,11 @@ Assert: an **Available Models** section sits below the active model.
 Assert: its models are grouped under two headings, **Whisper** and **Parakeet**.
 Assert: the **Whisper** group lists Tiny, Base, Small and Large v3 Turbo.
 Assert: the **Parakeet** group lists Parakeet TDT 0.6B v2 and Parakeet TDT 0.6B
-v3.
+v3, at about 450 MB and 470 MB.
 Assert: each group heading says in a few words what the engine is, such as
 "multilingual" or "fastest".
+Assert: on a Mac without Apple silicon the Parakeet group is absent entirely,
+rather than offering models that cannot load.
 Assert: every model row shows its name, its download size and, where it
 differs from the group, the languages it supports.
 Assert: no row carries a raw repository or variant identifier.
@@ -182,6 +184,28 @@ Assert: the utterance is inserted.
 Assert: the Whisper models stay downloaded and are still listed.
 Assert: switching back to a Whisper model is one click on **Activate** and does
 not download anything again.
+Assert: **Translate unsupported languages** is gone from the General pane while
+the Parakeet model is active, and returns when a Whisper model is.
+Assert: punctuation, capitalisation and how numbers are written may differ
+between the engines. The same sentence dictated under each is not expected to
+come back identical.
+
+## Speech outside the selected languages under Parakeet
+
+1. Select English only and activate Parakeet TDT 0.6B v3.
+2. Start dictation with TextEdit focused.
+3. Say `SentencePl`.
+
+Assert: nothing is inserted.
+Assert: no entry appears under **Last Transcriptions**.
+Assert: dictation carries on, ready for the next utterance.
+
+Whisper is told which language to decode, so its output stays inside the
+selection by construction. Parakeet cannot be told — the selection is a hint
+that steers it — so a transcription that comes back in a language the user did
+not select is discarded rather than pasted. A few words are kept regardless:
+too short a sample cannot be judged, and dropping what someone said on a guess
+is worse than the occasional stray line.
 
 ## Activating an English-only model narrows the languages
 

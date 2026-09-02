@@ -53,7 +53,7 @@ actor DictationEngine {
     private var cancelWordPath: String = ""
 
     init(capture: any AudioSource = AudioCapture(),
-         transcriber: any Transcribing = Transcriber(),
+         transcriber: any Transcribing = WhisperTranscriber(),
          modelsDirectory: URL = HotWord.modelsDirectory) {
         self.capture = capture
         self.transcriber = transcriber
@@ -94,9 +94,9 @@ actor DictationEngine {
 
         do {
             try await transcriber.load()
-            emit(.status("whisper_ready"))
+            emit(.status("transcriber_ready"))
         } catch {
-            emit(.error("Failed to load Whisper: \(error.localizedDescription)"))
+            emit(.error("Failed to load the transcription model: \(error.localizedDescription)"))
             return
         }
 

@@ -1,3 +1,4 @@
+import FluidAudio
 import Foundation
 import WhisperKit
 
@@ -15,7 +16,7 @@ final class TranscriptionModelService: ObservableObject {
     ///
     /// Injected so tests never reach the network — the real one is
     /// `WhisperKit.download`, which is also what would otherwise run
-    /// unannounced inside `Transcriber.load()`.
+    /// unannounced inside `WhisperTranscriber.load()`.
     typealias Downloader = @Sendable (TranscriptionModel, URL, @escaping @Sendable (Double) -> Void) async throws -> Void
 
     @Published private(set) var downloadedIDs: Set<String> = []
@@ -31,53 +32,68 @@ final class TranscriptionModelService: ObservableObject {
     /// catalogue's figures.
     @Published private(set) var diskUsage: Int64 = 0
 
-    private let baseDirectory: URL
+    private let rootDirectory: URL
     private let download: Downloader
     private let settings: AppSettings
     private var tasks: [String: Task<Void, Never>] = [:]
 
     /// - Parameters:
-    ///   - baseDirectory: where model weights are kept. Tests pass a temporary
-    ///     directory.
+    ///   - rootDirectory: where the engines' weights are kept, one directory
+    ///     each beneath it. Tests pass a temporary directory.
     ///   - settings: where the active model is stored.
     ///   - download: how to fetch a model.
-    init(baseDirectory: URL = TranscriptionModelService.defaultBaseDirectory,
+    init(rootDirectory: URL = TranscriptionModelService.defaultRootDirectory,
          settings: AppSettings? = nil,
-         download: @escaping Downloader = TranscriptionModelService.whisperKitDownload) {
-        self.baseDirectory = baseDirectory
+         download: @escaping Downloader = TranscriptionModelService.defaultDownload) {
+        self.rootDirectory = rootDirectory
         self.settings = settings ?? .shared
         self.download = download
         refresh()
     }
 
-    /// Where the weights live.
+    /// Where the weights live, with one directory per engine beneath it.
     ///
-    /// WhisperKit defaults to `~/Documents/huggingface`, which is the wrong
-    /// place for hundreds of megabytes a user never chose to store: Documents
-    /// is theirs, it is backed up, and on a Mac with iCloud Drive enabled it is
-    /// synced. Application Support is where a cache like this belongs.
+    /// Both libraries default to somewhere unsuitable — WhisperKit to
+    /// `~/Documents/huggingface`, FluidAudio to `~/.cache/fluidaudio` — and
+    /// neither is the right place for hundreds of megabytes a user never chose
+    /// to store: Documents is theirs, it is backed up, and on a Mac with iCloud
+    /// Drive enabled it is synced. Application Support is where a cache like
+    /// this belongs.
     ///
-    /// It gets its own subdirectory rather than sharing the wake word models
-    /// one: WhisperKit creates a `models/<org>/<repo>` tree beneath whatever it
-    /// is given, and `HotWordService` lists that same directory looking for the
+    /// The engines get their own subdirectories rather than sharing the wake
+    /// word models one: each lays out a tree of its own beneath what it is
+    /// given, and `HotWordService` lists that same directory looking for the
     /// user's `.onnx` files.
-    nonisolated static var defaultBaseDirectory: URL {
-        HotWord.modelsDirectory
-            .deletingLastPathComponent()
-            .appendingPathComponent("whisper")
+    nonisolated static var defaultRootDirectory: URL {
+        HotWord.modelsDirectory.deletingLastPathComponent()
+    }
+
+    nonisolated static func defaultBaseDirectory(for engine: TranscriptionEngineKind) -> URL {
+        defaultRootDirectory.appendingPathComponent(engine.directoryName)
+    }
+
+    private func baseDirectory(for engine: TranscriptionEngineKind) -> URL {
+        rootDirectory.appendingPathComponent(engine.directoryName)
     }
 
     // MARK: - What is on disk
 
     /// The folder a model's weights land in.
     ///
-    /// WhisperKit's `HubApi` lays the repository out beneath the download base,
-    /// so this is where its snapshot ends up rather than a directory Overhear
-    /// chose.
+    /// Each library lays its own tree out beneath the engine's directory, so
+    /// these are where their downloads end up rather than paths Overhear chose.
+    /// Whisper's must stay exactly as it is: changing it orphans every model
+    /// already on disk.
     func folder(for model: TranscriptionModel) -> URL {
-        baseDirectory
-            .appendingPathComponent("models/argmaxinc/whisperkit-coreml")
-            .appendingPathComponent("openai_whisper-\(model.variant)")
+        let base = baseDirectory(for: model.engine)
+        switch model.engine {
+        case .whisper:
+            return base
+                .appendingPathComponent("models/argmaxinc/whisperkit-coreml")
+                .appendingPathComponent("openai_whisper-\(model.variant)")
+        case .parakeet:
+            return base.appendingPathComponent(model.variant)
+        }
     }
 
     func isDownloaded(_ model: TranscriptionModel) -> Bool {
@@ -104,15 +120,30 @@ final class TranscriptionModelService: ObservableObject {
             .reduce(0) { $0 + size(of: folder(for: $1)) }
     }
 
-    /// A folder counts as a downloaded model only when it holds a compiled
-    /// model, which is what tells a finished download from the directory a
-    /// cancelled one left behind.
+    /// Whether a model is completely downloaded — which is what tells a
+    /// finished download from the directory a cancelled one left behind.
+    ///
+    /// Parakeet is asked rather than guessed at: a model is four compiled
+    /// bundles plus a vocabulary fetched separately, so "contains something
+    /// compiled" would call it finished as soon as the first bundle landed, and
+    /// `discardPartial` would then refuse to clean up a folder that looks like a
+    /// model and cannot load.
     private func hasFiles(for model: TranscriptionModel) -> Bool {
         let folder = folder(for: model)
-        guard let contents = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else {
-            return false
+        switch model.engine {
+        case .whisper:
+            guard let contents = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else {
+                return false
+            }
+            return contents.contains { $0.hasSuffix(".mlmodelc") }
+        case .parakeet:
+            guard let variant = ParakeetVariant(model: model) else { return false }
+            return AsrModels.modelsExist(
+                at: folder,
+                version: variant.version,
+                encoderPrecision: ParakeetVariant.encoderPrecision
+            )
         }
-        return contents.contains { $0.hasSuffix(".mlmodelc") }
     }
 
     private func size(of directory: URL) -> Int64 {
@@ -140,7 +171,7 @@ final class TranscriptionModelService: ObservableObject {
 
         tasks[model.id] = Task { [weak self] in
             guard let self else { return }
-            let destination = self.baseDirectory
+            let destination = self.baseDirectory(for: model.engine)
             do {
                 try await self.download(model, destination) { fraction in
                     Task { @MainActor [weak self] in
@@ -180,6 +211,18 @@ final class TranscriptionModelService: ObservableObject {
     private func finish(_ model: TranscriptionModel) {
         tasks[model.id] = nil
         progress[model.id] = nil
+
+        // A download can report success and still leave something that cannot
+        // load — a file missing from the snapshot. That is a failure with a
+        // Try Again, not a row that quietly goes back to offering Download over
+        // a folder nobody will ever clean up.
+        guard hasFiles(for: model) else {
+            failures[model.id] = "The download finished but the model is incomplete."
+            discardPartial(model)
+            refresh()
+            return
+        }
+
         failures[model.id] = nil
         refresh()
     }
@@ -232,9 +275,12 @@ final class TranscriptionModelService: ObservableObject {
         // The tokenizer WhisperKit fetched alongside the weights, where its
         // folder is named after the variant. Left alone when it is not — a few
         // JSON files are not worth guessing at a path and deleting the wrong
-        // thing.
-        let tokenizer = baseDirectory.appendingPathComponent("models/openai/whisper-\(model.variant)")
-        try? FileManager.default.removeItem(at: tokenizer)
+        // thing — and Parakeet has no such sibling.
+        if model.engine == .whisper {
+            let tokenizer = baseDirectory(for: .whisper)
+                .appendingPathComponent("models/openai/whisper-\(model.variant)")
+            try? FileManager.default.removeItem(at: tokenizer)
+        }
 
         refresh()
         return true
@@ -257,16 +303,63 @@ final class TranscriptionModelService: ObservableObject {
         }
     }
 
-    /// The real downloader.
-    nonisolated static var whisperKitDownload: Downloader {
+    /// The real downloader: whichever library owns the model.
+    ///
+    /// One closure rather than one per engine, because it is the seam tests
+    /// replace — a dictionary of them would double what a test has to stub to
+    /// say the same thing.
+    nonisolated static var defaultDownload: Downloader {
         { model, destination, report in
-            _ = try await WhisperKit.download(
-                variant: model.variant,
-                downloadBase: destination,
-                progressCallback: { progress in
-                    report(progress.fractionCompleted)
+            switch model.engine {
+            case .whisper:
+                _ = try await WhisperKit.download(
+                    variant: model.variant,
+                    downloadBase: destination,
+                    progressCallback: { progress in
+                        report(progress.fractionCompleted)
+                    }
+                )
+            case .parakeet:
+                guard let variant = ParakeetVariant(model: model) else {
+                    throw EngineError.modelInvalid("Unknown Parakeet model \(model.variant)")
                 }
-            )
+                // `AsrModels.download(to:)` writes to the *parent* of what it is
+                // given, under the repository's own folder name, so the
+                // directory passed has to already end in that name for what was
+                // asked for and what arrives to be the same place.
+                let target = destination.appendingPathComponent(variant.variant)
+                // Four models and a vocabulary are fetched in turn, each
+                // sweeping its own 0 to 1, so the raw fractions would drive the
+                // row's progress backwards four times. The encoder is the great
+                // majority of the download, which makes the highest fraction
+                // seen a close enough approximation without a table of weights
+                // that would go stale.
+                let furthest = HighWaterMark()
+                _ = try await AsrModels.download(
+                    to: target,
+                    version: variant.version,
+                    encoderPrecision: ParakeetVariant.encoderPrecision,
+                    progressHandler: { progress in
+                        report(furthest.advance(to: progress.fractionCompleted))
+                    }
+                )
+            }
         }
+    }
+}
+
+/// A progress fraction that only ever goes up.
+///
+/// A download made of several files reports each one's own 0 to 1; a row that
+/// followed those literally would run backwards once per file.
+private final class HighWaterMark: @unchecked Sendable {
+    private let lock = NSLock()
+    private var highest: Double = 0
+
+    func advance(to fraction: Double) -> Double {
+        lock.lock()
+        defer { lock.unlock() }
+        highest = max(highest, fraction)
+        return highest
     }
 }

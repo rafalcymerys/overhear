@@ -101,6 +101,9 @@ behaviour for someone who selected one language and then spoke another.
 
 ## Translates unsupported speech when the setting is on
 
+Whisper only. The setting is hidden while a Parakeet model is active, since
+that engine has no translate task — see `Specs/TranscriptionModel.md`.
+
 1. Select English only.
 2. Open **Settings… → General** and turn **Translate unsupported languages** on.
 3. Start dictation with TextEdit focused.
