@@ -4,15 +4,27 @@ import Combine
 
 @MainActor
 final class OverlayController: NSObject {
-    private var window: NSWindow?
+    /// Exposed for tests, which assert on where the window sits, how it
+    /// behaves among other windows, and whether it is on screen at all.
+    private(set) var window: NSWindow?
+
     private var hostingView: NSHostingView<OverlayView>?
     private let appState: AppState
+    private let settings: AppSettings
     private var cancellables = Set<AnyCancellable>()
     private var onStop: () -> Void
     private var onOpenSettings: () -> Void
 
-    init(appState: AppState, onStop: @escaping () -> Void, onOpenSettings: @escaping () -> Void) {
+    /// - Parameter settings: read for `showOverlay` and observed for changes to
+    ///   it. Tests pass their own so they never write the user's.
+    init(appState: AppState,
+         onStop: @escaping () -> Void,
+         onOpenSettings: @escaping () -> Void,
+         settings: AppSettings? = nil) {
         self.appState = appState
+        // Resolved here rather than as a default argument: `AppSettings.shared`
+        // is main actor isolated and a default argument is not.
+        self.settings = settings ?? .shared
         self.onStop = onStop
         self.onOpenSettings = onOpenSettings
         super.init()
@@ -26,7 +38,7 @@ final class OverlayController: NSObject {
             }
         }.store(in: &cancellables)
 
-        AppSettings.shared.$showOverlay
+        settings.$showOverlay
             .dropFirst()
             .sink { [weak self] show in
                 Task { @MainActor in
@@ -51,7 +63,7 @@ final class OverlayController: NSObject {
     }
 
     private func showWindow() {
-        guard AppSettings.shared.showOverlay else { return }
+        guard settings.showOverlay else { return }
         if window == nil {
             createWindow()
         }
@@ -73,9 +85,9 @@ final class OverlayController: NSObject {
         hide.target = self
         menu.addItem(hide)
 
-        let settings = NSMenuItem(title: "Settings…", action: #selector(showSettings), keyEquivalent: "")
-        settings.target = self
-        menu.addItem(settings)
+        let settingsItem = NSMenuItem(title: "Settings…", action: #selector(showSettings), keyEquivalent: "")
+        settingsItem.target = self
+        menu.addItem(settingsItem)
 
         menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
     }
@@ -83,7 +95,7 @@ final class OverlayController: NSObject {
     /// Turns the setting off rather than hiding the window on its own, so the
     /// overlay stays gone across launches and Settings tells the same story.
     @objc private func hideOverlayForGood() {
-        AppSettings.shared.showOverlay = false
+        settings.showOverlay = false
     }
 
     @objc private func showSettings() {
