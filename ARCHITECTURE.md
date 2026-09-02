@@ -129,13 +129,15 @@ behaviour — a spec has one obvious place to land.
 
 | File | Role |
 |---|---|
-| `TranscriptionModel.swift` | The model catalogue: engines, variants, sizes, supported languages |
+| `TranscriptionModel.swift` | What a model is: its engine, variant, size and supported languages |
+| `ModelCatalog.swift` | Every model offered, and which one is the default |
 | `TranscriptionModelService.swift` | What is downloaded, downloading, activated and removed |
 
 ### `HotWords/`
 
 | File | Role |
 |---|---|
+| `HotWord.swift` | A cancel word: the four built in, and custom ones by path |
 | `HotWordService.swift` | Discovers, installs (file or URL), and removes custom `.onnx` cancel word models |
 | `HotWord+Models.swift` | Resolves a hot word to the file its model lives in |
 
@@ -150,9 +152,11 @@ behaviour — a spec has one obvious place to land.
 
 | File | Role |
 |---|---|
-| `Settings.swift` | `AppSettings` (UserDefaults-backed), `RecognitionLanguage` catalog, `HotWord` model |
+| `AppSettings.swift` | Every preference, backed by `UserDefaults` |
+| `RecognitionLanguage.swift` | The languages that can be selected, with their codes and flags |
 | `SettingsWindow.swift` | The window and its toolbar of panes |
-| `SettingsView.swift` | The General and Hot Words panes |
+| `GeneralSettingsView.swift` | The General pane |
+| `HotWordSettingsView.swift` | The Hot Words pane |
 | `TranscriptionSettingsView.swift` | The Transcription pane: active model, its languages, translation |
 | `AvailableModels.swift` | The catalogue half of that pane, grouped by engine |
 | `LanguagePicker.swift` | The language multi-select popover |
@@ -163,7 +167,8 @@ behaviour — a spec has one obvious place to land.
 |---|---|
 | `MenuBarIcon.swift` | SwiftUI view embedded in NSStatusItem |
 | `LiveMark.swift` | The animated mark the icon and overlay share |
-| `OverlayWindow.swift` | Floating status window (top-right corner) |
+| `OverlayWindow.swift` | The floating status window (top-right corner) and where it sits |
+| `OverlayView.swift` | What that window draws |
 | `SetupWindow.swift` | First-launch setup window — progress, failure detail, Try Again |
 
 ### Top level
