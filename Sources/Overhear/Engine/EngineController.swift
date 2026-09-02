@@ -17,11 +17,17 @@ final class EngineController {
     /// has already been stopped cannot be reused.
     private let makeAudioSource: @Sendable () -> any AudioSource
 
+    /// How to build a transcriber for a model. A closure because activating
+    /// another model means loading different weights, which is a new
+    /// transcriber rather than a swap inside the existing one.
+    private let makeTranscriber: @Sendable (TranscriptionModel) -> any Transcribing
+
     /// Kept across restarts. Changing a language or the cancel word rebuilds
     /// the engine, and reloading Whisper each time would turn a settings toggle
     /// into a multi-second stall for no reason — the model does not depend on
-    /// either setting.
-    private let transcriber: any Transcribing
+    /// either setting. Changing the model is the one thing that does replace it.
+    private var transcriber: (any Transcribing)?
+    private var loadedModelID: String?
 
     private let settings: AppSettings
 
@@ -32,13 +38,13 @@ final class EngineController {
     init(appState: AppState,
          injector: TextInjecting = PasteboardTextInjector(),
          modelsDirectory: URL = HotWord.modelsDirectory,
-         transcriber: any Transcribing = Transcriber(),
+         makeTranscriber: @escaping @Sendable (TranscriptionModel) -> any Transcribing = { Transcriber(model: $0) },
          makeAudioSource: @escaping @Sendable () -> any AudioSource = { AudioCapture() },
          settings: AppSettings? = nil) {
         self.appState = appState
         self.injector = injector
         self.modelsDirectory = modelsDirectory
-        self.transcriber = transcriber
+        self.makeTranscriber = makeTranscriber
         self.makeAudioSource = makeAudioSource
         // Resolved here rather than as a default argument: `AppSettings.shared`
         // is main actor isolated and a default argument is not.
@@ -53,7 +59,7 @@ final class EngineController {
 
         let engine = DictationEngine(
             capture: makeAudioSource(),
-            transcriber: transcriber,
+            transcriber: transcriberForActiveModel(),
             modelsDirectory: modelsDirectory
         )
         self.engine = engine
@@ -62,7 +68,7 @@ final class EngineController {
         // iteration order changes between launches, and the engine's
         // single-language shortcut and detection fallback both depend on the
         // order it is given.
-        let languages = settings.selectedLanguageCodes.sorted()
+        let languages = settings.effectiveLanguageCodes.sorted()
         let cancelWordPath = settings.cancelWord.modelPath(in: modelsDirectory)
 
         // Pushed in rather than passed to start(...): it applies to the next
@@ -82,6 +88,19 @@ final class EngineController {
                 self.handle(event)
             }
         }
+    }
+
+    /// The transcriber for whichever model is active, built anew when that is
+    /// not the model already loaded.
+    private func transcriberForActiveModel() -> any Transcribing {
+        let model = settings.activeModel
+        if let transcriber, loadedModelID == model.id {
+            return transcriber
+        }
+        let fresh = makeTranscriber(model)
+        transcriber = fresh
+        loadedModelID = model.id
+        return fresh
     }
 
     func activate() {

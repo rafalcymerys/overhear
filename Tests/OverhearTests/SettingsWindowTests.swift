@@ -7,8 +7,16 @@ import XCTest
 /// different one — is the whole feature broken.
 @MainActor
 final class SettingsWindowTests: XCTestCase {
-    func testOffersGeneralHotWordsAndLanguagesInThatOrder() {
-        XCTAssertEqual(SettingsTab.allCases.map(\.title), ["General", "Hot Words", "Languages"])
+    func testOffersGeneralTranscriptionAndHotWordsInThatOrder() {
+        XCTAssertEqual(SettingsTab.allCases.map(\.title), ["General", "Transcription", "Hot Words"])
+    }
+
+    /// The language list moved into the Transcription pane, where it belongs to
+    /// the model that constrains it. A pane of its own would be a second place
+    /// to look for one setting.
+    func testNoLanguagePaneRemains() {
+        XCTAssertNil(SettingsTab(rawValue: "languages"))
+        XCTAssertFalse(SettingsTab.allCases.map(\.title).contains("Languages"))
     }
 
     /// The toolbar identifies panes by their raw value, so two panes sharing one
@@ -62,9 +70,9 @@ final class SettingsWindowTests: XCTestCase {
         controller.show()
         defer { controller.close() }
 
-        controller.select(.languages)
-        XCTAssertEqual(controller.selected, .languages)
-        XCTAssertEqual(controller.window?.title, "Languages")
+        controller.select(.transcription)
+        XCTAssertEqual(controller.selected, .transcription)
+        XCTAssertEqual(controller.window?.title, "Transcription")
 
         controller.select(.hotWords)
         XCTAssertEqual(controller.window?.title, "Hot Words")
@@ -93,8 +101,9 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertEqual(Set(heights.values).count, SettingsTab.allCases.count,
                        "panes should not all end up the same height")
         let general = try XCTUnwrap(heights[.general])
-        let languages = try XCTUnwrap(heights[.languages])
-        XCTAssertLessThan(general, languages, "General holds two toggles; Languages holds the whole list")
+        let transcription = try XCTUnwrap(heights[.transcription])
+        XCTAssertLessThan(general, transcription,
+                          "General holds two toggles; Transcription holds the active model and the catalogue")
     }
 
     /// Selecting the pane that is already showing must not restart the resize —
@@ -112,9 +121,9 @@ final class SettingsWindowTests: XCTestCase {
 
     // MARK: - Sizing
 
-    /// Short panes are as tall as their content, so the window has no dead space.
-    func testShortPanesSizeToTheirContent() {
-        for tab in [SettingsTab.general, .hotWords] {
+    /// Panes are as tall as their content, so the window has no dead space.
+    func testPanesSizeToTheirContent() {
+        for tab in SettingsTab.allCases {
             let view = tab.makeContentView()
             let size = tab.contentSize(of: view)
             XCTAssertEqual(size.width, SettingsTab.width)
@@ -122,18 +131,6 @@ final class SettingsWindowTests: XCTestCase {
             XCTAssertLessThan(size.height, tab.maximumHeight,
                               "\(tab.title) fits its content and should not be capped")
         }
-    }
-
-    /// The language list is far taller than any window should be, so it is
-    /// capped and scrolls inside that.
-    func testTheLanguageListIsCapped() {
-        let tab = SettingsTab.languages
-        let view = tab.makeContentView()
-        view.layoutSubtreeIfNeeded()
-
-        XCTAssertGreaterThan(view.fittingSize.height, tab.maximumHeight,
-                             "the list should be long enough to need capping")
-        XCTAssertEqual(tab.contentSize(of: view).height, tab.maximumHeight)
     }
 
     private func expectedContentHeight(of tab: SettingsTab) -> CGFloat {

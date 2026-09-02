@@ -107,7 +107,12 @@ After transcription completes, the engine returns to **Ready** if still dictatin
 | `MenuBarIcon.swift` | SwiftUI view embedded in NSStatusItem |
 | `TextInjector.swift` | Pastes transcribed text via pasteboard + simulated Cmd+V, restores previous clipboard |
 | `Settings.swift` | `AppSettings` (UserDefaults-backed), `WhisperLanguage` catalog, `HotWord` model |
-| `SettingsView.swift` | Grouped form with language chips, toggles, hot word management |
+| `SettingsView.swift` | The General and Hot Words panes |
+| `TranscriptionModel.swift` | The model catalogue: engines, variants, sizes, supported languages |
+| `TranscriptionModelService.swift` | What is downloaded, downloading, activated and removed |
+| `TranscriptionSettingsView.swift` | The Transcription pane: active model, its languages |
+| `AvailableModels.swift` | The catalogue half of that pane, grouped by engine |
+| `LanguagePicker.swift` | The language multi-select popover |
 | `HotWordService.swift` | Discovers, installs (file or URL), and removes custom `.onnx` cancel word models |
 
 ## Audio Capture
@@ -145,7 +150,15 @@ The buffering mirrors `AudioFeatures._streaming_features` in openWakeWord frame 
 
 ## Transcription
 
-WhisperKit's `base` model with CoreML — small, fast and multilingual, running on the Neural Engine.
+WhisperKit with CoreML, running on the Neural Engine. Which model is up to the user: `ModelCatalog` offers Whisper's tiny, base, base.en, small and large-v3 turbo, and `base` is the default — small, fast and multilingual, the balance dictation wants.
+
+**Managing the models.** `TranscriptionModelService` owns what is on disk. A model is "downloaded" when its snapshot folder under the download base holds a compiled `.mlmodelc`, which is what tells a finished download from the directory a cancelled one left behind; cancelling or failing deletes the partial folder for the same reason. Downloads run per model with progress, so several can run at once and dictation continues on the model already loaded throughout — the service never loads a model, it only writes files and the `activeTranscriptionModel` setting.
+
+Activating is therefore just that setting changing. `AppDelegate` observes it and reloads the engine at once rather than on the restart debounce, since activating is one deliberate click rather than the three ticks a language change can be. Stopping the engine first is what discards the audio dictated so far: the event listener goes with it, so a batch that was mid-transcription cannot arrive and be pasted against the model that has just been swapped out. Dictation resumes afterwards if it was running.
+
+`EngineController` keeps its transcriber across restarts and replaces it only when the active model changes — reloading weights for a language toggle would turn a settings change into a multi-second stall.
+
+**Models and languages.** A model that is not multilingual constrains what can be recognised, so the language selection lives with the model in the Transcription pane rather than in a pane of its own. The selection is never edited by that constraint: `selectedLanguageCodes` stays whatever the user picked and `effectiveLanguageCodes` — what the engine is given — is that set narrowed to what the active model supports. Activating `base.en` with English and Polish selected makes Polish inert rather than forgetting it, and activating a multilingual model brings it back. The picker dims unsupported languages in place for the same reason.
 
 **Non-speech annotations.** Given a cough or a pause, Whisper describes the sound rather than transcribing speech — `[ Pause ]`, `[BLANK_AUDIO]`, `(coughing)` — and in a dictation app that description is pasted into the user's document. Whisper has two defences against this and neither is usable here: `DecodingOptions.supressTokens` defaults to empty, with the call that would fill it left as `// nonSpeechTokens() // TODO`, and that function does not exist in the package; and every segment's `noSpeechProb` is hardcoded to `0`, so `noSpeechThreshold` can never fire. So `AnnotationFilter` strips the annotations from the text instead. Square brackets and musical notes go unconditionally — nobody dictates them — while parentheses are governed by a setting, since a speaker could plausibly produce one. It runs in `EngineController` rather than `Transcriber` so the setting applies without restarting the engine.
 
@@ -187,8 +200,9 @@ All settings live in `AppSettings.shared`, backed by `UserDefaults` and publishe
 | Strip transcription annotations | `stripTranscriptionAnnotations` | on | Whether `(coughing)` and the like are dropped instead of pasted |
 | Translate unsupported languages | `translateUnsupportedLanguages` | off | Whether speech in an unselected language is translated to English |
 | Recognition languages | `selectedLanguages` | `en`, `pl` | Whisper language set; at least one must be selected |
+| Active model | `activeTranscriptionModel` | `whisper-base` | Which model transcribes; stored by catalogue id |
 
-The engine takes its language set and cancel word when it starts, so changing either one restarts it. The annotation and translation settings do not: both are read per batch, so they apply live. `AppDelegate` observes both and calls `scheduleRestart()`, which debounces for 1 second — so toggling several languages in a row produces a single restart rather than one per toggle. Whisper stays loaded across a restart: neither setting affects the model, and reloading it would turn a settings toggle into a multi-second stall. The overlay and launch toggles apply live and never restart the engine.
+The engine takes its language set, cancel word and model when it starts, so changing any of them restarts it — and the model change reloads the weights with it. The annotation and translation settings do not: both are read per batch, so they apply live. `AppDelegate` observes both and calls `scheduleRestart()`, which debounces for 1 second — so toggling several languages in a row produces a single restart rather than one per toggle. Whisper stays loaded across a restart: neither setting affects the model, and reloading it would turn a settings toggle into a multi-second stall. The overlay and launch toggles apply live and never restart the engine.
 
 `selectedLanguageCodes` is a `Set`, whose iteration order changes between launches, so `EngineController` sorts it before handing it over — the single-language shortcut and the detection fallback both depend on that order.
 

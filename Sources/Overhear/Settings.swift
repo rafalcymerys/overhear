@@ -99,6 +99,7 @@ final class AppSettings: ObservableObject {
     static let defaultLanguageCodes: Set<String> = ["en", "pl"]
 
     private let languagesKey = "selectedLanguages"
+    private let activeModelKey = "activeTranscriptionModel"
     private let overlayKey = "showOverlay"
     private let dictateOnLaunchKey = "dictateOnLaunch"
     private let cancelWordKey = "cancelWord"
@@ -111,6 +112,14 @@ final class AppSettings: ObservableObject {
         didSet {
             let array = Array(selectedLanguageCodes)
             defaults.set(array, forKey: languagesKey)
+        }
+    }
+
+    /// Which model transcribes. Stored by id rather than by variant so the
+    /// stored value survives a variant being renamed under it.
+    @Published var activeModelID: String {
+        didSet {
+            defaults.set(activeModelID, forKey: activeModelKey)
         }
     }
 
@@ -159,6 +168,33 @@ final class AppSettings: ObservableObject {
         WhisperLanguage.all.filter { selectedLanguageCodes.contains($0.code) }
     }
 
+    var activeModel: TranscriptionModel {
+        ModelCatalog.model(id: activeModelID) ?? ModelCatalog.defaultModel
+    }
+
+    /// The languages the engine is actually given: the user's selection,
+    /// narrowed to what the active model can transcribe.
+    ///
+    /// The selection itself is never narrowed. A model that cannot do Polish
+    /// makes Polish inert, not forgotten — activating a multilingual model
+    /// again brings it back without the user reselecting it, which is the whole
+    /// reason these are two properties rather than one.
+    var effectiveLanguageCodes: Set<String> {
+        let supported = selectedLanguageCodes.filter { activeModel.supports($0) }
+        guard supported.isEmpty else { return supported }
+        // Every selected language is unsupported, so fall back to what the
+        // model does have rather than handing the engine nothing.
+        return Set(activeModel.supportedLanguages.prefix(1).map(\.code))
+    }
+
+    /// Selected languages this model cannot transcribe. What the pane tells the
+    /// user about after activating an English-only model.
+    var unsupportedSelectedLanguages: [WhisperLanguage] {
+        WhisperLanguage.all.filter {
+            selectedLanguageCodes.contains($0.code) && !activeModel.supports($0.code)
+        }
+    }
+
     /// - Parameters:
     ///   - defaults: storage to read and write. Tests pass a throwaway suite.
     ///   - availableHotWords: the words a persisted cancel word can resolve
@@ -187,6 +223,7 @@ final class AppSettings: ObservableObject {
             stripAnnotations = true
         }
         translateUnsupported = defaults.bool(forKey: translateUnsupportedKey)
+        activeModelID = defaults.string(forKey: activeModelKey) ?? ModelCatalog.defaultModel.id
         cancelWord = HotWord.defaultWord
         if let saved = defaults.string(forKey: cancelWordKey) {
             let candidates = availableHotWords ?? HotWordService.shared.allHotWords

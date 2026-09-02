@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var permissionsObservation: AnyCancellable?
     private var settingsObservation: AnyCancellable?
     private var cancelWordObservation: AnyCancellable?
+    private var modelObservation: AnyCancellable?
     private var launchObservation: AnyCancellable?
     private var restartTask: Task<Void, Never>?
     private var settingsWindow: SettingsWindowController!
@@ -62,11 +63,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
 
+        // Activating a model reloads at once rather than on the restart's one
+        // second debounce: activating is a single deliberate click, not
+        // something a user does three of in a row the way they tick languages.
+        modelObservation = AppSettings.shared.$activeModelID
+            .dropFirst()
+            .removeDuplicates()
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    self?.reloadModel()
+                }
+            }
+
         setupWindow = SetupWindowController(setup: modelSetup, onRetry: { [weak self] in
             self?.bootstrap()
         })
         permissionsWindow = PermissionsWindowController(permissions: permissions)
-        settingsWindow = SettingsWindowController()
+        settingsWindow = SettingsWindowController(appState: appState)
 
         start()
     }
@@ -123,7 +136,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func startEngine() {
-        engine.start()
+        // The active model has to be on disk before anything tries to load it:
+        // deleted by hand, or never fetched on a fresh install, it is downloaded
+        // here where the pane can show progress, rather than silently inside
+        // WhisperKit's own load.
+        Task { @MainActor in
+            await TranscriptionModelService.shared.ensureActiveModelAvailable()
+            engine.start()
+        }
 
         if AppSettings.shared.dictateOnLaunch {
             launchObservation = appState.$status
@@ -159,6 +179,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             try? await Task.sleep(for: .seconds(0.5))
             guard !Task.isCancelled else { return }
             engine.start()
+        }
+    }
+
+    /// Swap the model the engine transcribes with.
+    ///
+    /// Stopping first is what discards the audio dictated so far: the listener
+    /// goes with it, so a batch that was mid-transcription cannot arrive and be
+    /// pasted after the swap. Dictation resumes afterwards if it was running,
+    /// since the user activated a model rather than asking to stop.
+    private func reloadModel() {
+        let wasDictating = appState.status.isActive
+        restartTask?.cancel()
+        restartTask = Task { @MainActor in
+            engine.stop()
+            try? await Task.sleep(for: .seconds(0.5))
+            guard !Task.isCancelled else { return }
+            engine.start()
+            guard wasDictating else { return }
+            launchObservation = appState.$status
+                .first { $0 == .idle }
+                .sink { [weak self] _ in
+                    self?.engine.activate()
+                    self?.launchObservation = nil
+                }
         }
     }
 

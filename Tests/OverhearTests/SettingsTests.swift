@@ -118,4 +118,76 @@ final class SettingsTests: OverhearTestCase {
 
         XCTAssertEqual(Set(settings.selectedLanguages.map(\.code)), ["en", "pl"])
     }
+
+    // MARK: - The active model and the languages it constrains
+
+    func testDefaultActiveModelIsWhisperBase() {
+        let settings = AppSettings(defaults: makeDefaults(), availableHotWords: HotWord.builtIn)
+        XCTAssertEqual(settings.activeModelID, ModelCatalog.whisperBase.id)
+        XCTAssertEqual(settings.activeModel, ModelCatalog.whisperBase)
+    }
+
+    func testActiveModelRoundTripsThroughStorage() {
+        let defaults = makeDefaults()
+        AppSettings(defaults: defaults, availableHotWords: HotWord.builtIn)
+            .activeModelID = ModelCatalog.whisperSmall.id
+
+        let reloaded = AppSettings(defaults: defaults, availableHotWords: HotWord.builtIn)
+        XCTAssertEqual(reloaded.activeModel, ModelCatalog.whisperSmall)
+    }
+
+    /// A stored id for a model that no longer exists must not leave the app with
+    /// nothing to transcribe with.
+    func testAnUnknownStoredModelFallsBackToTheDefault() {
+        let defaults = makeDefaults()
+        defaults.set("whisper-from-a-later-version", forKey: "activeTranscriptionModel")
+
+        let settings = AppSettings(defaults: defaults, availableHotWords: HotWord.builtIn)
+        XCTAssertEqual(settings.activeModel, ModelCatalog.defaultModel)
+    }
+
+    /// A multilingual model uses the selection as it stands.
+    func testEverySelectedLanguageIsUsedByAMultilingualModel() {
+        let settings = AppSettings(defaults: makeDefaults(), availableHotWords: HotWord.builtIn)
+        settings.selectedLanguageCodes = ["en", "pl"]
+
+        XCTAssertEqual(settings.effectiveLanguageCodes, ["en", "pl"])
+        XCTAssertTrue(settings.unsupportedSelectedLanguages.isEmpty)
+    }
+
+    /// Activating an English-only model narrows what is in use — and says which
+    /// language it dropped, rather than silently transcribing Polish as English.
+    func testAnEnglishOnlyModelNarrowsTheLanguagesInUse() {
+        let settings = AppSettings(defaults: makeDefaults(), availableHotWords: HotWord.builtIn)
+        settings.selectedLanguageCodes = ["en", "pl"]
+        settings.activeModelID = ModelCatalog.whisperBaseEnglish.id
+
+        XCTAssertEqual(settings.effectiveLanguageCodes, ["en"])
+        XCTAssertEqual(settings.unsupportedSelectedLanguages.map(\.code), ["pl"])
+    }
+
+    /// The selection itself is never edited, so going back to a multilingual
+    /// model brings the language back without the user reselecting it.
+    func testTheNarrowedLanguageComesBackWithAMultilingualModel() {
+        let settings = AppSettings(defaults: makeDefaults(), availableHotWords: HotWord.builtIn)
+        settings.selectedLanguageCodes = ["en", "pl"]
+        settings.activeModelID = ModelCatalog.whisperBaseEnglish.id
+        XCTAssertEqual(settings.effectiveLanguageCodes, ["en"])
+
+        settings.activeModelID = ModelCatalog.whisperBase.id
+
+        XCTAssertEqual(settings.selectedLanguageCodes, ["en", "pl"], "the stored selection was never edited")
+        XCTAssertEqual(settings.effectiveLanguageCodes, ["en", "pl"])
+    }
+
+    /// Selecting only languages the model cannot do must still leave the engine
+    /// something to decode with.
+    func testAModelWithNoSelectedLanguageInCommonFallsBackToOneItSupports() {
+        let settings = AppSettings(defaults: makeDefaults(), availableHotWords: HotWord.builtIn)
+        settings.selectedLanguageCodes = ["pl", "de"]
+        settings.activeModelID = ModelCatalog.whisperBaseEnglish.id
+
+        XCTAssertEqual(settings.effectiveLanguageCodes, ["en"])
+    }
+
 }

@@ -4,22 +4,22 @@ import SwiftUI
 /// The panes, in the order they appear in the toolbar.
 enum SettingsTab: String, CaseIterable {
     case general
+    case transcription
     case hotWords
-    case languages
 
     var title: String {
         switch self {
         case .general: return "General"
+        case .transcription: return "Transcription"
         case .hotWords: return "Hot Words"
-        case .languages: return "Languages"
         }
     }
 
     var symbol: String {
         switch self {
         case .general: return "gearshape"
+        case .transcription: return "text.bubble"
         case .hotWords: return "waveform"
-        case .languages: return "globe"
         }
     }
 
@@ -28,14 +28,16 @@ enum SettingsTab: String, CaseIterable {
 
     /// How tall a pane may grow before it scrolls instead.
     ///
-    /// General and Hot Words are short and size to their content, so the window
-    /// is never taller than what it holds — and Hot Words grows on its own as
-    /// custom words are installed. The language list is longer than any window
-    /// should be, so it gets a height and scrolls within it.
+    /// Every pane sizes to its content, so the window is never taller than what
+    /// it holds — Hot Words grows as custom words are installed, and
+    /// Transcription as engines and models are added. The cap is what stops
+    /// either from growing past a window that fits on a laptop screen; the
+    /// language list, which is longer than any window should be, lives in a
+    /// popover rather than in a pane.
     var maximumHeight: CGFloat {
         switch self {
         case .general, .hotWords: return 600
-        case .languages: return 560
+        case .transcription: return 700
         }
     }
 
@@ -43,15 +45,18 @@ enum SettingsTab: String, CaseIterable {
         NSToolbarItem.Identifier(rawValue)
     }
 
+    /// - Parameter appState: what the Transcription pane reports the model's
+    ///   load state from. Nil where there is no engine to report on — a test,
+    ///   chiefly — which reads as loaded rather than as broken.
     @MainActor
-    func makeContentView() -> NSView {
+    func makeContentView(appState: AppState? = nil) -> NSView {
         switch self {
         case .general:
             return NSHostingView(rootView: GeneralSettingsView().frame(width: Self.width))
+        case .transcription:
+            return NSHostingView(rootView: TranscriptionSettingsView(appState: appState).frame(width: Self.width))
         case .hotWords:
             return NSHostingView(rootView: HotWordSettingsView().frame(width: Self.width))
-        case .languages:
-            return NSHostingView(rootView: LanguageSettingsView().frame(width: Self.width))
         }
     }
 
@@ -68,14 +73,23 @@ enum SettingsTab: String, CaseIterable {
 ///
 /// Built on a plain window and toolbar rather than `NSTabViewController`, which
 /// sizes itself through Auto Layout to fit its largest tab — that leaves the
-/// short General pane rattling around in a window sized for the language list,
-/// and it overrides any frame set by hand.
+/// short General pane rattling around in a window sized for the model list, and
+/// it overrides any frame set by hand.
 @MainActor
 final class SettingsWindowController: NSObject {
     /// Exposed for tests, which assert on the window's title and size as
     /// panes are selected.
     private(set) var window: NSWindow?
     private(set) var selected: SettingsTab = .general
+
+    /// Passed to the Transcription pane so it can say whether the active model
+    /// is loaded.
+    private let appState: AppState?
+
+    init(appState: AppState? = nil) {
+        self.appState = appState
+        super.init()
+    }
 
     func show() {
         if window == nil {
@@ -91,7 +105,7 @@ final class SettingsWindowController: NSObject {
     }
 
     private func makeWindow() -> NSWindow {
-        let content = selected.makeContentView()
+        let content = selected.makeContentView(appState: appState)
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: selected.contentSize(of: content)),
             styleMask: [.titled, .closable, .miniaturizable],
@@ -134,7 +148,7 @@ final class SettingsWindowController: NSObject {
 
         // Built before the resize so the window animates to the size the pane
         // actually needs rather than to a guess.
-        let content = tab.makeContentView()
+        let content = tab.makeContentView(appState: appState)
         let target = frame(for: tab, sized: tab.contentSize(of: content), in: window)
         window.title = tab.title
         window.contentView = NSView()

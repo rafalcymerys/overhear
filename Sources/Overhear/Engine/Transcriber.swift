@@ -21,9 +21,10 @@ protocol Transcribing: Sendable {
 /// The weights are Whisper's own, converted for CoreML, so inference runs on the
 /// Neural Engine rather than the CPU.
 actor Transcriber: Transcribing {
-    /// Small, fast and multilingual — the balance dictation wants, where a
-    /// batch has to come back before the user has finished their next sentence.
-    static let modelVariant = "base"
+    /// Which model to load. Fixed for the life of the transcriber — activating
+    /// another one builds a new transcriber rather than swapping the weights
+    /// under this one.
+    private let model: TranscriptionModel
 
     /// Where the Whisper weights are kept.
     ///
@@ -37,19 +38,21 @@ actor Transcriber: Transcribing {
     /// is given, and `HotWordService` lists that same directory looking for the
     /// user's `.onnx` files.
     static var downloadBase: URL {
-        HotWord.modelsDirectory
-            .deletingLastPathComponent()
-            .appendingPathComponent("whisper")
+        TranscriptionModelService.defaultBaseDirectory
     }
 
     private var whisper: WhisperKit?
+
+    init(model: TranscriptionModel = ModelCatalog.defaultModel) {
+        self.model = model
+    }
 
     /// Load the model, downloading and compiling it if this is the first run —
     /// slow enough on that first run to be worth a status event.
     func load() async throws {
         guard whisper == nil else { return }
         whisper = try await WhisperKit(WhisperKitConfig(
-            model: Self.modelVariant,
+            model: model.variant,
             downloadBase: Self.downloadBase,
             verbose: false,
             logLevel: .error

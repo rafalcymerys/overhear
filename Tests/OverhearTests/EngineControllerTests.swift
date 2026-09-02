@@ -23,7 +23,7 @@ final class EngineControllerTests: OverhearTestCase {
             appState: appState,
             injector: injector,
             modelsDirectory: Self.modelsDirectory,
-            transcriber: StubTranscriber(),
+            makeTranscriber: { _ in StubTranscriber() },
             makeAudioSource: { audio }
         )
         defer { controller.stop() }
@@ -71,7 +71,7 @@ final class EngineControllerTests: OverhearTestCase {
             appState: appState,
             injector: SpyInjector(),
             modelsDirectory: tempDirectory,
-            transcriber: StubTranscriber(),
+            makeTranscriber: { _ in StubTranscriber() },
             makeAudioSource: { ScriptedAudioSource() }
         )
         defer { controller.stop() }
@@ -89,7 +89,7 @@ final class EngineControllerTests: OverhearTestCase {
             appState: appState,
             injector: SpyInjector(),
             modelsDirectory: Self.modelsDirectory,
-            transcriber: StubTranscriber(),
+            makeTranscriber: { _ in StubTranscriber() },
             makeAudioSource: { audio }
         )
 
@@ -250,6 +250,61 @@ final class EngineControllerTests: OverhearTestCase {
         XCTAssertTrue(harness.appState.status.isActive, "dictation stays active")
     }
 
+    // MARK: - Changing the model
+
+    /// Activating a model has to load different weights, which is a new
+    /// transcriber. Restarting for anything else — a language, the cancel word
+    /// — must not be, or every toggle would cost a model load.
+    func testANewTranscriberIsBuiltOnlyWhenTheModelChanges() async throws {
+        let settings = AppSettings(defaults: makeDefaults(), availableHotWords: HotWord.builtIn)
+        let requested = TestBox<[String]>([])
+        let audio = ScriptedAudioSource()
+        let controller = EngineController(
+            appState: AppState(),
+            injector: SpyInjector(),
+            modelsDirectory: Self.modelsDirectory,
+            makeTranscriber: { model in
+                requested.mutate { $0.append(model.id) }
+                return StubTranscriber()
+            },
+            makeAudioSource: { audio },
+            settings: settings
+        )
+        defer { controller.stop() }
+
+        controller.start()
+        XCTAssertEqual(requested.value, [ModelCatalog.whisperBase.id])
+
+        // A restart with the same model reuses the loaded one.
+        controller.stop()
+        controller.start()
+        XCTAssertEqual(requested.value, [ModelCatalog.whisperBase.id],
+                       "restarting must not reload the same weights")
+
+        settings.activeModelID = ModelCatalog.whisperSmall.id
+        controller.stop()
+        controller.start()
+        XCTAssertEqual(requested.value, [ModelCatalog.whisperBase.id, ModelCatalog.whisperSmall.id])
+    }
+
+    /// The engine is given the languages the active model can actually
+    /// transcribe. Handing it Polish with an English-only model loaded is how
+    /// Polish comes back as English.
+    func testAnEnglishOnlyModelIsOnlyEverGivenEnglish() async throws {
+        let transcriber = StubTranscriber()
+        let harness = try await makeHarness(transcriber: transcriber) {
+            $0.selectedLanguageCodes = ["en", "pl"]
+            $0.activeModelID = ModelCatalog.whisperBaseEnglish.id
+        }
+        defer { harness.controller.stop() }
+
+        try await harness.dictateOneBatch()
+        await waitUntil("the batch is transcribed") { !harness.injector.injected.isEmpty }
+
+        let requests = await transcriber.recordedRequests()
+        XCTAssertEqual(requests.first?.languages, ["en"])
+    }
+
     // MARK: - Harness
 
     private struct Harness {
@@ -284,7 +339,7 @@ final class EngineControllerTests: OverhearTestCase {
             appState: appState,
             injector: injector,
             modelsDirectory: Self.modelsDirectory,
-            transcriber: transcriber,
+            makeTranscriber: { _ in transcriber },
             makeAudioSource: { audio },
             settings: settings
         )
