@@ -235,8 +235,97 @@ final class DictationEngineTests: XCTestCase {
         XCTAssertTrue(batches.isEmpty, "a half-heard utterance is not transcribed")
     }
 
-    /// And once a device is back, dictation works again without the app being
-    /// restarted.
+    /// Someone dictating into AirPods that hand over to the built-in
+    /// microphone means to carry on dictating, so they are not made to ask
+    /// again.
+    func testDictationPicksBackUpWhenTheDeviceReturns() async throws {
+        let transcriber = StubTranscriber()
+        let harness = await makeEngineHarness(transcriber: transcriber)
+        try await activate(harness)
+
+        harness.audio.send(.interrupted("device went away"))
+        try await harness.waitFor(.idle)
+
+        // The new device starts delivering. Nobody touches the menu.
+        harness.audio.sendSilence(seconds: 0.2)
+        try await harness.waitFor(.ready)
+
+        harness.audio.sendSpeech(seconds: 0.8)
+        harness.audio.sendSilence(seconds: 2.0)
+        try await harness.waitFor(.transcription("hello world"))
+    }
+
+    /// The half-heard utterance still goes. Resuming is about the intention to
+    /// dictate, not about salvaging what the old device was in the middle of.
+    func testResumingDoesNotSalvageTheInterruptedUtterance() async throws {
+        let transcriber = StubTranscriber()
+        let harness = await makeEngineHarness(transcriber: transcriber)
+        try await activate(harness)
+
+        harness.audio.sendSpeech(seconds: 1.0)
+        try await harness.waitFor(.speechStart)
+        harness.audio.send(.interrupted("device went away"))
+        try await harness.waitFor(.idle)
+
+        harness.audio.sendSilence(seconds: 0.2)
+        try await harness.waitFor(.ready)
+        harness.audio.sendSilence(seconds: 2.0)
+        try await Task.sleep(for: .milliseconds(400))
+
+        let batches = await transcriber.recorded()
+        XCTAssertTrue(batches.isEmpty, "the speech from before the switch is not stitched on")
+    }
+
+    /// A device that comes back long afterwards is someone returning to their
+    /// Mac, not someone mid-sentence. The microphone stays shut until asked.
+    func testADeviceReturningTooLateDoesNotResume() async throws {
+        let harness = await makeEngineHarness(resumeWindow: 0.2)
+        try await activate(harness)
+
+        harness.audio.send(.interrupted("device went away"))
+        try await harness.waitFor(.idle)
+        try await Task.sleep(for: .milliseconds(400))
+
+        let before = await harness.count(of: .ready)
+        harness.audio.sendSilence(seconds: 0.5)
+        try await Task.sleep(for: .milliseconds(500))
+
+        let after = await harness.count(of: .ready)
+        XCTAssertEqual(after, before, "dictation did not start on its own")
+    }
+
+    /// Stopping while the device is away answers the question the resumption
+    /// was holding open.
+    func testStoppingWhileTheDeviceIsAwayIsRespected() async throws {
+        let harness = await makeEngineHarness()
+        try await activate(harness)
+
+        harness.audio.send(.interrupted("device went away"))
+        try await harness.waitFor(.idle)
+        await harness.engine.deactivate()
+
+        let before = await harness.count(of: .ready)
+        harness.audio.sendSilence(seconds: 0.5)
+        try await Task.sleep(for: .milliseconds(500))
+
+        let after = await harness.count(of: .ready)
+        XCTAssertEqual(after, before, "the user stopping it outranks the resumption")
+    }
+
+    /// Dictation that was already stopped is not started by a device change.
+    func testADeviceChangeDoesNotStartDictationThatWasStopped() async throws {
+        let harness = await makeEngineHarness()
+
+        harness.audio.send(.interrupted("device went away"))
+        harness.audio.sendSilence(seconds: 0.5)
+        try await Task.sleep(for: .milliseconds(500))
+
+        let ready = await harness.count(of: .ready)
+        XCTAssertEqual(ready, 0, "a device change does not start dictation nobody asked for")
+    }
+
+    /// And a user who does ask, asks once — the manual start is not undone by
+    /// a resumption arriving behind it.
     func testDictationWorksAgainOnceTheDeviceReturns() async throws {
         let transcriber = StubTranscriber()
         let harness = await makeEngineHarness(transcriber: transcriber)

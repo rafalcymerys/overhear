@@ -24,24 +24,59 @@ Assert: the menu bar icon returns to the idle state.
 Assert: the overlay disappears.
 Assert: no partial transcription is inserted.
 
-## Recovers after the device returns
+## Picks dictation back up when the device returns
 
-1. From the previous scenario, plug the microphone back in.
-2. Wait five seconds.
-3. Start dictation and say `HelloEn`.
+1. From the previous scenario, plug the microphone back in within half a
+   minute.
+2. Say `HelloEn` without touching the menu.
 
-Assert: the app does not need restarting.
+Assert: dictation starts again on its own.
 Assert: the utterance is transcribed.
+Assert: the app does not need restarting.
+Assert: nothing spoken while the device was away is transcribed — the batch
+interrupted by the loss is gone, not resumed.
+
+## Stays stopped when the device is gone for a while
+
+1. From the same scenario, leave the microphone unplugged for a minute.
+2. Plug it back in.
+
+Assert: dictation does not start on its own.
+Assert: the microphone is not opened until the user asks for it.
+Assert: **Start Listening** works as usual.
+
+The resumption is for a device changing under someone who is still dictating,
+not for a Mac being come back to. Half a minute is long enough for a switch and
+short enough that the microphone never opens unprompted once the user has gone.
+
+## Does not pick up dictation that was already stopped
+
+1. Stop dictation.
+2. Change the system default input.
+
+Assert: dictation stays stopped.
+Assert: nothing opens the microphone.
 
 ## Switching the default input mid-session
 
 1. Start dictation with the built-in microphone.
 2. Change the system default input to another device in System Settings.
-3. Wait five seconds, then start dictation again and say `HelloEn`.
+3. Say `HelloEn` once the new device is in use.
 
-Assert: dictation stops when the device changes.
-Assert: the new device is used afterwards.
+Assert: dictation stops when the device changes, then starts again on the new
+device without the menu being touched.
 Assert: the utterance is transcribed.
+Assert: connecting or removing AirPods is such a change, in either direction.
+
+## Stopping while the device is away is respected
+
+1. Start dictation and unplug the microphone.
+2. While it is unplugged, choose **Stop Listening**.
+3. Plug the microphone back in.
+
+Assert: dictation does not start again.
+Assert: the intention to resume is dropped by the user stopping, not kept
+waiting behind it.
 
 ## Starting with no input device
 

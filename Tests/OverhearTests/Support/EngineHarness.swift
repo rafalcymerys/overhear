@@ -189,12 +189,14 @@ extension XCTestCase {
     func makeEngineHarness(transcriber: any Transcribing = StubTranscriber(),
                            cancelWord: HotWord = .defaultWord,
                            languages: [String] = ["en"],
-                           primed: Bool = true) async -> EngineHarness {
+                           primed: Bool = true,
+                           resumeWindow: TimeInterval = 30) async -> EngineHarness {
         let audio = ScriptedAudioSource()
         let engine = DictationEngine(
             capture: audio,
             transcriber: transcriber,
-            modelsDirectory: EngineTestModels.directory
+            modelsDirectory: EngineTestModels.directory,
+            resumeWindow: resumeWindow
         )
         let collector = EventCollector()
 

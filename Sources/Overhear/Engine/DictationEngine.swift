@@ -44,6 +44,33 @@ actor DictationEngine {
     private var isDictating = false
     private var hasAudio = false
 
+    /// How long a device change may take before dictation stops meaning to
+    /// come back.
+    ///
+    /// Long enough for AirPods to hand over or an interface to be replugged,
+    /// short enough that a Mac left alone never opens its microphone at
+    /// whatever hour the device happens to reappear. Injected so a test can
+    /// watch it lapse without waiting out half a minute.
+    private let resumeWindow: TimeInterval
+
+    /// Bumped whenever the recording in progress becomes void — the device
+    /// went away, or the user stopped. A batch carries the value it began
+    /// with and abandons itself when that no longer matches.
+    ///
+    /// `isDictating` alone cannot carry this. The recorder waits for audio in
+    /// a loop that tests the flag, so anything switching dictation off and on
+    /// again before the recorder next looks — a resumption, or a fast hand on
+    /// the menu — is invisible to it, and the batch swallows the gap as though
+    /// nothing happened.
+    private var recordingGeneration = 0
+
+    /// When the intention to resume expires, or nothing if there is none.
+    ///
+    /// Set only by a device going away under someone who was dictating, and
+    /// dropped the moment they decide for themselves — starting or stopping by
+    /// hand both answer the question this is holding open.
+    private var resumeBy: Date?
+
     /// Whether speech in an unselected language should be translated to
     /// English. Held rather than taken at `start(...)` like `languages`: it
     /// only affects a decode flag, and baking it in would mean reloading the
@@ -54,10 +81,12 @@ actor DictationEngine {
 
     init(capture: any AudioSource = AudioCapture(),
          transcriber: any Transcribing = WhisperTranscriber(),
-         modelsDirectory: URL = HotWord.modelsDirectory) {
+         modelsDirectory: URL = HotWord.modelsDirectory,
+         resumeWindow: TimeInterval = 30) {
         self.capture = capture
         self.transcriber = transcriber
         self.modelsDirectory = modelsDirectory
+        self.resumeWindow = resumeWindow
     }
 
     func events() -> AsyncStream<EngineEvent> {
@@ -105,6 +134,7 @@ actor DictationEngine {
     }
 
     func activate() {
+        resumeBy = nil
         isDictating = true
     }
 
@@ -114,6 +144,8 @@ actor DictationEngine {
     }
 
     func deactivate() {
+        resumeBy = nil
+        recordingGeneration += 1
         isDictating = false
     }
 
@@ -141,6 +173,7 @@ actor DictationEngine {
                 if !hasAudio {
                     hasAudio = true
                     emit(.idle)
+                    resumeIfIntended()
                 }
                 queue.append(chunk)
                 if queue.count > Self.maxQueuedChunks {
@@ -153,15 +186,34 @@ actor DictationEngine {
                 // again rather than wondering how much of what they said was
                 // heard.
                 let wasDictating = isDictating
+                recordingGeneration += 1
                 isDictating = false
                 hasAudio = false
                 queue.removeAll()
                 detector?.reset()
                 if wasDictating {
+                    // The utterance is gone either way; the intention to be
+                    // dictating is not. Whoever was talking into the old device
+                    // means to carry on into the new one.
+                    resumeBy = Date().addingTimeInterval(resumeWindow)
                     emit(.idle)
                 }
             }
         }
+    }
+
+    /// Start dictating again for someone who never stopped — the device under
+    /// them changed and has now started delivering.
+    ///
+    /// Nothing here reaches back for the audio that was lost. Dictation picks
+    /// up from the first chunk of the new device, so a sentence cut in half by
+    /// the switch stays unsaid rather than arriving stitched to whatever
+    /// followed it.
+    private func resumeIfIntended() {
+        guard let resumeBy else { return }
+        self.resumeBy = nil
+        guard Date() < resumeBy else { return }
+        isDictating = true
     }
 
     /// Drop audio on the floor while idle; hand it to the recorder while
@@ -231,18 +283,19 @@ actor DictationEngine {
     /// is dropped: the user asked to stop, so nothing more should reach their
     /// document. The cancel word ends the batch by returning nil.
     private func recordBatch() async -> [Float]? {
+        let generation = recordingGeneration
         var chunks: [[Float]] = []
         var silenceChunks = 0
         var heardSpeech = false
         var completed = false
 
-        while isDictating, !Task.isCancelled {
+        while isDictating, generation == recordingGeneration, !Task.isCancelled {
             if chunks.count >= maxChunks {
                 completed = true
                 break
             }
 
-            guard let chunk = await nextChunk() else { return nil }
+            guard let chunk = await nextChunk(generation) else { return nil }
 
             if detected(in: chunk) {
                 detector?.reset()
@@ -276,10 +329,11 @@ actor DictationEngine {
 
     /// The next chunk of audio, waiting for capture to deliver one.
     ///
-    /// Returns nil when dictation is switched off while waiting, which unwinds
-    /// the recorder without emitting anything.
-    private func nextChunk() async -> [Float]? {
-        while isDictating, !Task.isCancelled {
+    /// Returns nil when dictation is switched off while waiting, or when the
+    /// batch this belongs to has been voided under it, which unwinds the
+    /// recorder without emitting anything.
+    private func nextChunk(_ generation: Int) async -> [Float]? {
+        while isDictating, generation == recordingGeneration, !Task.isCancelled {
             if !queue.isEmpty {
                 return queue.removeFirst()
             }
