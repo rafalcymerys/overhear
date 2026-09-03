@@ -3,38 +3,16 @@ import XCTest
 @testable import Overhear
 
 /// Checking, asking for, and noticing the two permissions dictation needs.
+///
+/// The window they are granted from is `Specs/Setup.md`, covered in SetupTests
+/// — which drives the same `FakeSystem` from here.
 @MainActor
 final class PermissionsTests: OverhearTestCase {
-    /// Stands in for TCC: records what was asked for, and lets a test flip an
-    /// answer the way System Settings would.
-    final class FakeSystem: @unchecked Sendable {
-        var microphone: PermissionState = .notDetermined
-        var textInsertion: PermissionState = .notDetermined
-        var microphoneAnswer = true
-
-        private(set) var dialogs: [Permission] = []
-        private(set) var openedSettings: [URL] = []
-
-        func make() -> PermissionsService.System {
-            PermissionsService.System(
-                microphoneState: { [unowned self] in microphone },
-                textInsertionState: { [unowned self] in textInsertion },
-                askForMicrophone: { [unowned self] completion in
-                    dialogs.append(.microphone)
-                    microphone = microphoneAnswer ? .granted : .denied
-                    completion(microphoneAnswer)
-                },
-                askForTextInsertion: { [unowned self] in dialogs.append(.textInsertion) },
-                openSettings: { [unowned self] url in openedSettings.append(url) }
-            )
-        }
-    }
-
-    nonisolated(unsafe) private var system: FakeSystem!
+    nonisolated(unsafe) private var system: FakePermissionSystem!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
-        system = FakeSystem()
+        system = FakePermissionSystem()
     }
 
     private func makeService() -> PermissionsService {
@@ -138,23 +116,6 @@ final class PermissionsTests: OverhearTestCase {
         system.textInsertion = .granted
 
         await waitUntil("the grants to be noticed") { service.allGranted }
-    }
-
-    // MARK: - Layout
-
-    func testTheWindowIsSizedFromTheContentSoNothingIsClipped() {
-        // The window takes its height from `fittingSize`; a row that wraps to
-        // another line has to push that number up rather than get cut off.
-        let hosting = NSHostingView(rootView: PermissionsView(
-            permissions: makeService(),
-            onGrant: { _ in },
-            onQuit: {}
-        ))
-        hosting.layoutSubtreeIfNeeded()
-
-        XCTAssertEqual(hosting.fittingSize.width, 460)
-        XCTAssertGreaterThan(hosting.fittingSize.height, 260)
-        XCTAssertLessThan(hosting.fittingSize.height, 600)
     }
 
     func testStateIsPublishedCompleteRatherThanHalfUpdated() {

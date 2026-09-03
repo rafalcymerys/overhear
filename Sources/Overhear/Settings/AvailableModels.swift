@@ -179,6 +179,6 @@ struct AvailableModels: View {
     }
 
     private func byteCount(_ bytes: Int64) -> String {
-        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+        ByteCountFormatter.overhear.string(fromByteCount: bytes)
     }
 }

@@ -92,7 +92,7 @@ behaviour — a spec has one obvious place to land.
 | File | Role |
 |---|---|
 | `OverhearApp.swift` | App entry point, accessory (no dock icon) |
-| `AppDelegate.swift` | Menu bar setup, permission gate, model setup, engine lifecycle, settings observation |
+| `AppDelegate.swift` | Menu bar setup, setup gate, wake word fetch, engine lifecycle, settings observation |
 | `AppState.swift` | Observable state enum: stopped, installing, loading, idle, ready, listening, transcribing, error |
 
 ### `Engine/`
@@ -146,7 +146,15 @@ behaviour — a spec has one obvious place to land.
 | File | Role |
 |---|---|
 | `Permissions.swift` | Microphone and Accessibility state, asking for them, and watching for grants made in System Settings |
-| `PermissionsWindow.swift` | Launch-time permissions window — one explanation and one button per permission |
+
+### `Setup/`
+
+| File | Role |
+|---|---|
+| `SetupRequirement.swift` | The three things dictation needs: a model, the microphone, inserting text |
+| `SetupCoordinator.swift` | Which requirements are met, which card is open, and the action each offers |
+| `SetupWindow.swift` | The window that carries them, and the polling while it is up |
+| `SetupView.swift` | The cards it draws |
 
 ### `Settings/`
 
@@ -169,13 +177,13 @@ behaviour — a spec has one obvious place to land.
 | `LiveMark.swift` | The animated mark the icon and overlay share |
 | `OverlayWindow.swift` | The floating status window (top-right corner) and where it sits |
 | `OverlayView.swift` | What that window draws |
-| `SetupWindow.swift` | First-launch setup window — progress, failure detail, Try Again |
 
 ### Top level
 
 | File | Role |
 |---|---|
 | `TextInjector.swift` | Pastes transcribed text via pasteboard + simulated Cmd+V, restores previous clipboard |
+| `ByteCountFormatter+Sizes.swift` | The one formatter every size in the interface goes through |
 
 ## Audio Capture
 
@@ -287,7 +295,7 @@ Built-in words are stored in settings by name (`alexa`) so the stored value stay
 - **Microphone**: the engine captures audio to hear the cancel word and the dictation itself.
 - **Accessibility**: needed for CGEvent-based Cmd+V paste simulation (System Settings > Privacy > Accessibility). Called "inserting text in your apps" in the UI, because that is what it buys the user.
 
-`AppDelegate.start()` checks both before anything else runs — ahead of the first-launch model download, so a fresh Mac isn't asked to wait for a download that can't lead to working dictation. When either is missing, `PermissionsWindow` explains what each permission is for and offers a button per permission; the launch continues into `bootstrap()` the moment both are granted.
+Both are asked for in the setup window, alongside the transcription model — see **Setup** below.
 
 `PermissionsService` decides what a button does, since macOS shows its own dialog only while the answer is still open — and only once per launch:
 
@@ -297,7 +305,19 @@ Built-in words are stored in settings by name (`alexa`) so the stored value stay
 | Already asked this launch, or previously denied | Open the relevant System Settings pane |
 | Granted | Replaced by a checkmark |
 
-Neither grant arrives as a notification — Accessibility is switched on in System Settings with the app none the wiser, and the microphone switch is just as silent — so the service polls once a second while the window is open. Closing the window stops the polling; the state is still refreshed whenever the menu bar menu opens, which is also where a **Grant Permissions…** item replaces **Start Listening** until both are in place.
+Neither grant arrives as a notification — Accessibility is switched on in System Settings with the app none the wiser, and the microphone switch is just as silent — so the service polls once a second while the setup window is open. Closing the window stops the polling; the state is still refreshed whenever the menu bar menu opens.
+
+## Setup
+
+Three things have to be true before anything can be dictated: a transcription model on disk, the microphone, and the right to paste. `SetupCoordinator` holds that judgement, and `AppDelegate.start()` consults it before the engine exists. When any is missing the setup window goes up and `bootstrap()` waits on `isComplete`; the menu bar offers **Finish Setup…** in place of **Start Listening** meanwhile.
+
+One window rather than the two that used to appear in sequence. The same window serves a fresh install and a later launch that has lost something, which is why it is a checklist rather than a wizard: the card that is open is whichever requirement is outstanding and topmost, so a return visit for a revoked permission is two ticked lines and one open card.
+
+A running download is deliberately skipped when choosing which card to open. It keeps its own card expanded to show progress, and the next requirement opens beneath it — the slow step and the permissions proceed at once, which a wizard could not do.
+
+Nothing is fetched unasked. A fresh install preselects Whisper Base and waits for **Download**; an install whose active model has lost its files preselects that model rather than the default, and still waits. `SetupCoordinator.download()` activates only once the bytes have landed, so a cancelled or failed download leaves nothing loaded that isn't there.
+
+The wake word models are not part of this. Nobody chooses them and there is nothing to decide, so `bootstrap()` fetches them in the background once the window closes, with the menu bar icon carrying the wait and the menu carrying any failure with a **Try Again**.
 
 ## Testing
 

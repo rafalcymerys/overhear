@@ -235,6 +235,25 @@ final class TranscriptionModelService: ObservableObject {
         refresh()
     }
 
+    /// Forget a failure so the model goes back to offering a download.
+    ///
+    /// The setup window's **Choose Another Model**, which is a retreat rather
+    /// than a retry: the card has to get its picker back before another model
+    /// can be chosen.
+    func clearFailure(_ model: TranscriptionModel) {
+        failures[model.id] = nil
+    }
+
+    /// Wait for whatever is being fetched for this model, if anything is.
+    ///
+    /// Returns at once when nothing is running, so a caller can await a
+    /// download it may or may not have started.
+    func waitForDownload(of model: TranscriptionModel) async {
+        while let task = tasks[model.id] {
+            await task.value
+        }
+    }
+
     private func discardPartial(_ model: TranscriptionModel) {
         guard !hasFiles(for: model) else { return }
         try? FileManager.default.removeItem(at: folder(for: model))
@@ -284,23 +303,6 @@ final class TranscriptionModelService: ObservableObject {
 
         refresh()
         return true
-    }
-
-    /// Fetch the active model if its files have gone — deleted by hand, or
-    /// never downloaded because this is a fresh install.
-    ///
-    /// Awaited before the engine starts, so the first thing that loads the model
-    /// finds it there. The alternative is letting WhisperKit download it inside
-    /// `load()`, which works but reports nothing to the user for however many
-    /// minutes it takes.
-    func ensureActiveModelAvailable() async {
-        let model = activeModel
-        guard !isDownloaded(model) else { return }
-
-        startDownload(model)
-        while let task = tasks[model.id] {
-            await task.value
-        }
     }
 
     /// The real downloader: whichever library owns the model.

@@ -9,11 +9,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var engine: EngineController!
     private var overlay: OverlayController!
-    private let wakeWordSetup = WakeWordSetup()
-    private var setupWindow: SetupWindowController!
+    private let wakeWords = WakeWordSetup()
     private let permissions = PermissionsService()
-    private var permissionsWindow: PermissionsWindowController!
-    private var permissionsObservation: AnyCancellable?
+    private var setup: SetupCoordinator!
+    private var setupWindow: SetupWindowController!
+    private var setupObservation: AnyCancellable?
+    /// What stopped the wake word models arriving, if anything did. The menu
+    /// carries it, since they have no window of their own to fail in.
+    private var wakeWordFailure: String?
     private var settingsObservation: AnyCancellable?
     private var cancelWordObservation: AnyCancellable?
     private var modelObservation: AnyCancellable?
@@ -75,75 +78,81 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
 
-        setupWindow = SetupWindowController(setup: wakeWordSetup, onRetry: { [weak self] in
-            self?.bootstrap()
-        })
-        permissionsWindow = PermissionsWindowController(permissions: permissions)
+        setup = SetupCoordinator(permissions: permissions)
+        setupWindow = SetupWindowController(setup: setup)
         settingsWindow = SettingsWindowController(appState: appState)
 
         start()
     }
 
-    /// Nothing works without the microphone and the right to paste into other
-    /// apps, so ask for both before spending minutes on setup and models. Once
-    /// they are in place the launch continues where it otherwise would have
+    /// Nothing works without a model on disk, the microphone and the right to
+    /// paste into other apps, so the setup window comes before the engine. Once
+    /// it has all three the launch continues where it otherwise would have
     /// started.
+    ///
+    /// The same path serves a later launch that has lost one of them, and the
+    /// menu bar's **Finish Setup…**.
     private func start() {
-        permissions.refresh()
+        setup.refresh()
 
-        guard !permissions.allGranted else {
+        guard !setup.isComplete else {
             bootstrap()
             return
         }
 
-        permissionsObservation = permissions.$states
-            .first { PermissionsService.allGranted($0) }
+        // Delivered on the next turn of the loop rather than straight from the
+        // assignment that completed setup. The last thing to fall into place
+        // is usually the model, whose activation writes `activeModelID` —
+        // and `@Published` fires from `willSet`, so an engine built from here
+        // synchronously would read the setting the activation replaced and
+        // load a model that isn't on disk.
+        setupObservation = setup.$isComplete
+            .first { $0 }
+            .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 guard let self else { return }
-                self.permissionsObservation = nil
-                self.permissionsWindow.close()
+                self.setupObservation = nil
+                self.setupWindow.close()
                 self.bootstrap()
             }
 
-        permissionsWindow.show()
+        setupWindow.show()
     }
 
     /// Bring up the engine, fetching the wake word models first if this Mac
     /// doesn't have them yet. That is what makes the distributed app runnable
     /// by unzipping and opening it, with no terminal step.
+    ///
+    /// They are not part of setup: nobody chooses them and there is nothing to
+    /// decide, so they arrive in the background with the menu bar icon carrying
+    /// the wait rather than in a window of their own.
     private func bootstrap() {
-        guard !wakeWordSetup.isComplete else {
+        guard !wakeWords.isComplete else {
+            wakeWordFailure = nil
             startEngine()
             return
         }
 
         appState.status = .installing
         appState.errorMessage = nil
-        setupWindow.show()
+        wakeWordFailure = nil
 
         Task { @MainActor in
             do {
-                try await wakeWordSetup.ensureModels()
-                setupWindow.close()
+                try await wakeWords.ensureModels()
                 startEngine()
             } catch {
-                // The window stays up showing the failure and a Try Again
-                // button; the menu bar icon reflects it too.
+                // Nothing is on screen to say so, so the icon and the menu are
+                // where this shows.
                 appState.status = .error
                 appState.errorMessage = error.localizedDescription
+                wakeWordFailure = error.localizedDescription
             }
         }
     }
 
     private func startEngine() {
-        // The active model has to be on disk before anything tries to load it:
-        // deleted by hand, or never fetched on a fresh install, it is downloaded
-        // here where the pane can show progress, rather than silently inside
-        // WhisperKit's own load.
-        Task { @MainActor in
-            await TranscriptionModelService.shared.ensureActiveModelAvailable()
-            engine.start()
-        }
+        engine.start()
 
         if AppSettings.shared.dictateOnLaunch {
             launchObservation = appState.$status
@@ -189,6 +198,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// pasted after the swap. Dictation resumes afterwards if it was running,
     /// since the user activated a model rather than asking to stop.
     private func reloadModel() {
+        // Setup activates the model it just downloaded, which is the same
+        // setting written for a different reason: there is no engine to reload
+        // yet, and `bootstrap()` starts one with the right model the moment the
+        // last requirement is met.
+        guard setup.isComplete else { return }
+
         let wasDictating = appState.status.isActive
         restartTask?.cancel()
         restartTask = Task { @MainActor in
@@ -238,8 +253,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return plist
     }
 
-    @objc private func showPermissions() {
+    @objc private func showSetup() {
         start()
+    }
+
+    @objc private func retryWakeWords() {
+        bootstrap()
     }
 
     @objc private func toggleDictation() {
@@ -264,14 +283,21 @@ extension AppDelegate: NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
 
-        permissions.refresh()
-        if permissions.allGranted {
+        setup.refresh()
+        if !setup.isComplete {
+            // Dictating is impossible until setup has all three, so offer the
+            // way out instead of a button that would do nothing.
+            menu.addItem(NSMenuItem(title: "Finish Setup…", action: #selector(showSetup), keyEquivalent: ""))
+        } else if let failure = wakeWordFailure {
+            // The wake word models never reach the setup window, so this is the
+            // only place their failure can be read.
+            let reason = NSMenuItem(title: failure, action: nil, keyEquivalent: "")
+            reason.isEnabled = false
+            menu.addItem(reason)
+            menu.addItem(NSMenuItem(title: "Try Again", action: #selector(retryWakeWords), keyEquivalent: ""))
+        } else {
             dictateMenuItem.title = appState.status.isActive ? "Stop Listening" : "Start Listening"
             menu.addItem(dictateMenuItem)
-        } else {
-            // Dictating is impossible until macOS says otherwise, so offer the
-            // way out instead of a button that would do nothing.
-            menu.addItem(NSMenuItem(title: "Grant Permissions…", action: #selector(showPermissions), keyEquivalent: ""))
         }
 
         menu.addItem(.separator())

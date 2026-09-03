@@ -24,7 +24,7 @@ enum Permission: String, CaseIterable, Identifiable {
         case .microphone:
             return "Overhear listens through your microphone to hear what you dictate. Audio never leaves your Mac."
         case .textInsertion:
-            return "Transcriptions are pasted into whatever app you're using. macOS files that under Accessibility."
+            return "Transcriptions are pasted into whatever app you're using. For this, Overhear needs the accessibility permission."
         }
     }
 

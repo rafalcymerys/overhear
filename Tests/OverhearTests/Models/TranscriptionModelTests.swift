@@ -266,36 +266,4 @@ final class TranscriptionModelTests: OverhearTestCase {
         service.remove(ModelCatalog.whisperSmall)
         XCTAssertEqual(service.diskUsage, one, "and shrinks again when one is removed")
     }
-
-    // MARK: - The active model going missing
-
-    func testTheActiveModelIsFetchedWhenItsFilesAreGone() async {
-        let fetched = TestBox<[String]>([])
-        let service = makeModelService(download: { model, base, _ in
-            fetched.mutate { $0.append(model.id) }
-            FakeModelDownload.write(model, into: base)
-        })
-
-        await service.ensureActiveModelAvailable()
-
-        XCTAssertEqual(fetched.value, [ModelCatalog.whisperBase.id],
-                       "only the active model is re-fetched")
-        XCTAssertTrue(service.isDownloaded(ModelCatalog.whisperBase))
-        XCTAssertEqual(service.activeModel, ModelCatalog.whisperBase,
-                       "it stays active rather than falling back to another model")
-    }
-
-    func testAnAvailableActiveModelIsNotFetchedAgain() async {
-        let fetched = TestBox(0)
-        let service = makeModelService(download: { model, base, _ in
-            fetched.mutate { $0 += 1 }
-            FakeModelDownload.write(model, into: base)
-        })
-
-        service.startDownload(ModelCatalog.whisperBase)
-        await settle(service, ModelCatalog.whisperBase)
-        await service.ensureActiveModelAvailable()
-
-        XCTAssertEqual(fetched.value, 1, "nothing was re-downloaded on the second pass")
-    }
 }
