@@ -7,7 +7,7 @@
     <key>CFBundleName</key>
     <string>Overhear</string>
     <key>CFBundleIdentifier</key>
-    <string>io.upsidelab.overhear</string>
+    <string>com.cymerys.overhear</string>
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>CFBundleShortVersionString</key>
