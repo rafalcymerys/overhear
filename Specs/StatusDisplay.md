@@ -31,13 +31,28 @@ Assert: with no transcriptions yet, the menu says so under
 
 Assert: **Start Listening** is replaced by **Stop Listening**.
 
-## Menu contents without permissions
+## Menu contents before setup is finished
 
 1. Revoke microphone access in System Settings.
 2. Click the menu bar icon.
 
-Assert: **Grant Permissions…** replaces **Start Listening**.
-Assert: choosing it opens the permissions window.
+Assert: **Finish Setup…** replaces **Start Listening**.
+Assert: choosing it opens the setup window.
+Assert: the same item appears whenever any of the three things setup covers is
+missing, not only a permission — `Specs/Setup.md`.
+
+## Menu contents after a background download fails
+
+1. Delete `~/Library/Application Support/Overhear/models/` and open Overhear
+   offline, with setup otherwise complete.
+2. Click the menu bar icon.
+
+Assert: the icon shows the error state.
+Assert: the menu says which file could not be downloaded, in place of
+**Start Listening**.
+Assert: the menu offers **Try Again**.
+Assert: neither **Finish Setup…** nor the setup window appears — the wake word
+models are not something the user chose.
 
 ## Recent transcriptions accumulate
 

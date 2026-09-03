@@ -79,5 +79,5 @@ Assert: the macOS microphone indicator stays on.
 3. Return to Overhear and open the menu bar menu.
 
 Assert: dictation stops.
-Assert: the menu offers **Grant Permissions…**.
+Assert: the menu offers **Finish Setup…**.
 Assert: restoring the permission allows dictation to start again.

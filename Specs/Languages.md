@@ -16,7 +16,8 @@ selection lives in the **Languages** row of the **Active Model** card in
 4. Tick Polish.
 5. Clear the search and untick English.
 
-Assert: the default selection on a fresh install is English and Polish.
+Assert: the default selection on a fresh install is English and Polish, unless
+an English-only model was chosen during setup, which narrows it to English.
 Assert: the pull-down lists every language the active model supports, each with
 its code.
 Assert: the selected languages are ticked and sorted to the top.

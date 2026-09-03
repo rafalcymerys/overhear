@@ -136,6 +136,9 @@ never fires and no error is shown. Dictation otherwise works normally.
 2. Delete `~/Library/Application Support/Overhear/models/`.
 3. Open Overhear.
 
-Assert: the setup window reappears and re-downloads the built-in models.
+Assert: the built-in models are re-downloaded in the background, without a
+setup window — nothing the user chose is missing, so `Specs/Setup.md` does not
+apply.
+Assert: the menu bar icon carries the loading state while they arrive.
 Assert: custom models deleted along with the directory are not restored.
 Assert: **Cancel word** falls back to Alexa if the selected custom model is gone.

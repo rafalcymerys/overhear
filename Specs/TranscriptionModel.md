@@ -88,7 +88,7 @@ Assert: the collapsed state is remembered the next time the pane is opened.
 ## Model states on a fresh install
 
 1. Remove `~/Library/Application Support/Overhear/`.
-2. Complete first launch.
+2. Complete setup, taking the preselected Whisper Base.
 3. Open **Settings… → Transcription**.
 
 Assert: the **Active Model** section names Whisper Base.
@@ -97,6 +97,8 @@ Assert: the active row is marked with a label reading **Active**, not only a
 highlight.
 Assert: every other model offers a download control and nothing else.
 Assert: no model other than Whisper Base has been downloaded.
+Assert: choosing a different model during setup instead makes that one the
+active model here, and leaves Whisper Base undownloaded.
 
 ## Downloads a model
 
@@ -307,20 +309,19 @@ Assert: the **Active Model** section still names Whisper Small.
 Assert: nothing is re-downloaded.
 Assert: the models downloaded before quitting are still listed as downloaded.
 
-## Re-downloads the active model when its files are gone
+## The active model's files going missing is setup's problem
 
 1. Quit Overhear with Whisper Small active.
 2. Delete Whisper Small's files from
    `~/Library/Application Support/Overhear/`.
 3. Open Overhear.
-4. Open **Settings… → Transcription**.
 
-Assert: Whisper Small is downloaded again on launch, without being asked for.
-Assert: the user is told the model is being fetched again and sees its progress.
-Assert: Whisper Small stays the active model throughout — Overhear does not
-fall back to another model or to Whisper Base.
-Assert: dictation becomes available once the download finishes, and not before.
-Assert: models other than the active one are not re-downloaded when their files
-are gone.
-Assert: a re-download that fails is reported with **Try Again**, the way the
-first-launch download is.
+Assert: the setup window opens rather than the settings pane fetching anything
+quietly — `Specs/Setup.md`.
+Assert: nothing is re-downloaded until the user asks for it there.
+Assert: models other than the active one are not checked, and a missing one
+shows as undownloaded in **Available Models** the next time the pane is opened.
+
+Which model transcribes is the user's choice, so losing it is not something to
+paper over on launch. The pane still owns every download made from inside it;
+what it no longer does is start one nobody asked for.
