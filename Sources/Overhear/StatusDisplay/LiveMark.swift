@@ -11,16 +11,28 @@ enum MarkState {
     case hearing
     case transcribing
     case cancelled
+    /// Something is missing that only the user can supply.
+    case needsAttention
+    /// The model is coming up. Nothing is wrong and nothing is being heard yet.
+    case loading
 
-    init(status: EngineStatus, showCancelled: Bool) {
+    init(status: EngineStatus, showCancelled: Bool, needsSetup: Bool = false) {
         if showCancelled {
             self = .cancelled
+            return
+        }
+        // Setup outstanding and the engine having failed are the same thing to
+        // a user glancing at the bar: dictation cannot happen and only they can
+        // change that. The menu says which of the two it is.
+        if needsSetup || status == .error {
+            self = .needsAttention
             return
         }
         switch status {
         case .ready: self = .listening
         case .listening: self = .hearing
         case .transcribing: self = .transcribing
+        case .loading, .installing: self = .loading
         default: self = .idle
         }
     }
@@ -41,9 +53,9 @@ struct LiveMark: View {
     private var markColor: Color {
         switch state {
         case .idle: return neutral.opacity(0.4)
-        case .listening: return neutral
+        case .listening, .loading: return neutral
         case .hearing, .transcribing: return markAccent
-        case .cancelled: return .red
+        case .cancelled, .needsAttention: return .red
         }
     }
 
@@ -58,6 +70,10 @@ struct LiveMark: View {
                 TranscribingMark(size: size)
             case .cancelled:
                 CancelledMark(size: size)
+            case .needsAttention:
+                AttentionMark(size: size)
+            case .loading:
+                LoadingMark(size: size)
             }
         }
         // The colour is carried by the container, not the individual states, so a
@@ -159,6 +175,84 @@ private struct TranscribingMark: View {
                 CubicKeyframe(1.18, duration: 0.15, startVelocity: 0, endVelocity: 0)
                 CubicKeyframe(1.0, duration: 0.25, startVelocity: 0, endVelocity: 0)
             }
+        }
+    }
+}
+
+/// Loading — the dot at full strength, breathing.
+///
+/// Not the idle dot, which is the same circle held dim and still: idle is a
+/// resting state a user can leave alone, and this one is asking them to wait.
+/// Not the ping either — there is nothing to listen to yet, so nothing leaves
+/// the core.
+private struct LoadingMark: View {
+    var size: CGFloat
+
+    var body: some View {
+        KeyframeAnimator(
+            initialValue: PulseFrame(scale: 1, opacity: 1),
+            repeating: true
+        ) { frame in
+            MarkDot(size: size)
+                .scaleEffect(frame.scale)
+                .opacity(frame.opacity)
+        } keyframes: { _ in
+            // A 1.4 s breath, slowest at the ends. Symmetrical, so it reads as
+            // waiting rather than as progress towards anything.
+            //
+            // The floor stays above idle's 0.4. Dipping below it would make the
+            // trough of this read as the resting state, which is the one thing
+            // this must never be mistaken for — the scale carries the motion
+            // instead.
+            KeyframeTrack(\.opacity) {
+                CubicKeyframe(0.55, duration: 0.7, startVelocity: 0, endVelocity: 0)
+                CubicKeyframe(1.0, duration: 0.7, startVelocity: 0, endVelocity: 0)
+            }
+            KeyframeTrack(\.scale) {
+                CubicKeyframe(0.7, duration: 0.7, startVelocity: 0, endVelocity: 0)
+                CubicKeyframe(1.0, duration: 0.7, startVelocity: 0, endVelocity: 0)
+            }
+        }
+    }
+}
+
+private struct PulseFrame {
+    var scale: CGFloat
+    var opacity: Double
+}
+
+/// Needs attention — the one mark that is a symbol rather than a dot, because
+/// it is the only one asking for something rather than reporting.
+///
+/// Larger than the dot and knocked through rather than drawn on: an
+/// exclamation inside a seven point circle would be a couple of pixels of bar,
+/// and a light stroke on red loses its edges against a dark menu bar.
+private struct AttentionMark: View {
+    var size: CGFloat
+
+    private var diameter: CGFloat { size * 2.2 }
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .frame(width: diameter, height: diameter)
+            ExclamationMark(diameter: diameter)
+                .blendMode(.destinationOut)
+        }
+        .compositingGroup()
+    }
+}
+
+/// The bar and its point, proportional to the circle they sit in.
+private struct ExclamationMark: View {
+    var diameter: CGFloat
+
+    var body: some View {
+        VStack(spacing: diameter * 0.09) {
+            Capsule()
+                .frame(width: diameter * 0.14, height: diameter * 0.34)
+            Circle()
+                .frame(width: diameter * 0.15, height: diameter * 0.15)
         }
     }
 }

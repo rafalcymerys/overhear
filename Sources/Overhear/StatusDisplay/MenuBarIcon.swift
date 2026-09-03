@@ -4,7 +4,9 @@ struct MenuBarIcon: View {
     @ObservedObject var appState: AppState
 
     var body: some View {
-        LiveMark(state: MarkState(status: appState.status, showCancelled: appState.showCancelled))
+        LiveMark(state: MarkState(status: appState.status,
+                                  showCancelled: appState.showCancelled,
+                                  needsSetup: appState.needsSetup))
             .frame(width: 22, height: 22)
     }
 }

@@ -45,6 +45,15 @@ enum EngineStatus: String {
 @MainActor
 final class AppState: ObservableObject {
     @Published var status: EngineStatus = .stopped
+
+    /// Whether something setup covers is still missing — no model, or a
+    /// permission not granted.
+    ///
+    /// Kept here rather than read from `SetupCoordinator` because the mark is
+    /// drawn from app state alone, and the two places that draw it should not
+    /// have to know what a setup requirement is.
+    @Published var needsSetup: Bool = false
+
     @Published var errorMessage: String?
     @Published var recentTranscriptions: [String] = []
     @Published var showCancelled: Bool = false

@@ -14,7 +14,9 @@ struct OverlayView: View {
     }
 
     private var markState: MarkState {
-        MarkState(status: appState.status, showCancelled: appState.showCancelled)
+        MarkState(status: appState.status,
+                  showCancelled: appState.showCancelled,
+                  needsSetup: appState.needsSetup)
     }
 
     private var label: String? {

@@ -2,17 +2,60 @@
 
 The menu bar icon, its menu, and the floating overlay.
 
+The icon is one dot in every state. What changes is its colour and how it
+moves, so the states can be told apart at a glance without any of them reading
+as a different icon.
+
 ## Menu bar icon reflects the engine state
 
-1. Open Overhear and watch the icon through a full cycle: loading, idle, start
-   dictation, speak, pause for transcription, say the cancel word.
+1. Open Overhear with setup complete and watch the icon through a full cycle:
+   loading, idle, start dictation, speak, pause for transcription, say the
+   cancel word.
 
-Assert: loading and idle show a microphone icon.
-Assert: the ready state shows static bars in orange.
-Assert: speaking shows animated bars in orange.
-Assert: transcribing shows a spinner.
-Assert: the cancel word shows shaking bars in red for about a second, then
-returns to the ready state.
+Assert: loading shows the dot at full strength, pulsing.
+Assert: idle shows the same dot dimmed and still.
+Assert: the ready state shows the dot at full strength, still.
+Assert: speaking sends a ring out from the dot, in orange.
+Assert: transcribing draws a ring inward onto the dot, in orange, faster than
+the one speaking sends out.
+Assert: the cancel word shakes the dot in red for about a second, then returns
+to the ready state.
+Assert: the dot is white on a dark menu bar and black on a light one, in every
+state that is not coloured.
+
+## Setting up shows an exclamation
+
+1. Open Overhear with a permission missing or no model downloaded.
+2. Look at the menu bar icon.
+
+Assert: the icon is a red circle with an exclamation mark through it, larger
+than the dot the other states draw.
+Assert: it stays that way for as long as anything setup covers is missing.
+Assert: granting the last permission, or finishing the model download, replaces
+it with the ordinary states without the app being restarted.
+Assert: revoking a permission after setup was finished brings it back.
+
+## An engine that failed to load shows the same exclamation
+
+1. Delete `melspectrogram.onnx` from
+   `~/Library/Application Support/Overhear/models/` and open Overhear.
+2. Look at the menu bar icon.
+
+Assert: the icon shows the exclamation rather than the idle dot.
+Assert: it is the same mark unfinished setup draws — both mean dictation cannot
+happen and only the user can change that.
+Assert: the menu says which of the two it is, since the icon does not.
+
+## Loading is told apart from idle
+
+1. Open Overhear with setup complete and watch the icon before the model
+   finishes loading.
+
+Assert: the dot pulses while the model loads and is still once it is ready.
+Assert: the pulsing dot is brighter than the idle one at every point in its
+cycle, so a glance never mistakes one for the other.
+Assert: the pulse is even — it does not read as progress towards anything,
+because nothing here knows how long the load will take.
 
 ## Menu contents while idle
 

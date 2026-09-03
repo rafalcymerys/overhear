@@ -14,6 +14,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var setup: SetupCoordinator!
     private var setupWindow: SetupWindowController!
     private var setupObservation: AnyCancellable?
+    /// Mirrors setup's verdict into app state, where the menu bar mark reads
+    /// it. Kept for the life of the app rather than dropped once setup
+    /// finishes — a permission revoked later has to reach the icon too.
+    private var setupMarkObservation: AnyCancellable?
     /// What stopped the wake word models arriving, if anything did. The menu
     /// carries it, since they have no window of their own to fail in.
     private var wakeWordFailure: String?
@@ -79,6 +83,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
 
         setup = SetupCoordinator(permissions: permissions)
+        setupMarkObservation = setup.$isComplete
+            .sink { [weak self] isComplete in
+                self?.appState.needsSetup = !isComplete
+            }
         setupWindow = SetupWindowController(setup: setup)
         settingsWindow = SettingsWindowController(appState: appState)
 
