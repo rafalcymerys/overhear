@@ -42,7 +42,9 @@ final class AudioCapture: AudioSource, @unchecked Sendable {
     static let sampleRate: Double = 16000
     static let chunkSamples = WakeWordDetector.chunkSamples
 
-    private let engine = AVAudioEngine()
+    /// Replaced on every open rather than kept, which is what makes a device
+    /// change survivable. See `openStream()`.
+    private var engine = AVAudioEngine()
     private let lock = NSLock()
     private var accumulator = ChunkAccumulator(chunkSize: AudioCapture.chunkSamples)
     private var lastBuffer = Date.distantPast
@@ -71,7 +73,6 @@ final class AudioCapture: AudioSource, @unchecked Sendable {
             continuation.onTermination = { [weak self] _ in
                 self?.stop()
             }
-            observeConfigurationChanges()
             supervisor = Task.detached { [weak self] in
                 await self?.supervise()
             }
@@ -116,6 +117,17 @@ final class AudioCapture: AudioSource, @unchecked Sendable {
 
     private func openStream() throws {
         teardown()
+
+        // A new engine every time, not the one that just stopped. AVAudioEngine
+        // resolves its input node once and holds on to it, so an instance that
+        // was opened on the built-in microphone keeps describing that device
+        // after the default input has moved — AirPods connecting, an interface
+        // unplugged. Its format then reads as unusable, every reopen throws,
+        // and each failure emits an interruption that switches dictation off
+        // again a second after the user switches it on. Asking the system for
+        // a fresh engine is the only way to be told what the input is now.
+        engine = AVAudioEngine()
+        observeConfigurationChanges()
 
         let input = engine.inputNode
         let inputFormat = input.outputFormat(forBus: 0)
@@ -168,6 +180,11 @@ final class AudioCapture: AudioSource, @unchecked Sendable {
     /// invalidates the tap. Dropping `lastBuffer` makes the watchdog reopen on
     /// its next pass rather than wait out the full timeout.
     private func observeConfigurationChanges() {
+        // The notification is keyed to an engine instance, so the one watching
+        // the engine this replaces has nothing left to report.
+        if let configurationObserver {
+            NotificationCenter.default.removeObserver(configurationObserver)
+        }
         configurationObserver = NotificationCenter.default.addObserver(
             forName: .AVAudioEngineConfigurationChange,
             object: engine,
