@@ -16,10 +16,12 @@ it, and then talk to my computer whenever I need to enter text. It doesn't try t
 correct mistakes automatically, because it's usually easier to just use the keyboard
 for simple edits and fixes.
 
-Speech recognition runs locally, using [WhisperKit](https://github.com/argmaxinc/WhisperKit)
-for transcription and [openWakeWord](https://github.com/dscripka/openWakeWord)'s models
-for voice commands. Your audio never leaves your Mac; the models are downloaded once
-during setup and everything after that is offline.
+Speech recognition runs locally. Transcription runs on the Neural Engine through
+CoreML, with a choice of two engines — [WhisperKit](https://github.com/argmaxinc/WhisperKit)
+for Whisper, and [FluidAudio](https://github.com/FluidInference/FluidAudio) for NVIDIA's
+Parakeet — and voice commands use [openWakeWord](https://github.com/dscripka/openWakeWord)'s
+models. Your audio never leaves your Mac; the models are downloaded once during setup
+and everything after that is offline.
 
 **What it's good at**
 
@@ -32,6 +34,9 @@ during setup and everything after that is offline.
 - **Multiple languages.** You can pick the languages you use and it detects
   automatically which one you're speaking, so you can answer an email in Polish and go
   back to English without switching modes.
+- **A choice of transcription model.** Whisper trades speed for accuracy across its
+  five sizes; Parakeet is considerably faster and covers English or twenty-four
+  languages. You pick one in Settings and can swap it at any time.
 
 Overhear is built from source (see below) and is not code-signed, so installing it
 means clearing the quarantine flag yourself.
@@ -63,11 +68,15 @@ actual inference rather than a stub. It downloads about 6MB of models the first
 time.
 
 Transcription tests are opt-in, because they pull down a few hundred megabytes of
-Whisper weights:
+model weights:
 
 ```bash
 OVERHEAR_RUN_MODEL_TESTS=1 swift test --filter WhisperTranscriberTests
+OVERHEAR_RUN_MODEL_TESTS=1 swift test --filter ParakeetTranscriberTests
 ```
+
+The Parakeet suite needs Apple Silicon; its weights are compiled for the Neural
+Engine and will not load on an Intel Mac.
 
 ### Linting
 
@@ -108,18 +117,19 @@ every push to `main`; pushing a `v*` tag attaches them to a GitHub Release.
    ```bash
    xattr -cr /Applications/Overhear.app
    ```
-3. Open `Overhear.app`. It first asks for the two permissions dictation needs —
-   **Microphone**, to hear you, and **Accessibility**, to paste transcriptions
-   into your apps — with a button for each. Both are required before anything
-   else happens.
-4. Once they're granted, first launch downloads the speech models into
-   `~/Library/Application Support/Overhear`, showing progress in a setup window.
-   This only happens once; the app starts listening as soon as it finishes.
+3. Open `Overhear.app`. A setup window lists the three things dictation needs: a
+   **transcription model**, and the **Microphone** and **Accessibility**
+   permissions — to hear you, and to paste transcriptions into your apps. Each
+   has a button, and all three are required before dictation starts.
+4. Pick a model and it downloads into `~/Library/Application Support/Overhear`,
+   which you can do while granting the permissions. Nothing is fetched until you
+   ask for it. This only happens once; the app starts listening as soon as setup
+   finishes, and you can install other models later from Settings.
 
 macOS only offers its permission dialog once per launch. If you dismiss one, the
 button turns into **Open System Settings** — flip the switch under Privacy &
 Security there and the app picks it up on its own. You can reopen the window any
-time from **Grant Permissions…** in the menu bar.
+time from **Finish Setup…** in the menu bar.
 
 That first run needs a network connection. Nothing else has to be installed —
 the app carries its own inference engine.
@@ -136,14 +146,31 @@ the app carries its own inference engine.
 
 ### Settings
 
+Settings is split into three panes.
+
+**General**
+
 - **Start listening on launch**: begin listening automatically when the app finishes loading (on by default)
 - **Show overlay window while listening**: toggle the floating status overlay that appears while dictation is active
+- **Strip transcription annotations**: drop the `(coughing)`-style notes a model sometimes writes instead of transcribing (on by default)
+
+**Transcription**
+
+- **Active Model**: which model transcribes, with the languages it recognizes and whether it can translate. Selecting languages narrows what the engine is given — fewer languages improves accuracy, and at least one must be selected.
+- **Available Models**: everything Overhear can run, grouped by engine, each one downloadable and removable. Whisper offers Tiny, Base, Base English, Small and Large v3 Turbo. Parakeet offers TDT 0.6B v2 for English and v3 across twenty-four languages; both need Apple Silicon. One model is active at a time, and the active one can't be removed.
+
+A model that doesn't support a language you've selected leaves it inert rather than
+forgetting it — going back to a model that does brings it back. Translation is
+Whisper's alone, so the toggle sits disabled under Parakeet.
+
+**Hot Words**
+
 - **Cancel word**: which phrase discards the current utterance. Four are built in: Alexa, Hey Jarvis, Hey Mycroft, Hey Rhasspy.
 - **Custom Hot Words**: install extra [openwakeword](https://github.com/dscripka/openWakeWord) `.onnx` models from a file or a URL to use as the cancel word. Installed models are stored in `~/Library/Application Support/Overhear/models/`.
-- **Recognition Languages**: select which languages Whisper should recognize. Fewer languages improves accuracy. At least one must be selected.
 
 Changing the cancel word or the language set restarts the engine automatically, which takes a
-moment while the models reload. The two toggles apply immediately.
+moment while the models reload. Activating a different model reloads it right away. The
+toggles apply immediately.
 
 ## Architecture
 
