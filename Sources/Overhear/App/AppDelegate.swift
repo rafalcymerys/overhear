@@ -27,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var launchObservation: AnyCancellable?
     private var restartTask: Task<Void, Never>?
     private var settingsWindow: SettingsWindowController!
+    private let aboutWindow = AboutWindowController()
     private var dictateMenuItem: NSMenuItem!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -230,35 +231,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func showAbout() {
-        NSApp.activate(ignoringOtherApps: true)
-        let info = infoPlist()
-        var options: [NSApplication.AboutPanelOptionKey: Any] = [:]
-        if let name = info["CFBundleName"] as? String {
-            options[.applicationName] = name
-        }
-        if let version = info["CFBundleShortVersionString"] as? String {
-            options[.applicationVersion] = version
-        }
-        if let copyright = info["NSHumanReadableCopyright"] as? String {
-            options[.init(rawValue: "Copyright")] = copyright
-        }
-        NSApp.orderFrontStandardAboutPanel(options: options)
-    }
-
-    private func infoPlist() -> [String: Any] {
-        if Bundle.main.infoDictionary?["NSHumanReadableCopyright"] != nil {
-            return Bundle.main.infoDictionary ?? [:]
-        }
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("Resources/Info.plist")
-        guard let data = try? Data(contentsOf: url),
-              let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else {
-            return [:]
-        }
-        return plist
+        aboutWindow.show()
     }
 
     @objc private func showSetup() {

@@ -21,7 +21,15 @@ let package = Package(
                 .product(name: "onnxruntime", package: "onnxruntime-swift-package-manager"),
                 .product(name: "FluidAudio", package: "FluidAudio"),
             ],
-            path: "Sources/Overhear"
+            path: "Sources/Overhear",
+            plugins: [.plugin(name: "GenerateAcknowledgements")]
+        ),
+        // Builds the bundled third-party license notice from the resolved
+        // dependency graph, and fails the build when a dependency is added
+        // without saying whether it ships. See Resources/acknowledgements.json.
+        .plugin(
+            name: "GenerateAcknowledgements",
+            capability: .buildTool()
         ),
         .testTarget(
             name: "OverhearTests",

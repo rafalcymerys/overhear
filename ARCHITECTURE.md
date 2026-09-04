@@ -44,7 +44,9 @@ That boundary is also what makes the engine testable: `DictationEngineTests` dri
 | [onnxruntime-swift-package-manager](https://github.com/microsoft/onnxruntime-swift-package-manager) | Running openWakeWord's `.onnx` models |
 | [SwiftLintPlugins](https://github.com/SimplyDanny/SwiftLintPlugins) | Linting |
 
-ONNX Runtime links statically, so the built `.app` is three files: the binary, `Info.plist` and the icon.
+ONNX Runtime links statically, so the built `.app` is the binary, `Info.plist`, the icon, and the resource bundles SwiftPM produces for targets that carry resources — including Overhear's own, which holds the generated `Acknowledgements.txt`.
+
+Every package above except SwiftLintPlugins ships inside the app, so its license text has to ship too. `Resources/acknowledgements.json` records which resolved packages ship and which are build-time only; the `GenerateAcknowledgements` build plugin reconciles that file against the resolved graph on every build and fails with a diagnostic when the two disagree, so adding a dependency without classifying it breaks the build rather than quietly shipping an incomplete notice. See [Licensing](#licensing).
 
 ## Engine Events
 
@@ -94,6 +96,9 @@ behaviour — a spec has one obvious place to land.
 | `OverhearApp.swift` | App entry point, accessory (no dock icon) |
 | `AppDelegate.swift` | Menu bar setup, setup gate, wake word fetch, engine lifecycle, settings observation |
 | `AppState.swift` | Observable state enum: stopped, installing, loading, idle, ready, listening, transcribing, error |
+| `AboutWindow.swift` | The About window and the build's name, version and copyright |
+| `AcknowledgementsWindow.swift` | Scrolling window over the bundled third-party license notice |
+| `Acknowledgements.swift` | Reads the generated notice out of the bundle |
 
 ### `Engine/`
 
@@ -332,6 +337,17 @@ The wake word models are not part of this. Nobody chooses them and there is noth
 - `ChunkAccumulatorTests` — that no sample is lost or duplicated across awkward buffer boundaries.
 - `WhisperTranscriberTests` — real WhisperKit, opt-in via `OVERHEAR_RUN_MODEL_TESTS=1` because it downloads model weights: the language scenarios from `Specs/Languages.md`, and what a cough comes back as.
 - `AudioCaptureTests` — the real microphone, opt-in via `OVERHEAR_RUN_AUDIO_TESTS=1` because CI has no input device.
+
+## Licensing
+
+Overhear is MIT. Every package it links is MIT or Apache-2.0, and both licenses require their text to travel with a binary distribution, so `Acknowledgements.txt` is generated into the app at build time rather than maintained by hand:
+
+- `Resources/acknowledgements.json` — which resolved packages ship, and why the others don't.
+- `Resources/acknowledgements-preamble.txt` — the hand-written part: Overhear's own terms, and credit for the transcription and wake word models, which are downloaded on demand rather than bundled.
+- `Plugins/GenerateAcknowledgements` — reconciles the manifest against the resolved graph, then drives the script below. Errors on an unclassified package, a stale entry, or a shipping package with no license file.
+- `scripts/generate-acknowledgements.sh` — concatenates each package's `LICENSE*` and `NOTICE*` under the preamble.
+
+Because it runs as a build tool plugin, `swift build`, `swift test` and `scripts/build.sh` all produce the same file and read it the same way, through `Bundle.module`. Nothing generated is committed.
 
 ## Linting
 

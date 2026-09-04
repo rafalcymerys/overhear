@@ -1,0 +1,61 @@
+{
+  "_comment": [
+    "Which resolved packages ship inside Overhear.app, and so need their license",
+    "text carried with the binary. SwiftPM's dependency graph is package-level, not",
+    "target-level, so it cannot tell a package we link against from one only a",
+    "sibling target or a build plugin uses — that judgement lives here.",
+    "",
+    "The GenerateAcknowledgements plugin reconciles this file against the resolved",
+    "graph on every build and fails with a diagnostic if the two disagree, so a new",
+    "or dropped dependency cannot slip through unclassified."
+  ],
+  "packages": {
+    "argmax-oss-swift": {
+      "name": "WhisperKit",
+      "ships": true
+    },
+    "fluidaudio": {
+      "name": "FluidAudio",
+      "ships": true
+    },
+    "onnxruntime-swift-package-manager": {
+      "name": "ONNX Runtime",
+      "ships": true
+    },
+    "swift-transformers": {
+      "name": "swift-transformers",
+      "ships": true
+    },
+    "swift-jinja": {
+      "name": "swift-jinja",
+      "ships": true
+    },
+    "swift-crypto": {
+      "name": "swift-crypto",
+      "ships": true
+    },
+    "swift-asn1": {
+      "name": "swift-asn1",
+      "ships": true
+    },
+    "swift-collections": {
+      "name": "swift-collections",
+      "ships": true,
+      "note": "Apache-2.0 with the Runtime Library Exception, which waives §4 attribution for code embedded by compilation. Listed anyway: harmless, and simpler than carving it out."
+    },
+    "yyjson": {
+      "name": "yyjson",
+      "ships": true
+    },
+    "swift-argument-parser": {
+      "name": "swift-argument-parser",
+      "ships": false,
+      "note": "Only WhisperKitCLI depends on it, and we don't build that target — nothing from it lands in the app."
+    },
+    "swiftlintplugins": {
+      "name": "SwiftLintPlugins",
+      "ships": false,
+      "note": "A build-time command plugin. Runs on our source, never links into the binary."
+    }
+  }
+}
