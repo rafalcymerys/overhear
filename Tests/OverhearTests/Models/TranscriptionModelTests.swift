@@ -22,8 +22,7 @@ final class TranscriptionModelTests: OverhearTestCase {
     }
 
     /// An engine with nothing to offer gets no heading — a "Parakeet" group
-    /// with no rows under it reads as a broken pane, which is what an Intel Mac
-    /// would otherwise show.
+    /// with no rows under it reads as a broken pane.
     func testAnEngineWithNoModelsGetsNoGroup() {
         let whisperOnly = ModelCatalog.all.filter { $0.engine == .whisper }
         XCTAssertEqual(ModelCatalog.grouped(whisperOnly).map(\.engine), [.whisper])

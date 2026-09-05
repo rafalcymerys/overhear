@@ -76,7 +76,6 @@ Assert: the models are grouped by engine, as in **Settings… → Transcription*
 with each group's few words on what the engine is.
 Assert: every model shows its name and download size, and no row carries a raw
 repository or variant identifier.
-Assert: on a Mac without Apple silicon the Parakeet group is absent.
 Assert: picking another model changes what **Download** will fetch and nothing
 else.
 Assert: the model cannot be changed once its download is running — cancelling

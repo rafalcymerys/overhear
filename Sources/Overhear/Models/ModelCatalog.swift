@@ -94,16 +94,7 @@ enum ModelCatalog {
 
     private static let parakeetModels: [TranscriptionModel] = [parakeetV2, parakeetV3]
 
-    /// Parakeet's weights are compiled for the Neural Engine and its loader
-    /// refuses anything else, so on an Intel Mac the models are not offered at
-    /// all rather than offered and then failing after half a gigabyte. The
-    /// group disappears with them — `grouped(_:)` drops an engine with nothing
-    /// in it.
-    #if arch(arm64)
     static let all: [TranscriptionModel] = whisperModels + parakeetModels
-    #else
-    static let all: [TranscriptionModel] = whisperModels
-    #endif
 
     /// Small, fast and multilingual — the balance dictation wants, where a
     /// batch has to come back before the user has finished their next sentence.

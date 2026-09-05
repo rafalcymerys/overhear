@@ -43,6 +43,9 @@ means clearing the quarantine flag yourself.
 
 ## Requirements
 
+- A Mac with Apple silicon (M1 or later). Transcription and the wake word run on
+  the Neural Engine, and the app is built for arm64 only — an Intel Mac cannot
+  run it or build it.
 - macOS 14 (Sonoma) or later
 - Xcode 16 or later, to build it
 
@@ -74,9 +77,6 @@ model weights:
 OVERHEAR_RUN_MODEL_TESTS=1 swift test --filter WhisperTranscriberTests
 OVERHEAR_RUN_MODEL_TESTS=1 swift test --filter ParakeetTranscriberTests
 ```
-
-The Parakeet suite needs Apple Silicon; its weights are compiled for the Neural
-Engine and will not load on an Intel Mac.
 
 ### Linting
 
@@ -160,7 +160,7 @@ Settings is split into three panes.
 **Transcription**
 
 - **Active Model**: which model transcribes, with the languages it recognizes and whether it can translate. Selecting languages narrows what the engine is given — fewer languages improves accuracy, and at least one must be selected.
-- **Available Models**: everything Overhear can run, grouped by engine, each one downloadable and removable. Whisper offers Tiny, Base, Base English, Small and Large v3 Turbo. Parakeet offers TDT 0.6B v2 for English and v3 across twenty-four languages; both need Apple Silicon. One model is active at a time, and the active one can't be removed.
+- **Available Models**: everything Overhear can run, grouped by engine, each one downloadable and removable. Whisper offers Tiny, Base, Base English, Small and Large v3 Turbo. Parakeet offers TDT 0.6B v2 for English and v3 across twenty-four languages. One model is active at a time, and the active one can't be removed.
 
 A model that doesn't support a language you've selected leaves it inert rather than
 forgetting it — going back to a model that does brings it back. Translation is

@@ -14,6 +14,12 @@
     <string>1.2.1</string>
     <key>LSUIElement</key>
     <true/>
+    <key>LSArchitecturePriority</key>
+    <array>
+        <string>arm64</string>
+    </array>
+    <key>LSRequiresNativeExecution</key>
+    <true/>
     <key>NSHumanReadableCopyright</key>
     <string>Copyright © 2026 Rafal Cymerys. All rights reserved.</string>
     <key>NSMicrophoneUsageDescription</key>

@@ -68,8 +68,6 @@ Assert: the **Parakeet** group lists Parakeet TDT 0.6B v2 and Parakeet TDT 0.6B
 v3, at about 450 MB and 470 MB.
 Assert: each group heading says in a few words what the engine is, such as
 "multilingual" or "fastest".
-Assert: on a Mac without Apple silicon the Parakeet group is absent entirely,
-rather than offering models that cannot load.
 Assert: every model row shows its name, its download size and, where it
 differs from the group, the languages it supports.
 Assert: no row carries a raw repository or variant identifier.
