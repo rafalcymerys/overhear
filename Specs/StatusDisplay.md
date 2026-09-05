@@ -37,11 +37,14 @@ Assert: revoking a permission after setup was finished brings it back.
 
 ## An engine that failed to load shows the same exclamation
 
-1. Delete `melspectrogram.onnx` from
-   `~/Library/Application Support/Overhear/models/` and open Overhear.
+1. Truncate `melspectrogram.onnx` in
+   `~/Library/Application Support/Overhear/models/` to a few bytes, so the file
+   is there but will not load, and open Overhear.
 2. Look at the menu bar icon.
 
 Assert: the icon shows the exclamation rather than the idle dot.
+Assert: setup does not open over it — the file is on disk, so setup counts it
+as settled and it is the engine that fails on it.
 Assert: it is the same mark unfinished setup draws — both mean dictation cannot
 happen and only the user can change that.
 Assert: the menu says which of the two it is, since the icon does not.
@@ -81,21 +84,22 @@ Assert: **Start Listening** is replaced by **Stop Listening**.
 
 Assert: **Finish Setup…** replaces **Start Listening**.
 Assert: choosing it opens the setup window.
-Assert: the same item appears whenever any of the three things setup covers is
-missing, not only a permission — `Specs/Setup.md`.
+Assert: the same item appears whenever any of the four things setup covers is
+missing, not only a permission — the hot word models included —
+`Specs/Setup.md`.
 
-## Menu contents after a background download fails
+## Menu contents when a hot word model is missing
 
-1. Delete `~/Library/Application Support/Overhear/models/` and open Overhear
-   offline, with setup otherwise complete.
+1. Delete `~/Library/Application Support/Overhear/models/*.onnx` and open
+   Overhear offline, with setup otherwise complete.
 2. Click the menu bar icon.
 
-Assert: the icon shows the error state.
-Assert: the menu says which file could not be downloaded, in place of
-**Start Listening**.
-Assert: the menu offers **Try Again**.
-Assert: neither **Finish Setup…** nor the setup window appears — the wake word
-models are not something the user chose.
+Assert: the icon shows the setup exclamation, not the engine error state.
+Assert: **Finish Setup…** replaces **Start Listening**, and choosing it opens
+the setup window on the **Hot word models** card.
+Assert: the menu carries no download progress, no failure text and no
+**Try Again** of its own — all three are on the card now, in a window the user
+can see — `Specs/Setup.md`.
 
 ## Recent transcriptions accumulate
 

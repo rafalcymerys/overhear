@@ -2,10 +2,15 @@
 
 Covers the path from an unopened app to a working engine, and every later
 return to it. One window titled "Overhear Setup" carries all of it: the
-transcription model, the microphone, and the right to paste into other apps.
+transcription model, the hot word models, the microphone, and the right to
+paste into other apps.
 
-There is no separate permissions window. Nothing downloads on its own on a
-fresh install — the model arrives because the user chose it here.
+There is no separate permissions window. The transcription model does not
+arrive on its own — it is downloaded because the user chose it here. The hot
+word models are the one thing that starts by itself, and only because there is
+nothing to choose about them: their card comes up already downloading, and
+carries its own progress and its own failure rather than leaving either to the
+menu bar icon.
 
 ## Opens on first launch
 
@@ -16,11 +21,14 @@ fresh install — the model arrives because the user chose it here.
 Assert: a window titled "Overhear Setup" appears.
 Assert: it is headed **Let's get you set up**, followed by "To use Overhear,
 you need to download a transcription model and grant some basic permissions."
-Assert: it holds exactly three cards, in this order: **Choose a model**,
-**Microphone**, and **Inserting text in your apps**.
-Assert: the **Choose a model** card is expanded and the other two are collapsed
-to their headings.
-Assert: nothing has been downloaded — the models directory is still absent.
+Assert: it holds exactly four cards, in this order: **Choose a model**,
+**Hot word models**, **Microphone**, and **Inserting text in your apps**.
+Assert: the **Choose a model** card is expanded and is the one picked out as
+wanting the user; both permission cards are collapsed to their headings.
+Assert: the **Hot word models** card is expanded as well, because it is already
+downloading — and it is not the card picked out, since it wants nothing.
+Assert: no transcription model has been downloaded — the model card is still
+waiting to be told.
 Assert: the window offers **Quit**, and quitting from it closes the app.
 
 ## The card that needs attention is the one that is open
@@ -30,8 +38,8 @@ Assert: the window offers **Quit**, and quitting from it closes the app.
 
 Assert: the topmost unfinished card is the expanded one at any moment.
 Assert: a finished card collapses to a single line carrying a checkmark and
-what it settled — **Granted** for a permission, the model's name and
-**Downloaded** for the model.
+what it settled — **Granted** for a permission, **Downloaded** for the hot word
+models, the model's name and **Downloaded** for the transcription model.
 Assert: a collapsed card can be clicked open, and an open one clicked shut,
 without changing what has been granted or downloaded.
 Assert: the window resizes to fit as cards open and close, and stays anchored
@@ -92,10 +100,52 @@ Assert: no model is active, and setup stays unfinished.
 Assert: the card states that the download failed and why.
 Assert: it offers **Try Again** and **Choose Another Model**.
 Assert: no partial files are left behind.
-Assert: the other two cards stay usable while the model card shows the failure.
+Assert: the other three cards stay usable while the model card shows the
+failure.
 Assert: **Try Again** completes the download.
 Assert: **Choose Another Model** puts the model control back with the failed
 model still selected, so a smaller one can be picked instead.
+
+## Downloads the hot word models without being asked
+
+1. Start from a fresh first launch.
+2. Read the **Hot word models** card and leave it alone.
+
+Assert: the card explains why they are not in the app already: "Overhear
+listens for a hot word to cancel dictation. Its models are downloaded
+separately from the app, for licensing reasons."
+Assert: the download starts on its own as the card appears — there is nothing
+to choose here and no button to press.
+Assert: the card draws the same progress bar the model card does, over all the
+files it has to fetch rather than one per file, so the bar fills once.
+Assert: the heading's right shows how far it has got while it runs, the way the
+model card's does.
+Assert: the card collapses to a checkmark and **Downloaded** when the last file
+lands.
+Assert: `~/Library/Application Support/Overhear/models/` then holds
+`alexa.onnx`, `hey_jarvis.onnx`, `hey_mycroft.onnx`, `hey_rhasspy.onnx`,
+`melspectrogram.onnx` and `embedding_model.onnx`.
+Assert: no file name carries a version suffix.
+Assert: only what is missing is fetched — a launch with five of the six present
+downloads the sixth alone, and its progress covers that one file.
+
+## Recovers from a failed hot word download
+
+1. Start from a fresh first launch with the network disconnected.
+2. Wait for the **Hot word models** card to fail.
+3. Reconnect and click **Try Again**.
+
+Assert: the card states that the download failed and names the file it could
+not fetch.
+Assert: it offers **Try Again**, and becomes the card picked out as wanting the
+user, since it now does.
+Assert: the failure is on the card and not in the menu bar — the icon shows the
+exclamation unfinished setup draws, not the engine error state, because the
+engine was never asked to start.
+Assert: the models directory holds no partial files after the failure.
+Assert: the other three cards stay usable while this one shows the failure.
+Assert: **Try Again** resumes from the files still missing and completes the
+download.
 
 ## Grants both permissions
 
@@ -111,40 +161,39 @@ Assert: the **Inserting text in your apps** card explains "Transcriptions are
 pasted into whatever app you're using. For this, Overhear needs the
 accessibility permission."
 Assert: each card collapses to a checkmark and **Granted** as it is allowed.
-Assert: neither grant disturbs a download in progress.
+Assert: neither grant disturbs a download in progress, of either kind.
 
-## Works on all three at once
+## Works on all four at once
 
 1. Start from a fresh first launch.
 2. Click **Download** on the model card.
 3. Without waiting for it, grant both permissions.
 
-Assert: the download keeps running while the permission dialogs come and go.
-Assert: the model card stays expanded showing its progress, and the microphone
-card opens beneath it rather than waiting for the download.
-Assert: the window closes on its own when the last of the three completes,
+Assert: both downloads keep running while the permission dialogs come and go.
+Assert: the model and hot word cards stay expanded showing their progress, and
+the microphone card opens beneath them rather than waiting for either.
+Assert: the window closes on its own when the last of the four completes,
 whichever it is.
-Assert: the engine starts only once all three hold.
+Assert: the engine starts only once all four hold.
 
-## Finishes on the model while the wake word models are still arriving
+## Waits for the hot word models before it closes
 
 1. Start on a Mac that has never run Overhear, so
    `~/Library/Application Support/Overhear/` is absent.
-2. Grant both permissions first, leaving the model outstanding.
-3. Click **Download**, so the model is the last of the three to settle.
+2. Grant both permissions and download the transcription model, all of it
+   faster than the six hot word files arrive.
 
-Assert: the setup window closes when the download finishes.
-Assert: the menu bar icon does not go to the error state.
-Assert: dictation becomes available on its own once the wake word models have
-been fetched, without quitting and reopening the app.
-Assert: the same holds in the other order, with the download finishing before
-the permissions are granted.
+Assert: the window stays open with **Hot word models** the only card left,
+showing its progress.
+Assert: it closes on its own when the last file lands.
+Assert: the engine starts once, after that, and the icon goes from the setup
+exclamation to loading without passing through the error state.
+Assert: the same holds whichever of the four settles last — the window closes
+on that one.
 
-The wake word models are fetched after setup finishes and before the engine
-starts, so for a few seconds setup is complete and the engine is not up yet.
-Nothing may start the engine inside that window — an engine built without those
-models fails to load the cancel word one, and a failure there is what the icon
-would be showing.
+Setup finishing and the engine coming up are no longer separated by a download.
+There is nothing left to fetch by the time the window closes, so nothing can
+build an engine that is missing the models it loads the cancel word from.
 
 ## Dismisses a macOS permission dialog
 
@@ -188,8 +237,8 @@ Assert: the menu bar menu offers **Start Listening**.
 2. Open Overhear, or open the menu bar menu if it is already running.
 
 Assert: the setup window opens, headed the same as on first launch.
-Assert: the model and microphone cards are collapsed with checkmarks; the
-accessibility card is the expanded one.
+Assert: the model, hot word and microphone cards are collapsed with
+checkmarks; the accessibility card is the expanded one.
 Assert: macOS does not show its own dialog for a permission it has already been
 asked about, so the card offers **Open System Settings**.
 Assert: the window closes on its own once the permission is restored, and
@@ -198,11 +247,13 @@ dictation becomes available again.
 ## Opens again when no model is downloaded
 
 1. Quit Overhear after a completed setup.
-2. Delete every downloaded model from
-   `~/Library/Application Support/Overhear/`.
+2. Delete every downloaded transcription model from
+   `~/Library/Application Support/Overhear/models/`, leaving the hot word
+   models in place.
 3. Open Overhear.
 
-Assert: the setup window opens with both permissions collapsed and ticked.
+Assert: the setup window opens with the hot word card and both permissions
+collapsed and ticked.
 Assert: the model card is the expanded one, preselected to the model that was
 active before, not to Whisper Base.
 Assert: the model is not re-downloaded until **Download** is clicked.
@@ -224,33 +275,21 @@ and makes Whisper Base the active model without downloading it again — it is
 already on disk.
 Assert: models other than the active one are not checked for missing files.
 
-## Fetches the wake word models in the background
+## Opens again when a hot word model is deleted
 
-1. Remove `~/Library/Application Support/Overhear/`.
-2. Complete setup.
+1. Quit Overhear after a completed setup.
+2. Delete `hey_jarvis.onnx` from
+   `~/Library/Application Support/Overhear/models/`.
+3. Open Overhear.
 
-Assert: the setup window never mentions the wake word models.
-Assert: they are fetched after the window closes, without a window of their
-own.
-Assert: the menu bar icon shows the loading state while they arrive, and the
-menu offers no **Start Listening** until they have.
-Assert: `~/Library/Application Support/Overhear/models/` ends up containing
-`alexa.onnx`, `hey_jarvis.onnx`, `hey_mycroft.onnx`, `hey_rhasspy.onnx`,
-`melspectrogram.onnx` and `embedding_model.onnx`.
-Assert: no file name contains a version suffix.
-
-## Recovers from a failed wake word download
-
-1. Remove `~/Library/Application Support/Overhear/models/`.
-2. Disconnect from the network.
-3. Open Overhear with setup otherwise complete.
-
-Assert: the menu bar icon shows the error state.
-Assert: the menu says which file could not be downloaded.
-Assert: the menu offers **Try Again**, and reconnecting and choosing it
-completes the download and reaches idle.
-Assert: the models directory contains no partial files after the failure.
-Assert: the setup window does not open — nothing the user chose is missing.
+Assert: the setup window opens with the **Hot word models** card expanded and
+already downloading, and the other three collapsed and ticked.
+Assert: only `hey_jarvis.onnx` is fetched.
+Assert: the window closes on its own and dictation becomes available once it
+lands.
+Assert: the menu bar menu offers **Finish Setup…** rather than a **Try Again**
+of its own while this is outstanding — a missing hot word model is setup's
+business now, whether or not the user chose it.
 
 ## Starts listening on launch by default
 
@@ -265,14 +304,18 @@ Assert: the menu bar menu offers **Stop Listening**.
 ## Engine failure is only visible as an icon [to review]
 
 1. Quit Overhear.
-2. Delete `melspectrogram.onnx` from
-   `~/Library/Application Support/Overhear/models/`.
+2. Truncate `melspectrogram.onnx` in
+   `~/Library/Application Support/Overhear/models/` to a few bytes, so the file
+   is there but will not load.
 3. Open Overhear.
 4. Click the menu bar icon.
 
+Assert: the setup window does not open — every file it looks for is on disk.
 Assert: the menu bar icon shows the error state.
 Assert: the reason for the failure is available to the user somewhere in the UI.
 
 The engine records a message describing the failure, and no part of the
 interface displays it. The menu offers **Start Listening** as though nothing is
-wrong.
+wrong. Deleting the file outright no longer reaches this state — setup sees it
+is gone and fetches it back — so a corrupt one is what is left to reach it
+with.
