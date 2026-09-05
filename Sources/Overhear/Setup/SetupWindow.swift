@@ -14,9 +14,16 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
     /// because a test process is never given the front, so the asking is the
     /// only part of this there is to assert on.
     struct System {
+        /// `orderFrontRegardless` rather than `makeKeyAndOrderFront` alone:
+        /// since macOS 14 an app that is not the active one cannot take the
+        /// front by asking, and an accessory app asking while System Settings
+        /// is in front of it is refused. Ordering a window above the other
+        /// app's windows needs no such permission, and `activate` is left in
+        /// for the case where it is ours to take.
         var bringToFront: @MainActor (NSWindow) -> Void = { window in
             window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+            window.orderFrontRegardless()
+            NSApp.activate()
         }
     }
 
@@ -69,6 +76,7 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
     }
 
     func close() {
+        window?.level = .normal
         answerObservation = nil
         setup.permissions.stopWatching()
         window?.close()
@@ -99,22 +107,48 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
                 let previous = lastSeenStates
                 lastSeenStates = states
                 guard Self.wasAnswered(from: previous, to: states) else { return }
-                guard !setup.isComplete, window?.isVisible == true else { return }
+                guard !setup.isComplete, let window, window.isVisible else { return }
+                // Above the other app's windows rather than merely in front of
+                // them now: closing System Settings hands the front to whatever
+                // was behind it, and a normal window would go straight back
+                // under the browser it was hidden by. Dropped again in
+                // windowDidBecomeKey, once the window is the user's.
+                window.level = .floating
                 bringToFront()
             }
     }
 
-    /// Whether a permission that was still open has been answered — the dialog
-    /// Overhear put up has gone, whichever button was pressed.
+    /// Whether an answer has arrived for a permission that was outstanding —
+    /// the dialog Overhear put up has gone, or the switch in System Settings
+    /// has been thrown, whichever the card sent the user to.
     ///
-    /// A permission leaving `.granted` is a revocation, made in System Settings
-    /// where the user still is. Nothing was asked for there, so nothing should
-    /// jump in front of the switch they are working.
+    /// Anything but a revocation counts, which a dismissed dialog made matter:
+    /// it settles the microphone at denied, and the grant that follows it in
+    /// System Settings is `denied` to `granted` rather than an answer to
+    /// anything still open.
+    ///
+    /// A permission leaving `.granted` is that revocation, made in System
+    /// Settings where the user still is. Nothing was asked for there, so
+    /// nothing jumps in front of the switch they are working.
     static func wasAnswered(from previous: [Permission: PermissionState],
                             to current: [Permission: PermissionState]) -> Bool {
         Permission.allCases.contains { permission in
-            (previous[permission] ?? .notDetermined) == .notDetermined
-                && (current[permission] ?? .notDetermined) != .notDetermined
+            let before = previous[permission] ?? .notDetermined
+            return before != (current[permission] ?? .notDetermined) && before != .granted
+        }
+    }
+
+    /// The window is the user's again, so it stops floating over their other
+    /// apps and goes back to being one window among them.
+    ///
+    /// Only once Overhear is the app in front, though. A window can be handed
+    /// key status while the app behind System Settings is still the app behind
+    /// System Settings, and dropping the level there would put it back under
+    /// the browser the moment the front moved on.
+    nonisolated func windowDidBecomeKey(_ notification: Notification) {
+        Task { @MainActor in
+            guard NSApp.isActive else { return }
+            window?.level = .normal
         }
     }
 

@@ -91,6 +91,41 @@ final class SetupWindowTests: OverhearTestCase {
         await waitUntil("the window asks for the front again") { self.front.count == 2 }
     }
 
+    /// The path that was reported: the dialog is dismissed, the button becomes
+    /// Open System Settings, and the grant made there is `denied` to `granted`
+    /// rather than an answer to anything still open.
+    func testTheWindowComesBackWhenTheGrantIsMadeInSystemSettings() async {
+        let system = FakePermissionSystem()
+        system.microphoneAnswer = false
+        let (controller, harness) = makeWindow(system: system)
+        controller.show()
+
+        harness.setup.request(.microphone)
+        await waitUntil("the return from the dismissed dialog") { self.front.count == 2 }
+        XCTAssertEqual(harness.setup.buttonTitle(for: .microphone), "Open System Settings")
+
+        harness.grant(.microphone)
+
+        await waitUntil("the return from System Settings") { self.front.count == 3 }
+    }
+
+    /// Closing System Settings hands the front to whatever was behind it, so a
+    /// window merely ordered forward goes back under the browser. It floats
+    /// until the user has it.
+    func testTheWindowFloatsAboveTheOtherAppUntilItIsTheUsers() async {
+        let system = FakePermissionSystem()
+        let (controller, harness) = makeWindow(system: system)
+        controller.show()
+        XCTAssertEqual(controller.window?.level, .normal, "nothing floats until the front is lost")
+
+        harness.grant(.microphone)
+
+        await waitUntil("the window to float") { controller.window?.level == .floating }
+
+        controller.close()
+        XCTAssertEqual(controller.window?.level, .normal, "and it stops floating when it goes")
+    }
+
     /// Two answers, two returns. The second ask is the one that was reported:
     /// granting in System Settings after a dismissed dialog left the window
     /// behind the browser just as the first ask did.
@@ -171,6 +206,11 @@ final class SetupWindowTests: OverhearTestCase {
             from: open, to: [.microphone: .denied, .textInsertion: .notDetermined]))
         XCTAssertTrue(SetupWindowController.wasAnswered(
             from: open, to: [.microphone: .notDetermined, .textInsertion: .granted]))
+
+        // The grant that follows a dismissed dialog, made in System Settings.
+        XCTAssertTrue(SetupWindowController.wasAnswered(
+            from: [.microphone: .denied, .textInsertion: .notDetermined],
+            to: [.microphone: .granted, .textInsertion: .notDetermined]))
 
         XCTAssertFalse(SetupWindowController.wasAnswered(from: open, to: open))
         XCTAssertFalse(SetupWindowController.wasAnswered(
