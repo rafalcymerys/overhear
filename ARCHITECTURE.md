@@ -144,7 +144,7 @@ behaviour — a spec has one obvious place to land.
 |---|---|
 | `HotWord.swift` | A cancel word: the four built in, and custom ones by path |
 | `HotWordService.swift` | Discovers, installs (file or URL), and removes custom `.onnx` cancel word models |
-| `HotWord+Models.swift` | Resolves a hot word to the file its model lives in |
+| `HotWord+Models.swift` | Resolves a Hot Word to the file its model lives in |
 
 ### `Permissions/`
 

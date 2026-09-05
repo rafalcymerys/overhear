@@ -32,7 +32,7 @@ enum SetupRequirement: Hashable, Identifiable, CaseIterable {
     var title: String {
         switch self {
         case .model: return "Choose a model"
-        case .wakeWords: return "Hot word models"
+        case .wakeWords: return "Hot Word models"
         case let .permission(permission): return permission.title
         }
     }
@@ -42,7 +42,7 @@ enum SetupRequirement: Hashable, Identifiable, CaseIterable {
         case .model:
             return "Download a model that will be used locally on your Mac for the transcription. You can change it later in settings."
         case .wakeWords:
-            return "Overhear listens for a hot word to cancel dictation. Its models are downloaded separately from the app, for licensing reasons."
+            return "Overhear listens for a Hot Word to cancel dictation. Its models are downloaded separately from the app, for licensing reasons."
         case let .permission(permission):
             return permission.explanation
         }

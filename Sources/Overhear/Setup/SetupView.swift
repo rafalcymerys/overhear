@@ -86,7 +86,7 @@ private struct SetupCard: View {
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
-                if !isExpanded {
+                if !isExpanded && !isSatisfied {
                     Image(systemName: "chevron.down")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
@@ -95,6 +95,10 @@ private struct SetupCard: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        // Inert rather than disabled: a settled card does not open, but it
+        // should not go grey either — the tick and what it settled are the
+        // point of the line.
+        .allowsHitTesting(!isSatisfied)
         .accessibilityLabel(title)
         .accessibilityValue(summary ?? (isExpanded ? "expanded" : "collapsed"))
     }

@@ -108,14 +108,21 @@ final class SetupCoordinator: ObservableObject {
         SetupRequirement.allCases.first { !isSatisfied($0) && !isBusy($0) }
     }
 
+    /// A settled requirement stays shut however it was clicked: the line in the
+    /// heading already says everything the body would, and a card that opens
+    /// onto a decision that has been made invites it to be made again.
+    ///
+    /// Checked ahead of what the user opened by hand, so a card that was open
+    /// when it settled folds away rather than staying open on a stale body.
     func isExpanded(_ requirement: SetupRequirement) -> Bool {
-        if let manual = manualExpansion[requirement] { return manual }
         guard !isSatisfied(requirement) else { return false }
+        if let manual = manualExpansion[requirement] { return manual }
         if isBusy(requirement) { return true }
         return requirement == firstNeedingAttention
     }
 
     func toggle(_ requirement: SetupRequirement) {
+        guard !isSatisfied(requirement) else { return }
         manualExpansion[requirement] = !isExpanded(requirement)
     }
 

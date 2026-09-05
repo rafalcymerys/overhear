@@ -2,7 +2,7 @@
 
 Covers the path from an unopened app to a working engine, and every later
 return to it. One window titled "Overhear Setup" carries all of it: the
-transcription model, the hot word models, the microphone, and the right to
+transcription model, the Hot Word models, the microphone, and the right to
 paste into other apps.
 
 There is no separate permissions window. The transcription model does not
@@ -22,10 +22,10 @@ Assert: a window titled "Overhear Setup" appears.
 Assert: it is headed **Let's get you set up**, followed by "To use Overhear,
 you need to download a transcription model and grant some basic permissions."
 Assert: it holds exactly four cards, in this order: **Choose a model**,
-**Hot word models**, **Microphone**, and **Inserting text in your apps**.
+**Hot Word models**, **Microphone**, and **Inserting text in your apps**.
 Assert: the **Choose a model** card is expanded and is the one picked out as
 wanting the user; both permission cards are collapsed to their headings.
-Assert: the **Hot word models** card is expanded as well, because it is already
+Assert: the **Hot Word models** card is expanded as well, because it is already
 downloading — and it is not the card picked out, since it wants nothing.
 Assert: no transcription model has been downloaded — the model card is still
 waiting to be told.
@@ -38,10 +38,14 @@ Assert: the window offers **Quit**, and quitting from it closes the app.
 
 Assert: the topmost unfinished card is the expanded one at any moment.
 Assert: a finished card collapses to a single line carrying a checkmark and
-what it settled — **Granted** for a permission, **Downloaded** for the hot word
+what it settled — **Granted** for a permission, **Downloaded** for the Hot Word
 models, the model's name and **Downloaded** for the transcription model.
-Assert: a collapsed card can be clicked open, and an open one clicked shut,
+Assert: an unfinished card can be clicked open, and an open one clicked shut,
 without changing what has been granted or downloaded.
+Assert: a finished card does not open when it is clicked, and carries no
+chevron inviting it to be — its line already says everything the body would.
+Assert: a card that was open by hand when it settled folds away with the
+rest.
 Assert: the window resizes to fit as cards open and close, and stays anchored
 at its top-left corner.
 
@@ -106,13 +110,13 @@ Assert: **Try Again** completes the download.
 Assert: **Choose Another Model** puts the model control back with the failed
 model still selected, so a smaller one can be picked instead.
 
-## Downloads the hot word models without being asked
+## Downloads the Hot Word models without being asked
 
 1. Start from a fresh first launch.
-2. Read the **Hot word models** card and leave it alone.
+2. Read the **Hot Word models** card and leave it alone.
 
 Assert: the card explains why they are not in the app already: "Overhear
-listens for a hot word to cancel dictation. Its models are downloaded
+listens for a Hot Word to cancel dictation. Its models are downloaded
 separately from the app, for licensing reasons."
 Assert: the download starts on its own as the card appears — there is nothing
 to choose here and no button to press.
@@ -129,10 +133,10 @@ Assert: no file name carries a version suffix.
 Assert: only what is missing is fetched — a launch with five of the six present
 downloads the sixth alone, and its progress covers that one file.
 
-## Recovers from a failed hot word download
+## Recovers from a failed Hot Word download
 
 1. Start from a fresh first launch with the network disconnected.
-2. Wait for the **Hot word models** card to fail.
+2. Wait for the **Hot Word models** card to fail.
 3. Reconnect and click **Try Again**.
 
 Assert: the card states that the download failed and names the file it could
@@ -171,20 +175,20 @@ Assert: neither grant disturbs a download in progress, of either kind.
 3. Without waiting for it, grant both permissions.
 
 Assert: both downloads keep running while the permission dialogs come and go.
-Assert: the model and hot word cards stay expanded showing their progress, and
+Assert: the model and Hot Word cards stay expanded showing their progress, and
 the microphone card opens beneath them rather than waiting for either.
 Assert: the window closes on its own when the last of the four completes,
 whichever it is.
 Assert: the engine starts only once all four hold.
 
-## Waits for the hot word models before it closes
+## Waits for the Hot Word models before it closes
 
 1. Start on a Mac that has never run Overhear, so
    `~/Library/Application Support/Overhear/` is absent.
 2. Grant both permissions and download the transcription model, all of it
-   faster than the six hot word files arrive.
+   faster than the six Hot Word files arrive.
 
-Assert: the window stays open with **Hot word models** the only card left,
+Assert: the window stays open with **Hot Word models** the only card left,
 showing its progress.
 Assert: it closes on its own when the last file lands.
 Assert: the engine starts once, after that, and the icon goes from the setup
@@ -238,7 +242,7 @@ Assert: the menu bar menu offers **Start Listening**.
 2. Open Overhear, or open the menu bar menu if it is already running.
 
 Assert: the setup window opens, headed the same as on first launch.
-Assert: the model, hot word and microphone cards are collapsed with
+Assert: the model, Hot Word and microphone cards are collapsed with
 checkmarks; the accessibility card is the expanded one.
 Assert: macOS does not show its own dialog for a permission it has already been
 asked about, so the card offers **Open System Settings**.
@@ -249,11 +253,11 @@ dictation becomes available again.
 
 1. Quit Overhear after a completed setup.
 2. Delete every downloaded transcription model from
-   `~/Library/Application Support/Overhear/models/`, leaving the hot word
+   `~/Library/Application Support/Overhear/models/`, leaving the Hot Word
    models in place.
 3. Open Overhear.
 
-Assert: the setup window opens with the hot word card and both permissions
+Assert: the setup window opens with the Hot Word card and both permissions
 collapsed and ticked.
 Assert: the model card is the expanded one, preselected to the model that was
 active before, not to Whisper Base.
@@ -276,20 +280,20 @@ and makes Whisper Base the active model without downloading it again — it is
 already on disk.
 Assert: models other than the active one are not checked for missing files.
 
-## Opens again when a hot word model is deleted
+## Opens again when a Hot Word model is deleted
 
 1. Quit Overhear after a completed setup.
 2. Delete `hey_jarvis.onnx` from
    `~/Library/Application Support/Overhear/models/`.
 3. Open Overhear.
 
-Assert: the setup window opens with the **Hot word models** card expanded and
+Assert: the setup window opens with the **Hot Word models** card expanded and
 already downloading, and the other three collapsed and ticked.
 Assert: only `hey_jarvis.onnx` is fetched.
 Assert: the window closes on its own and dictation becomes available once it
 lands.
 Assert: the menu bar menu offers **Finish Setup…** rather than a **Try Again**
-of its own while this is outstanding — a missing hot word model is setup's
+of its own while this is outstanding — a missing Hot Word model is setup's
 business now, whether or not the user chose it.
 
 ## Starts listening on launch by default

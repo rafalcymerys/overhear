@@ -107,6 +107,24 @@ final class SetupTests: OverhearTestCase {
         XCTAssertFalse(harness.setup.isExpanded(.permission(.microphone)))
     }
 
+    /// There is nothing behind a settled card but the line already on screen,
+    /// and opening it would offer a decision that has been made.
+    func testASettledCardCannotBeOpened() async {
+        let harness = makeHarness()
+        harness.grant(.microphone)
+        harness.setup.download()
+        await settle(harness.models, ModelCatalog.whisperBase)
+
+        for requirement in [SetupRequirement.model, .wakeWords, .permission(.microphone)] {
+            XCTAssertTrue(harness.setup.isSatisfied(requirement), "\(requirement.id) should be settled")
+            harness.setup.toggle(requirement)
+            XCTAssertFalse(harness.setup.isExpanded(requirement), "\(requirement.id) opened on a click")
+        }
+
+        XCTAssertTrue(harness.setup.isExpanded(.permission(.textInsertion)),
+                      "and the one still outstanding is unaffected")
+    }
+
     // MARK: - Finishing
 
     func testSetupIsCompleteOnlyWhenAllOfThemHold() async {

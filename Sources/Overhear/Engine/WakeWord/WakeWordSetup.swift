@@ -22,7 +22,7 @@ final class WakeWordSetup: ObservableObject {
     ///
     /// The word models are published with a version suffix but stored without
     /// one, because a filename is not private here: `HotWordService` derives a
-    /// hot word's display name from it, so `alexa_v0.1.onnx` would reach
+    /// Hot Word's display name from it, so `alexa_v0.1.onnx` would reach
     /// Settings as "Alexa V0.1". Storing them as `alexa.onnx` also means
     /// `HotWord.modelPath` can derive the file from the word's own name instead
     /// of keeping a second table in step with this one.

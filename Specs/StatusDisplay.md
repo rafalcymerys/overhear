@@ -85,10 +85,10 @@ Assert: **Start Listening** is replaced by **Stop Listening**.
 Assert: **Finish Setup…** replaces **Start Listening**.
 Assert: choosing it opens the setup window.
 Assert: the same item appears whenever any of the four things setup covers is
-missing, not only a permission — the hot word models included —
+missing, not only a permission — the Hot Word models included —
 `Specs/Setup.md`.
 
-## Menu contents when a hot word model is missing
+## Menu contents when a Hot Word model is missing
 
 1. Delete `~/Library/Application Support/Overhear/models/*.onnx` and open
    Overhear offline, with setup otherwise complete.
@@ -96,7 +96,7 @@ missing, not only a permission — the hot word models included —
 
 Assert: the icon shows the setup exclamation, not the engine error state.
 Assert: **Finish Setup…** replaces **Start Listening**, and choosing it opens
-the setup window on the **Hot word models** card.
+the setup window on the **Hot Word models** card.
 Assert: the menu carries no download progress, no failure text and no
 **Try Again** of its own — all three are on the card now, in a window the user
 can see — `Specs/Setup.md`.
