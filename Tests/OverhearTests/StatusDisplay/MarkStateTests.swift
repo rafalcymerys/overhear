@@ -19,7 +19,6 @@ final class MarkStateTests: XCTestCase {
     /// the same as one waiting to be asked.
     func testComingUpIsNotTheRestingMark() {
         XCTAssertEqual(MarkState(status: .loading, showCancelled: false), .loading)
-        XCTAssertEqual(MarkState(status: .installing, showCancelled: false), .loading)
     }
 
     /// What is left reads as idle: stopped, and loaded but not dictating.
@@ -33,7 +32,7 @@ final class MarkStateTests: XCTestCase {
     /// Setup outstanding is the one thing that has to reach the bar whatever
     /// the engine is doing, since the engine cannot be doing anything useful.
     func testSetupOutstandingAsksForAttention() {
-        for status in [EngineStatus.stopped, .idle, .loading, .installing] {
+        for status in [EngineStatus.stopped, .idle, .loading] {
             XCTAssertEqual(MarkState(status: status, showCancelled: false, needsSetup: true),
                            .needsAttention,
                            "\(status) with setup outstanding should ask for attention")

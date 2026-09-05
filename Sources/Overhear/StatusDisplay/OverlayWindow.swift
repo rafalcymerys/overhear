@@ -57,7 +57,7 @@ final class OverlayController: NSObject {
         switch status {
         case .ready, .listening, .transcribing:
             showWindow()
-        case .stopped, .idle, .error, .loading, .installing:
+        case .stopped, .idle, .error, .loading:
             hideWindow()
         }
     }

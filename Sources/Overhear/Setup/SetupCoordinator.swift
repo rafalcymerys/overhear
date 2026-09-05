@@ -7,13 +7,16 @@ import Foundation
 /// Owns no window. `AppDelegate` watches `isComplete` to decide whether to put
 /// the window up and when to bring the engine up; the view reads the rest.
 ///
-/// Nothing here downloads on its own. A fresh install shows the preselected
-/// model and waits to be told, which is the difference between this and the
-/// first launch it replaces.
+/// The transcription model does not download on its own. A fresh install shows
+/// the preselected one and waits to be told, which is the difference between
+/// this and the first launch it replaces. The wake word models are the
+/// exception, and only because there is nothing to choose about them: they
+/// start as soon as there is a card to draw them on.
 @MainActor
 final class SetupCoordinator: ObservableObject {
     let permissions: PermissionsService
     let models: TranscriptionModelService
+    let wakeWords: WakeWordSetup
     private let settings: AppSettings
 
     /// Every requirement is met, so the window has nothing left to do.
@@ -34,24 +37,39 @@ final class SetupCoordinator: ObservableObject {
     ///   - models: what is on disk. Resolved in the body rather than as a
     ///     default argument, which cannot reach a main actor isolated
     ///     singleton.
+    ///   - wakeWords: the other download. Passed in rather than made here so
+    ///     `AppDelegate` holds the same one the engine's models come from.
     init(permissions: PermissionsService,
          models: TranscriptionModelService? = nil,
+         wakeWords: WakeWordSetup? = nil,
          settings: AppSettings? = nil) {
         let models = models ?? .shared
         let settings = settings ?? .shared
         self.permissions = permissions
         self.models = models
+        self.wakeWords = wakeWords ?? WakeWordSetup()
         self.settings = settings
         self.chosenModelID = settings.activeModelID
 
         // The emitted values, not the properties: `@Published` fires from
         // `willSet`, so reading the objects here would give the state before
         // whatever woke this up.
-        Publishers.CombineLatest3(permissions.$states, models.$downloadedIDs, settings.$activeModelID)
-            .sink { [weak self] states, downloaded, activeID in
-                self?.evaluate(states: states, downloaded: downloaded, activeID: activeID)
+        Publishers.CombineLatest4(permissions.$states,
+                                  models.$downloadedIDs,
+                                  settings.$activeModelID,
+                                  self.wakeWords.$isComplete)
+            .sink { [weak self] states, downloaded, activeID, hasWakeWords in
+                self?.evaluate(states: states,
+                               downloaded: downloaded,
+                               activeID: activeID,
+                               hasWakeWords: hasWakeWords)
             }
             .store(in: &observations)
+
+        // The wake word card comes up already downloading, so the fetch starts
+        // with the coordinator rather than waiting for the view — a window that
+        // is never opened, because the user closed it, still finishes the job.
+        self.wakeWords.startDownload()
     }
 
     // MARK: - What is left to do
@@ -60,6 +78,8 @@ final class SetupCoordinator: ObservableObject {
         switch requirement {
         case .model:
             return models.isDownloaded(settings.activeModel)
+        case .wakeWords:
+            return wakeWords.isComplete
         case let .permission(permission):
             return permissions.state(of: permission) == .granted
         }
@@ -68,8 +88,14 @@ final class SetupCoordinator: ObservableObject {
     /// Something is already happening to this requirement, so it is neither
     /// finished nor waiting on the user.
     func isBusy(_ requirement: SetupRequirement) -> Bool {
-        guard case .model = requirement else { return false }
-        return models.isDownloading(chosenModel) || failure != nil
+        switch requirement {
+        case .model:
+            return models.isDownloading(chosenModel) || failure != nil
+        case .wakeWords:
+            return wakeWords.isWorking || wakeWordFailure != nil
+        case .permission:
+            return false
+        }
     }
 
     /// The card the window would open on its own: the first one that is
@@ -98,6 +124,33 @@ final class SetupCoordinator: ObservableObject {
     func refresh() {
         permissions.refresh()
         models.refresh()
+        wakeWords.refresh()
+        // A word model deleted between launches is missing again, and nothing
+        // else would start fetching it back.
+        wakeWords.startDownload()
+    }
+
+    // MARK: - The wake word card
+
+    /// How far this run of the wake word download has got, or nothing when it
+    /// is not running.
+    var wakeWordProgress: Double? {
+        wakeWords.progress
+    }
+
+    /// What the card says under the bar — which file of how many.
+    var wakeWordStep: String {
+        wakeWords.step
+    }
+
+    /// Why the wake word download stopped, if it did. It shows on the card
+    /// rather than in the menu bar, which is the whole point of the card.
+    var wakeWordFailure: String? {
+        wakeWords.failure
+    }
+
+    func retryWakeWords() {
+        wakeWords.retry()
     }
 
     // MARK: - The model card
@@ -183,13 +236,15 @@ final class SetupCoordinator: ObservableObject {
 
     private func evaluate(states: [Permission: PermissionState],
                           downloaded: Set<String>,
-                          activeID: String) {
+                          activeID: String,
+                          hasWakeWords: Bool) {
         // Read from what was emitted rather than from `isSatisfied`, which
         // would ask the objects that are mid-assignment and get the state
         // before this.
         func settled(_ requirement: SetupRequirement) -> Bool {
             switch requirement {
             case .model: return downloaded.contains(activeID)
+            case .wakeWords: return hasWakeWords
             case let .permission(permission): return states[permission] == .granted
             }
         }

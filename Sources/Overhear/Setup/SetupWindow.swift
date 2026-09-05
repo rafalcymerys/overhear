@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// The window that carries setup, shown at launch when any of the three
+/// The window that carries setup, shown at launch when any of the four
 /// requirements is outstanding and reachable from the menu bar until they are
 /// all met.
 ///
@@ -22,6 +22,7 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
                 setup: setup,
                 permissions: setup.permissions,
                 models: setup.models,
+                wakeWords: setup.wakeWords,
                 onQuit: { NSApp.terminate(nil) }
             )
 

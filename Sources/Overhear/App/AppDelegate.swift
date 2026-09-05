@@ -18,18 +18,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// it. Kept for the life of the app rather than dropped once setup
     /// finishes — a permission revoked later has to reach the icon too.
     private var setupMarkObservation: AnyCancellable?
-    /// What stopped the wake word models arriving, if anything did. The menu
-    /// carries it, since they have no window of their own to fail in.
-    private var wakeWordFailure: String?
     private var settingsObservation: AnyCancellable?
     private var cancelWordObservation: AnyCancellable?
     private var modelObservation: AnyCancellable?
     private var launchObservation: AnyCancellable?
     private var restartTask: Task<Void, Never>?
     /// Whether the engine has been brought up. Not the same question as
-    /// "is setup finished": the two are apart for as long as the wake word
-    /// models take to arrive, which is the window `reloadModel()` has to stay
-    /// out of.
+    /// "is setup finished", which is true from the assignment that completes
+    /// the last requirement — a moment before anything has started. That gap
+    /// is what `reloadModel()` has to stay out of.
     private var hasStartedEngine = false
     private var settingsWindow: SettingsWindowController!
     private let aboutWindow = AboutWindowController()
@@ -88,7 +85,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
 
-        setup = SetupCoordinator(permissions: permissions)
+        setup = SetupCoordinator(permissions: permissions, wakeWords: wakeWords)
         setupMarkObservation = setup.$isComplete
             .sink { [weak self] isComplete in
                 self?.appState.needsSetup = !isComplete
@@ -99,9 +96,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         start()
     }
 
-    /// Nothing works without a model on disk, the microphone and the right to
+    /// Nothing works without both downloads, the microphone and the right to
     /// paste into other apps, so the setup window comes before the engine. Once
-    /// it has all three the launch continues where it otherwise would have
+    /// it has all four the launch continues where it otherwise would have
     /// started.
     ///
     /// The same path serves a later launch that has lost one of them, and the
@@ -110,7 +107,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setup.refresh()
 
         guard !setup.isComplete else {
-            bootstrap()
+            startEngine()
             return
         }
 
@@ -127,44 +124,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self else { return }
                 self.setupObservation = nil
                 self.setupWindow.close()
-                self.bootstrap()
+                self.startEngine()
             }
 
         setupWindow.show()
     }
 
-    /// Bring up the engine, fetching the wake word models first if this Mac
-    /// doesn't have them yet. That is what makes the distributed app runnable
-    /// by unzipping and opening it, with no terminal step.
-    ///
-    /// They are not part of setup: nobody chooses them and there is nothing to
-    /// decide, so they arrive in the background with the menu bar icon carrying
-    /// the wait rather than in a window of their own.
-    private func bootstrap() {
-        guard !wakeWords.isComplete else {
-            wakeWordFailure = nil
-            startEngine()
-            return
-        }
-
-        appState.status = .installing
-        appState.errorMessage = nil
-        wakeWordFailure = nil
-
-        Task { @MainActor in
-            do {
-                try await wakeWords.ensureModels()
-                startEngine()
-            } catch {
-                // Nothing is on screen to say so, so the icon and the menu are
-                // where this shows.
-                appState.status = .error
-                appState.errorMessage = error.localizedDescription
-                wakeWordFailure = error.localizedDescription
-            }
-        }
-    }
-
+    /// Everything the engine loads is on disk by the time this runs: the wake
+    /// word models are a setup requirement, so setup cannot be complete without
+    /// them. There is nothing left to fetch between the window closing and the
+    /// engine coming up.
     private func startEngine() {
         hasStartedEngine = true
         engine.start()
@@ -215,18 +184,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func reloadModel() {
         // Setup activates the model it just downloaded, which is the same
         // setting written for a different reason: there is no engine to reload
-        // yet, and `bootstrap()` starts one with the right model once it has
-        // the wake word models too.
+        // yet, and `start()` builds one with the right model once every
+        // requirement holds.
         //
         // Asked of the engine rather than of setup, which cannot answer it.
         // `isComplete` is set from the same `willSet` that woke this
         // observation, synchronously and before the hop below runs, so on the
         // launch where the model is the last requirement to settle it is
-        // already true here. Starting the engine on the strength of that races
-        // `bootstrap()`, which is still fetching the wake word models: the
-        // engine comes up without them, fails to load the cancel word model,
-        // and the start that `bootstrap()` makes afterwards finds an engine
-        // already in place.
+        // already true here — while the window is still open and nothing has
+        // been started.
         guard hasStartedEngine else { return }
 
         let wasDictating = appState.status.isActive
@@ -254,10 +220,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         start()
     }
 
-    @objc private func retryWakeWords() {
-        bootstrap()
-    }
-
     @objc private func toggleDictation() {
         if appState.status.isActive {
             engine.deactivate()
@@ -282,16 +244,11 @@ extension AppDelegate: NSMenuDelegate {
 
         setup.refresh()
         if !setup.isComplete {
-            // Dictating is impossible until setup has all three, so offer the
-            // way out instead of a button that would do nothing.
+            // Dictating is impossible until setup has all four, so offer the
+            // way out instead of a button that would do nothing. A missing wake
+            // word model comes through here too: its progress, its failure and
+            // its retry are all on the card, in the window this opens.
             menu.addItem(NSMenuItem(title: "Finish Setup…", action: #selector(showSetup), keyEquivalent: ""))
-        } else if let failure = wakeWordFailure {
-            // The wake word models never reach the setup window, so this is the
-            // only place their failure can be read.
-            let reason = NSMenuItem(title: failure, action: nil, keyEquivalent: "")
-            reason.isEnabled = false
-            menu.addItem(reason)
-            menu.addItem(NSMenuItem(title: "Try Again", action: #selector(retryWakeWords), keyEquivalent: ""))
         } else {
             dictateMenuItem.title = appState.status.isActive ? "Stop Listening" : "Start Listening"
             menu.addItem(dictateMenuItem)

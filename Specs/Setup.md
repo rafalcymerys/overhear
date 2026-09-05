@@ -137,8 +137,9 @@ downloads the sixth alone, and its progress covers that one file.
 
 Assert: the card states that the download failed and names the file it could
 not fetch.
-Assert: it offers **Try Again**, and becomes the card picked out as wanting the
-user, since it now does.
+Assert: it offers **Try Again**, and is outlined in red rather than picked out
+as the card wanting the user — the same as a failed model download, so the
+permissions underneath keep the return key.
 Assert: the failure is on the card and not in the menu bar — the icon shows the
 exclamation unfinished setup draws, not the engine error state, because the
 engine was never asked to start.

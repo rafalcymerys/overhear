@@ -6,9 +6,10 @@ struct SetupView: View {
     @ObservedObject var setup: SetupCoordinator
     /// Observed alongside the coordinator because the cards read them
     /// directly — a view watching only `SetupCoordinator` would miss a
-    /// permission granted in System Settings and a download's progress.
+    /// permission granted in System Settings and either download's progress.
     @ObservedObject var permissions: PermissionsService
     @ObservedObject var models: TranscriptionModelService
+    @ObservedObject var wakeWords: WakeWordSetup
     var onQuit: () -> Void
 
     var body: some View {
@@ -25,7 +26,10 @@ struct SetupView: View {
 
             VStack(spacing: 8) {
                 ForEach(SetupRequirement.allCases) { requirement in
-                    SetupCard(setup: setup, models: models, requirement: requirement)
+                    SetupCard(setup: setup,
+                              models: models,
+                              wakeWords: wakeWords,
+                              requirement: requirement)
                 }
             }
 
@@ -44,6 +48,7 @@ struct SetupView: View {
 private struct SetupCard: View {
     @ObservedObject var setup: SetupCoordinator
     @ObservedObject var models: TranscriptionModelService
+    @ObservedObject var wakeWords: WakeWordSetup
     let requirement: SetupRequirement
 
     private var isSatisfied: Bool { setup.isSatisfied(requirement) }
@@ -104,13 +109,19 @@ private struct SetupCard: View {
     /// says more than a word could.
     private var summary: String? {
         if isSatisfied {
-            if case .model = requirement { return "Downloaded" }
-            return "Granted"
+            if case .permission = requirement { return "Granted" }
+            return "Downloaded"
         }
-        if case .model = requirement, let fraction = setup.downloadProgress {
+        switch requirement {
+        case .model:
+            guard let fraction = setup.downloadProgress else { return nil }
             return "\(Int(fraction * 100))%"
+        case .wakeWords:
+            guard let fraction = setup.wakeWordProgress else { return nil }
+            return "\(Int(fraction * 100))%"
+        case .permission:
+            return nil
         }
-        return nil
     }
 
     /// Only the card the window is actually waiting on is picked out. A
@@ -118,6 +129,9 @@ private struct SetupCard: View {
     /// nothing saying which one wants the user.
     private var borderColor: Color {
         if case .model = requirement, setup.failure != nil {
+            return .red.opacity(0.5)
+        }
+        if case .wakeWords = requirement, setup.wakeWordFailure != nil {
             return .red.opacity(0.5)
         }
         return setup.firstNeedingAttention == requirement
@@ -130,6 +144,8 @@ private struct SetupCard: View {
         switch requirement {
         case .model:
             modelBody
+        case .wakeWords:
+            wakeWordBody
         case let .permission(permission):
             VStack(alignment: .leading, spacing: 8) {
                 explanation(requirement.explanation)
@@ -165,6 +181,25 @@ private struct SetupCard: View {
                 modelPicker
                 Button("Download") { setup.download() }
                     .modifier(DefaultAction(enabled: setup.firstNeedingAttention == requirement))
+            }
+        }
+    }
+
+    /// The card that asks for nothing. Its explanation stays up while the
+    /// download runs, because there is no earlier moment to read it in — the
+    /// card is already downloading the first time it is seen.
+    @ViewBuilder
+    private var wakeWordBody: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            explanation(requirement.explanation)
+            if let failure = setup.wakeWordFailure {
+                explanation(failure)
+                Button("Try Again") { setup.retryWakeWords() }
+            } else if let fraction = setup.wakeWordProgress {
+                ProgressView(value: fraction)
+                Text(setup.wakeWordStep)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }

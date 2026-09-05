@@ -3,10 +3,12 @@ import SwiftUI
 import XCTest
 @testable import Overhear
 
-/// `Specs/Setup.md` — the one window a new install sees: which of the three
+/// `Specs/Setup.md` — the one window a new install sees: which of the four
 /// requirements are outstanding, which card is open, and when it is done.
 ///
-/// The model card's own behaviour is `SetupModelTests`.
+/// The two download cards have suites of their own: `SetupModelTests` and
+/// `SetupWakeWordTests`. Everything here starts with the wake word models
+/// already on disk, so the card that settles itself stays out of the way.
 @MainActor
 final class SetupTests: OverhearTestCase {
 
@@ -16,13 +18,13 @@ final class SetupTests: OverhearTestCase {
 
     // MARK: - What the window opens with
 
-    func testTheThreeRequirementsAreModelFirstThenTheTwoPermissions() {
+    func testTheRequirementsAreTheTwoDownloadsThenTheTwoPermissions() {
         XCTAssertEqual(SetupRequirement.allCases,
-                       [.model, .permission(.microphone), .permission(.textInsertion)])
+                       [.model, .wakeWords, .permission(.microphone), .permission(.textInsertion)])
     }
 
     func testAFreshInstallHasEverythingOutstanding() {
-        let harness = makeHarness()
+        let harness = makeSetup(system: FakePermissionSystem(), wakeWordFiles: .none)
 
         XCTAssertFalse(harness.setup.isComplete)
         for requirement in SetupRequirement.allCases {
@@ -37,6 +39,20 @@ final class SetupTests: OverhearTestCase {
         XCTAssertTrue(harness.setup.isExpanded(.model))
         XCTAssertFalse(harness.setup.isExpanded(.permission(.microphone)))
         XCTAssertFalse(harness.setup.isExpanded(.permission(.textInsertion)))
+    }
+
+    /// The one card that is open without wanting anything: it is downloading,
+    /// which is the same reason a running model download stays on screen.
+    func testTheWakeWordCardIsOpenAndDownloadingButNotTheOneAsking() async {
+        let remote = FakeWakeWordRemote()
+        remote.stall = true
+        let harness = makeSetup(system: FakePermissionSystem(), wakeWordFiles: .none, remote: remote)
+
+        await waitUntil("the wake word download to start") { harness.wakeWords.isWorking }
+
+        XCTAssertTrue(harness.setup.isExpanded(.wakeWords))
+        XCTAssertEqual(harness.setup.firstNeedingAttention, .model,
+                       "the card that wants something is still the model's")
     }
 
     // MARK: - Which card is open
@@ -93,7 +109,7 @@ final class SetupTests: OverhearTestCase {
 
     // MARK: - Finishing
 
-    func testSetupIsCompleteOnlyWhenAllThreeHold() async {
+    func testSetupIsCompleteOnlyWhenAllOfThemHold() async {
         let harness = makeHarness()
 
         harness.setup.download()
@@ -180,6 +196,7 @@ final class SetupTests: OverhearTestCase {
             setup: harness.setup,
             permissions: harness.setup.permissions,
             models: harness.models,
+            wakeWords: harness.wakeWords,
             onQuit: {}
         ))
         hosting.layoutSubtreeIfNeeded()

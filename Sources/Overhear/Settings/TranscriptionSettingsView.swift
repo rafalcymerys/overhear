@@ -110,7 +110,7 @@ struct TranscriptionSettingsView: View {
     private var loadState: LoadState {
         if models.isDownloading(settings.activeModel) { return .loading }
         switch appState.status {
-        case .loading, .installing: return .loading
+        case .loading: return .loading
         case .error: return .failed
         default: return .ready
         }

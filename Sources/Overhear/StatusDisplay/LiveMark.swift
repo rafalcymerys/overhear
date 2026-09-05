@@ -32,7 +32,7 @@ enum MarkState {
         case .ready: self = .listening
         case .listening: self = .hearing
         case .transcribing: self = .transcribing
-        case .loading, .installing: self = .loading
+        case .loading: self = .loading
         default: self = .idle
         }
     }

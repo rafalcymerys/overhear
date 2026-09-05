@@ -95,7 +95,7 @@ behaviour — a spec has one obvious place to land.
 |---|---|
 | `OverhearApp.swift` | App entry point, accessory (no dock icon) |
 | `AppDelegate.swift` | Menu bar setup, setup gate, wake word fetch, engine lifecycle, settings observation |
-| `AppState.swift` | Observable state enum: stopped, installing, loading, idle, ready, listening, transcribing, error |
+| `AppState.swift` | Observable state enum: stopped, loading, idle, ready, listening, transcribing, error |
 | `AboutWindow.swift` | The About window and the build's name, version and copyright |
 | `AcknowledgementsWindow.swift` | Scrolling window over the bundled third-party license notice |
 | `Acknowledgements.swift` | Reads the generated notice out of the bundle |
@@ -128,7 +128,7 @@ behaviour — a spec has one obvious place to land.
 |---|---|
 | `WakeWordDetector.swift` | openWakeWord's three-stage inference, in Swift |
 | `ONNXModel.swift` | Thin wrapper over one ONNX Runtime session |
-| `WakeWordSetup.swift` | Downloads the wake word models on first launch |
+| `WakeWordSetup.swift` | Downloads the wake word models, as a step in the setup window |
 
 ### `Models/`
 
@@ -156,7 +156,7 @@ behaviour — a spec has one obvious place to land.
 
 | File | Role |
 |---|---|
-| `SetupRequirement.swift` | The three things dictation needs: a model, the microphone, inserting text |
+| `SetupRequirement.swift` | The four things dictation needs: a model, the wake word models, the microphone, inserting text |
 | `SetupCoordinator.swift` | Which requirements are met, which card is open, and the action each offers |
 | `SetupWindow.swift` | The window that carries them, and the polling while it is up |
 | `SetupView.swift` | The cards it draws |
@@ -314,7 +314,7 @@ Neither grant arrives as a notification — Accessibility is switched on in Syst
 
 ## Setup
 
-Three things have to be true before anything can be dictated: a transcription model on disk, the microphone, and the right to paste. `SetupCoordinator` holds that judgement, and `AppDelegate.start()` consults it before the engine exists. When any is missing the setup window goes up and `bootstrap()` waits on `isComplete`; the menu bar offers **Finish Setup…** in place of **Start Listening** meanwhile.
+Four things have to be true before anything can be dictated: a transcription model on disk, the wake word models, the microphone, and the right to paste. `SetupCoordinator` holds that judgement, and `AppDelegate.start()` consults it before the engine exists. When any is missing the setup window goes up and the launch waits on `isComplete`; the menu bar offers **Finish Setup…** in place of **Start Listening** meanwhile.
 
 One window rather than the two that used to appear in sequence. The same window serves a fresh install and a later launch that has lost something, which is why it is a checklist rather than a wizard: the card that is open is whichever requirement is outstanding and topmost, so a return visit for a revoked permission is two ticked lines and one open card.
 
@@ -322,7 +322,9 @@ A running download is deliberately skipped when choosing which card to open. It 
 
 Nothing is fetched unasked. A fresh install preselects Whisper Base and waits for **Download**; an install whose active model has lost its files preselects that model rather than the default, and still waits. `SetupCoordinator.download()` activates only once the bytes have landed, so a cancelled or failed download leaves nothing loaded that isn't there.
 
-The wake word models are not part of this. Nobody chooses them and there is nothing to decide, so `bootstrap()` fetches them in the background once the window closes, with the menu bar icon carrying the wait and the menu carrying any failure with a **Try Again**.
+The wake word models are the one card that asks for nothing. Nobody chooses them, so `SetupCoordinator` starts `WakeWordSetup.startDownload()` as soon as it exists and the card comes up already downloading — its progress is a fraction of the files this run has to fetch, since the fetch reports nothing finer than a finished file. A failure stays on the card with a **Try Again** rather than reaching the menu bar, and is not retried by a refresh: reopening the window or the menu must not quietly start it over.
+
+Because they are a requirement, setup finishing and the engine starting are not separated by a download. `AppDelegate.startEngine()` runs with everything the engine loads already on disk, which is why `reloadModel()` only has to guard against an engine that does not exist yet rather than one racing a fetch.
 
 ## Testing
 

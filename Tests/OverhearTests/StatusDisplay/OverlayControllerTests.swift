@@ -44,7 +44,7 @@ final class OverlayControllerTests: OverhearTestCase {
     func testTheOverlayStaysAwayForEveryStateThatIsNotDictation() async {
         let overlay = makeOverlay()
 
-        for status in [EngineStatus.loading, .installing, .idle, .error] {
+        for status in [EngineStatus.loading, .idle, .error] {
             overlay.appState.status = status
             await assertNever("the overlay to appear for \(status)") {
                 overlay.controller.window?.isVisible == true

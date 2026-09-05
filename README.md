@@ -117,13 +117,16 @@ every push to `main`; pushing a `v*` tag attaches them to a GitHub Release.
    ```bash
    xattr -cr /Applications/Overhear.app
    ```
-3. Open `Overhear.app`. A setup window lists the three things dictation needs: a
-   **transcription model**, and the **Microphone** and **Accessibility**
-   permissions — to hear you, and to paste transcriptions into your apps. Each
-   has a button, and all three are required before dictation starts.
+3. Open `Overhear.app`. A setup window lists the four things dictation needs: a
+   **transcription model**, the **hot word models** that hear your cancel word,
+   and the **Microphone** and **Accessibility** permissions — to hear you, and
+   to paste transcriptions into your apps. All four are required before
+   dictation starts.
 4. Pick a model and it downloads into `~/Library/Application Support/Overhear`,
    which you can do while granting the permissions. Nothing is fetched until you
-   ask for it. This only happens once; the app starts listening as soon as setup
+   ask for it, apart from the hot word models: there is nothing to choose about
+   those, so their card starts on its own and shows its progress alongside the
+   rest. This only happens once; the app starts listening as soon as setup
    finishes, and you can install other models later from Settings.
 
 macOS only offers its permission dialog once per launch. If you dismiss one, the
