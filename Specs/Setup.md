@@ -168,6 +168,30 @@ accessibility permission."
 Assert: each card collapses to a checkmark and **Granted** as it is allowed.
 Assert: neither grant disturbs a download in progress, of either kind.
 
+## Comes back to the front after a permission dialog
+
+1. Open a browser or another app full screen behind the setup window, so the
+   setup window is in front of a window that would hide it.
+2. Open the **Microphone** card and click **Grant Microphone Permission**.
+3. Allow the macOS dialog.
+
+Assert: the setup window is frontmost and focused once the dialog goes away —
+in front of the other app's window, not behind it.
+Assert: the card that wants the user next takes the return key straight away,
+without a click to give the window its focus back first.
+Assert: the same holds when the dialog is dismissed without allowing, and for
+the accessibility permission.
+Assert: the window comes forward every time, not only the first — a second
+attempt after a dismissed dialog raises it again.
+Assert: a grant that finishes setup closes the window instead of raising it,
+and nothing takes focus after it goes.
+
+Overhear stops being the active app for as long as the macOS dialog is up, and
+when the dialog goes away macOS hands the front back to whichever app was there
+before — often the browser the user was reading, not the window that asked. The
+window has to claim it back itself, once the permission call returns, or the
+user is left looking at another app with setup waiting unseen behind it.
+
 ## Works on all four at once
 
 1. Start from a fresh first launch.
