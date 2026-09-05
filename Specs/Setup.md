@@ -174,22 +174,52 @@ Assert: neither grant disturbs a download in progress, of either kind.
 2. Open the **Microphone** card and click **Grant Microphone Permission**.
 3. Allow the macOS dialog.
 
-Assert: the setup window is frontmost and focused once the dialog goes away —
-in front of the other app's window, not behind it.
-Assert: the card that wants the user next takes the return key straight away,
-without a click to give the window its focus back first.
+Assert: the setup window is on top once the dialog goes away — over the other
+app's window, not behind it.
 Assert: the same holds when the dialog is dismissed without allowing, and for
 the accessibility permission.
-Assert: the window comes forward every time, not only the first — a second
-attempt after a dismissed dialog raises it again.
+Assert: it stays on top while the user is elsewhere, and goes back to being an
+ordinary window as soon as they click it — from then on it sits among their
+windows like any other.
 Assert: a grant that finishes setup closes the window instead of raising it,
-and nothing takes focus after it goes.
+and leaves nothing floating over what the user went back to.
+Assert: closing the window while setup is unfinished leaves nothing on top, and
+**Finish Setup…** opens it as an ordinary window again.
 
 Overhear stops being the active app for as long as the macOS dialog is up, and
 when the dialog goes away macOS hands the front back to whichever app was there
 before — often the browser the user was reading, not the window that asked. The
-window has to claim it back itself, once the permission call returns, or the
-user is left looking at another app with setup waiting unseen behind it.
+window has to claim it back itself, or the user is left looking at another app
+with setup waiting unseen behind it.
+
+Asking for it back is not enough. Since macOS 14 an app that is not the active
+one cannot take the front by asking, and Overhear is an accessory app asking
+from behind a system window, so the request is refused. What it can do is put
+the window above the other app's windows and keep it there, which is why it
+floats rather than merely raising itself.
+
+## Comes back after a grant made in System Settings
+
+1. Start from the setup window and click **Grant Microphone Permission**.
+2. Dismiss the macOS dialog without allowing, so the button becomes **Open
+   System Settings**.
+3. Click it, switch the permission on, and close System Settings.
+
+Assert: the setup window is on top as soon as the switch is thrown, over System
+Settings.
+Assert: closing System Settings leaves it on top, rather than under whatever was
+behind System Settings.
+Assert: the **Microphone** card is collapsed and ticked, and the next card is
+the open one.
+
+Both permissions arrive this way as often as not — accessibility has no dialog
+to answer, only a prompt that sends the user to System Settings, and a
+microphone dialog that was dismissed leaves the switch as the only way through.
+A grant made there is not an answer to a question still open: the microphone is
+already settled at denied, and goes from there to granted. That is an answer
+too. The only change that is not is a permission being switched off — a
+revocation, made in System Settings where the user still is, which nothing
+should jump in front of.
 
 ## Works on all four at once
 
