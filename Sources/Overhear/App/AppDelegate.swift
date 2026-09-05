@@ -26,6 +26,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var modelObservation: AnyCancellable?
     private var launchObservation: AnyCancellable?
     private var restartTask: Task<Void, Never>?
+    /// Whether the engine has been brought up. Not the same question as
+    /// "is setup finished": the two are apart for as long as the wake word
+    /// models take to arrive, which is the window `reloadModel()` has to stay
+    /// out of.
+    private var hasStartedEngine = false
     private var settingsWindow: SettingsWindowController!
     private let aboutWindow = AboutWindowController()
     private var dictateMenuItem: NSMenuItem!
@@ -161,6 +166,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func startEngine() {
+        hasStartedEngine = true
         engine.start()
 
         if AppSettings.shared.dictateOnLaunch {
@@ -209,9 +215,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func reloadModel() {
         // Setup activates the model it just downloaded, which is the same
         // setting written for a different reason: there is no engine to reload
-        // yet, and `bootstrap()` starts one with the right model the moment the
-        // last requirement is met.
-        guard setup.isComplete else { return }
+        // yet, and `bootstrap()` starts one with the right model once it has
+        // the wake word models too.
+        //
+        // Asked of the engine rather than of setup, which cannot answer it.
+        // `isComplete` is set from the same `willSet` that woke this
+        // observation, synchronously and before the hop below runs, so on the
+        // launch where the model is the last requirement to settle it is
+        // already true here. Starting the engine on the strength of that races
+        // `bootstrap()`, which is still fetching the wake word models: the
+        // engine comes up without them, fails to load the cancel word model,
+        // and the start that `bootstrap()` makes afterwards finds an engine
+        // already in place.
+        guard hasStartedEngine else { return }
 
         let wasDictating = appState.status.isActive
         restartTask?.cancel()

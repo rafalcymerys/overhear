@@ -21,7 +21,6 @@ actor DictationEngine {
     private let modelsDirectory: URL
 
     private var detector: WakeWordDetector?
-    private var environment: ORTEnv?
 
     private var continuation: AsyncStream<EngineEvent>.Continuation?
     private var loop: Task<Void, Never>?
@@ -105,8 +104,7 @@ actor DictationEngine {
         emit(.status("loading_models"))
 
         do {
-            let env = try ORTEnv(loggingLevel: .warning)
-            environment = env
+            let env = try ORTEnvironment.shared()
             detector = try WakeWordDetector(
                 wordModelPath: cancelWordPath,
                 featureModels: FeatureModelPaths(

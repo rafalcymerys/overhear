@@ -126,6 +126,26 @@ Assert: the window closes on its own when the last of the three completes,
 whichever it is.
 Assert: the engine starts only once all three hold.
 
+## Finishes on the model while the wake word models are still arriving
+
+1. Start on a Mac that has never run Overhear, so
+   `~/Library/Application Support/Overhear/` is absent.
+2. Grant both permissions first, leaving the model outstanding.
+3. Click **Download**, so the model is the last of the three to settle.
+
+Assert: the setup window closes when the download finishes.
+Assert: the menu bar icon does not go to the error state.
+Assert: dictation becomes available on its own once the wake word models have
+been fetched, without quitting and reopening the app.
+Assert: the same holds in the other order, with the download finishing before
+the permissions are granted.
+
+The wake word models are fetched after setup finishes and before the engine
+starts, so for a few seconds setup is complete and the engine is not up yet.
+Nothing may start the engine inside that window — an engine built without those
+models fails to load the cancel word one, and a failure there is what the icon
+would be showing.
+
 ## Dismisses a macOS permission dialog
 
 1. Start from the setup window with neither permission granted.

@@ -82,6 +82,50 @@ final class EngineControllerTests: OverhearTestCase {
         XCTAssertNotNil(appState.errorMessage)
     }
 
+    /// A start after a failed load has to build a new engine rather than find
+    /// the failed one still in place and do nothing.
+    ///
+    /// First launch depends on it. `AppDelegate` fetches the wake word models
+    /// after setup finishes, and anything that starts the engine before they
+    /// land fails exactly this way — the start that follows the download is the
+    /// one that has to work, and it is a second start on the same controller.
+    func testStartsAgainAfterAFailedLoad() async throws {
+        let appState = AppState()
+        // A fresh capture per engine: the failed one is stopped on the way out,
+        // and a stopped source has finished its stream for good.
+        let sources = TestBox<[ScriptedAudioSource]>([])
+        let controller = EngineController(
+            appState: appState,
+            injector: SpyInjector(),
+            modelsDirectory: tempDirectory,
+            makeTranscriber: { _ in StubTranscriber() },
+            makeAudioSource: {
+                let source = ScriptedAudioSource()
+                sources.mutate { $0.append(source) }
+                return source
+            }
+        )
+        defer { controller.stop() }
+
+        controller.start()
+        await waitUntil("the first load fails") { appState.status == .error }
+
+        // What the wake word download finishing looks like from here.
+        for file in WakeWordSetup.requiredFiles {
+            try FileManager.default.copyItem(
+                at: Self.modelsDirectory.appendingPathComponent(file),
+                to: tempDirectory.appendingPathComponent(file)
+            )
+        }
+
+        controller.start()
+        await waitUntil("a second engine is built") { sources.value.count == 2 }
+        sources.value.last?.sendSilence(seconds: 0.2)
+
+        await waitUntil("the engine comes up") { appState.status == .idle }
+        XCTAssertNil(appState.errorMessage)
+    }
+
     func testStopReturnsToStopped() async throws {
         let appState = AppState()
         let audio = ScriptedAudioSource()

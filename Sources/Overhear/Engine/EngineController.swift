@@ -52,6 +52,20 @@ final class EngineController {
     }
 
     func start() {
+        // An engine that failed to load is still an engine, and this guard
+        // would turn every later attempt into a no-op — including the one
+        // `AppDelegate` makes once the wake word models it was missing have
+        // arrived. So a failed engine is replaced rather than kept.
+        //
+        // Torn down rather than reused: the engine gives up at the first load
+        // failure and never retries on its own. Immediately, with none of the
+        // pause a restart takes, because it returns before starting the pump —
+        // a load that failed never reached the microphone, so there is nothing
+        // to wind down before the next one opens it.
+        if engine != nil, appState.status == .error {
+            stop()
+        }
+
         guard engine == nil else { return }
 
         appState.status = .loading
