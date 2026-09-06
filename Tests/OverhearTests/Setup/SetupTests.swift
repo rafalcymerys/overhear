@@ -224,3 +224,86 @@ final class SetupTests: OverhearTestCase {
         XCTAssertLessThan(hosting.fittingSize.height, 700)
     }
 }
+
+// MARK: - Giving up on the models on disk
+
+/// `Specs/StatusDisplay.md` — **Re-download Models**, the way out of a failure
+/// **Try Again** cannot fix.
+///
+/// Setup counts a file it can see as settled, so a model that is on disk and
+/// will not load is invisible to it and survives any number of reopenings.
+/// Deleting is what turns that into a problem setup already knows how to solve.
+@MainActor
+final class SetupDiscardTests: OverhearTestCase {
+
+    func testDiscardingTakesBothDownloadsAndReopensSetup() async {
+        let harness = makeSetup(system: FakePermissionSystem())
+        harness.grantBothPermissions()
+        harness.setup.download()
+        await settle(harness.models, harness.settings.activeModel)
+        await waitUntil("setup finishes") { harness.setup.isComplete }
+
+        harness.setup.discardModels()
+
+        XCTAssertFalse(harness.models.isDownloaded(harness.settings.activeModel),
+                       "the model the engine could not read is gone")
+        XCTAssertFalse(harness.setup.isComplete, "so the window has something to do again")
+        XCTAssertFalse(harness.setup.isSatisfied(.model))
+    }
+
+    /// The active model goes too. `remove(_:)` refuses it, because something has
+    /// to transcribe — but that is the very model the engine choked on, and
+    /// leaving it is leaving the whole problem.
+    func testDiscardingTakesTheActiveModelThatRemoveWouldRefuse() async {
+        let harness = makeSetup(system: FakePermissionSystem())
+        harness.setup.download()
+        await settle(harness.models, harness.settings.activeModel)
+        let active = harness.settings.activeModel
+
+        XCTAssertFalse(harness.models.remove(active), "removing the active model is refused")
+
+        harness.setup.discardModels()
+        XCTAssertFalse(harness.models.isDownloaded(active))
+    }
+
+    /// The card preselects what was active, the same as any other launch that
+    /// finds its weights gone — `Specs/Setup.md`.
+    func testTheModelThatWasActiveIsStillTheOneOffered() async {
+        let harness = makeSetup(system: FakePermissionSystem(), activeModelID: ModelCatalog.whisperSmall.id)
+        harness.setup.download()
+        await settle(harness.models, ModelCatalog.whisperSmall)
+
+        harness.setup.discardModels()
+
+        XCTAssertEqual(harness.settings.activeModelID, ModelCatalog.whisperSmall.id)
+        XCTAssertEqual(harness.setup.chosenModelID, ModelCatalog.whisperSmall.id)
+    }
+
+    /// A custom word lives in the same directory and is not setup's to delete.
+    /// Nothing here has any reason to think it is what the engine choked on.
+    func testACustomHotWordSurvives() {
+        let harness = makeSetup(system: FakePermissionSystem())
+        let custom = harness.wakeWordDirectory.appendingPathComponent("my_word.onnx")
+        try? Data("model".utf8).write(to: custom)
+
+        harness.setup.discardModels()
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: custom.path))
+        for file in WakeWordSetup.requiredFiles {
+            XCTAssertFalse(
+                FileManager.default.fileExists(atPath: harness.wakeWordDirectory.appendingPathComponent(file).path),
+                "\(file) should have gone"
+            )
+        }
+    }
+
+    /// The hot word card comes up already downloading, so they are on their way
+    /// back before the window is even looked at — `Specs/Setup.md`.
+    func testTheHotWordModelsStartComingBackOnTheirOwn() async {
+        let harness = makeSetup(system: FakePermissionSystem())
+
+        harness.setup.discardModels()
+
+        await waitUntil("the fetch starts again") { !harness.remote.requested.isEmpty }
+    }
+}

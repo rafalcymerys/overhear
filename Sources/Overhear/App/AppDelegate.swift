@@ -220,6 +220,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         start()
     }
 
+    /// Bring the engine up again after it failed. `EngineController.start()`
+    /// replaces a failed engine rather than finding it in place and doing
+    /// nothing, so this is the whole of it.
+    @objc private func retryEngine() {
+        engine.start()
+    }
+
+    /// Throw both downloads away and go back through setup.
+    ///
+    /// For the failure **Try Again** cannot fix: a file that is on disk and
+    /// will not load fails the same way every time, and setup counts it as
+    /// settled, so nothing short of deleting it reaches the state where it is
+    /// fetched again.
+    ///
+    /// The engine goes first, and `hasStartedEngine` with it. That flag means
+    /// "there is no engine yet", which is exactly true again once this returns
+    /// — and it is what keeps `reloadModel()` out of the way when setup
+    /// activates the model it is about to download.
+    @objc private func redownloadModels() {
+        restartTask?.cancel()
+        launchObservation = nil
+        engine.stop()
+        hasStartedEngine = false
+
+        setup.discardModels()
+        start()
+    }
+
     @objc private func toggleDictation() {
         if appState.status.isActive {
             engine.deactivate()
@@ -243,14 +271,28 @@ extension AppDelegate: NSMenuDelegate {
         menu.removeAllItems()
 
         setup.refresh()
-        if !setup.isComplete {
+        let action = MenuBarAction(needsSetup: !setup.isComplete,
+                                   status: appState.status,
+                                   failure: appState.errorMessage)
+        switch action {
+        case .finishSetup:
             // Dictating is impossible until setup has all four, so offer the
             // way out instead of a button that would do nothing. A missing wake
             // word model comes through here too: its progress, its failure and
             // its retry are all on the card, in the window this opens.
-            menu.addItem(NSMenuItem(title: "Finish Setup…", action: #selector(showSetup), keyEquivalent: ""))
-        } else {
-            dictateMenuItem.title = appState.status.isActive ? "Stop Listening" : "Start Listening"
+            menu.addItem(NSMenuItem(title: action.title, action: #selector(showSetup), keyEquivalent: ""))
+
+        case .failed:
+            // The reason first, where Finish Setup… would have been, since the
+            // icon has already said something is wrong without saying what.
+            let reason = NSMenuItem(title: action.title, action: nil, keyEquivalent: "")
+            reason.isEnabled = false
+            menu.addItem(reason)
+            menu.addItem(NSMenuItem(title: "Try Again", action: #selector(retryEngine), keyEquivalent: ""))
+            menu.addItem(NSMenuItem(title: "Re-download Models", action: #selector(redownloadModels), keyEquivalent: ""))
+
+        case .dictate:
+            dictateMenuItem.title = action.title
             menu.addItem(dictateMenuItem)
         }
 
@@ -264,10 +306,7 @@ extension AppDelegate: NSMenuDelegate {
             menu.addItem(empty)
         } else {
             for transcription in appState.recentTranscriptions {
-                let truncated = transcription.count > 60
-                    ? String(transcription.prefix(60)) + "…"
-                    : transcription
-                let item = NSMenuItem(title: truncated, action: #selector(pasteTranscription), keyEquivalent: "")
+                let item = NSMenuItem(title: MenuBarAction.oneLine(transcription), action: #selector(pasteTranscription), keyEquivalent: "")
                 item.representedObject = transcription
                 menu.addItem(item)
             }

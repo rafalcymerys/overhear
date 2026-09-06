@@ -114,6 +114,19 @@ final class WakeWordSetup: ObservableObject {
         }
     }
 
+    /// Throw the required models away so they are fetched again.
+    ///
+    /// Only the required ones. Custom words a user installed live in the same
+    /// directory and are not setup's to delete — nothing here has any reason to
+    /// think they are the ones the engine choked on.
+    func removeModels() {
+        for file in Self.requiredFiles {
+            try? FileManager.default.removeItem(at: directory.appendingPathComponent(file))
+        }
+        failure = nil
+        refresh()
+    }
+
     /// What **Try Again** does: forget the failure that stopped `startDownload`
     /// and pick up from the files still missing.
     func retry() {

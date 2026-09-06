@@ -197,6 +197,10 @@ final class EngineControllerTests: OverhearTestCase {
         await waitUntil("the first utterance is pasted") { harness.injector.injected.count == 1 }
 
         harness.settings.translateUnsupported = true
+        // The setting reaches the engine through a Task hop onto its actor.
+        // Speaking before that lands makes the next batch a race between the
+        // two, which is not what this is about.
+        await Task.yield()
         try await harness.dictateOneBatch()
         await waitUntil("the second utterance is pasted") { harness.injector.injected.count == 2 }
 
@@ -314,57 +318,6 @@ final class EngineControllerTests: OverhearTestCase {
         XCTAssertEqual(requests.first?.languages, ["en"])
     }
 
-    // MARK: - Harness
-
-    private struct Harness {
-        let controller: EngineController
-        let appState: AppState
-        let injector: SpyInjector
-        let audio: ScriptedAudioSource
-        let settings: AppSettings
-
-        /// Speak, pause, and let the batch run through transcription.
-        func dictateOneBatch() async throws {
-            audio.sendSpeech(seconds: 1.0)
-            audio.sendSilence(seconds: 2.0)
-            try await Task.sleep(for: .milliseconds(400))
-        }
-    }
-
-    private func makeHarness(transcribing text: String,
-                             configure: (AppSettings) -> Void = { _ in }) async throws -> Harness {
-        try await makeHarness(transcriber: StubTranscriber(text: text), configure: configure)
-    }
-
-    private func makeHarness(transcriber: any Transcribing,
-                             configure: (AppSettings) -> Void = { _ in }) async throws -> Harness {
-        let appState = AppState()
-        let injector = SpyInjector()
-        let audio = ScriptedAudioSource()
-        let settings = AppSettings(defaults: makeDefaults(), availableHotWords: HotWord.builtIn)
-        configure(settings)
-
-        let controller = EngineController(
-            appState: appState,
-            injector: injector,
-            modelsDirectory: Self.modelsDirectory,
-            makeTranscriber: { _ in transcriber },
-            makeAudioSource: { audio },
-            settings: settings
-        )
-
-        controller.start()
-        audio.sendSilence(seconds: 0.2)
-        await waitUntil("engine reaches idle") { appState.status == .idle }
-        controller.activate()
-        await waitUntil("engine is ready") { appState.status == .ready }
-
-        return Harness(controller: controller,
-                       appState: appState,
-                       injector: injector,
-                       audio: audio,
-                       settings: settings)
-    }
 }
 
 /// Every status the app published, in order.

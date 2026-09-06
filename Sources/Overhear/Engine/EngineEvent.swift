@@ -15,7 +15,13 @@ enum EngineEvent: Equatable {
     case languageDetected(String)
     case wakeWordCancel
     case warning(String)
-    case error(String)
+    /// The engine is down. Something it had to load did not, or too many
+    /// batches failed in a row, and nothing it does on its own will change
+    /// that.
+    case failed(String)
+    /// One batch could not be transcribed. Dictation carries on, so this is
+    /// about the utterance that was lost rather than about the app.
+    case batchFailed(String)
 }
 
 enum EngineError: LocalizedError, Equatable {

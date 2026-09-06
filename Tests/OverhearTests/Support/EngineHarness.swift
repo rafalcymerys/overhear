@@ -57,6 +57,40 @@ actor StubTranscriber: Transcribing {
     func recordedRequests() -> [Request] { requests }
 }
 
+/// Throws instead of transcribing, for as many batches as it is told to.
+///
+/// Nothing that can be said into a microphone makes a real transcriber throw,
+/// so this is the only way to either half of what the engine does about it: the
+/// one utterance lost, and the run of them that stops it.
+actor FailingTranscriber: Transcribing {
+    struct Failure: LocalizedError {
+        var errorDescription: String? { "the model is not loaded" }
+    }
+
+    private let failures: Int
+    private let text: String
+    private var batches = 0
+
+    /// - Parameter failures: how many batches throw before one succeeds. The
+    ///   default never succeeds.
+    init(failures: Int = .max, text: String = "hello world") {
+        self.failures = failures
+        self.text = text
+    }
+
+    func load() async throws {}
+
+    func transcribe(_ audio: [Float],
+                    languages: [String],
+                    translatesUnsupported: Bool) async throws -> Transcription {
+        batches += 1
+        guard batches > failures else { throw Failure() }
+        return Transcription(text: text, language: languages.first)
+    }
+
+    func attempted() -> Int { batches }
+}
+
 /// A transcriber that stays inside `transcribe(...)` until the test lets it out.
 ///
 /// The only way to exercise what the engine does with audio that arrives *while*

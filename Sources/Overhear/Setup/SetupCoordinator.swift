@@ -137,6 +137,21 @@ final class SetupCoordinator: ObservableObject {
         wakeWords.startDownload()
     }
 
+    /// Throw away both downloads so setup fetches them again.
+    ///
+    /// What the menu bar offers when the engine could not read a model it has.
+    /// Setup counts a file it can see as settled, so a corrupt one is invisible
+    /// to it and would survive any number of reopenings — deleting is what
+    /// turns the problem into one setup already knows how to solve.
+    ///
+    /// `activeModelID` is left alone: the card preselects the model that was
+    /// active, the same as any other launch that finds its weights gone.
+    func discardModels() {
+        wakeWords.removeModels()
+        models.removeAll()
+        refresh()
+    }
+
     // MARK: - The wake word card
 
     /// How far this run of the wake word download has got, or nothing when it

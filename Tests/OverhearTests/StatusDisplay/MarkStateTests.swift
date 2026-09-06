@@ -63,3 +63,39 @@ final class MarkStateTests: XCTestCase {
         }
     }
 }
+
+/// `Specs/StatusDisplay.md` — the menu bar through a batch that failed.
+///
+/// The mark the icon draws is built from the status, the cancel word and setup,
+/// and from nothing else. A lost utterance is deliberately not among them: the
+/// engine is still dictating, and the exclamation means only the user can
+/// change that.
+@MainActor
+final class MarkStateFailedBatchTests: XCTestCase {
+
+    func testTheIconKeepsItsDictatingStatesThroughAFailedBatch() {
+        let appState = AppState()
+        appState.status = .transcribing
+        appState.triggerFailedBatch()
+
+        let state = MarkState(status: appState.status,
+                              showCancelled: appState.showCancelled,
+                              needsSetup: appState.needsSetup)
+
+        XCTAssertEqual(state, .transcribing)
+        XCTAssertNotEqual(state, .needsAttention)
+    }
+
+    /// The overlay is the exception, and it asks for the cancel word's
+    /// treatment by hand rather than through this initialiser.
+    func testALostBatchIsNotSomethingTheMarkKnowsAbout() {
+        let appState = AppState()
+        appState.status = .ready
+        appState.triggerFailedBatch()
+
+        XCTAssertEqual(MarkState(status: appState.status,
+                                 showCancelled: appState.showCancelled,
+                                 needsSetup: appState.needsSetup),
+                       .listening)
+    }
+}

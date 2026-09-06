@@ -170,9 +170,15 @@ final class EngineController {
             appState.status = .ready
             appState.triggerCancelled()
 
-        case .error(let message):
+        case .failed(let message):
             appState.status = .error
             appState.errorMessage = message
+
+        // Deliberately touches neither the status nor the message. The engine
+        // is still dictating, so the menu bar has nothing to say — and a
+        // message left behind would outlive the utterance it describes.
+        case .batchFailed:
+            appState.triggerFailedBatch()
 
         case .languageDetected, .warning:
             break

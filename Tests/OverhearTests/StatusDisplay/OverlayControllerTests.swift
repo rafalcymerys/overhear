@@ -39,6 +39,21 @@ final class OverlayControllerTests: OverhearTestCase {
         }
     }
 
+    /// A batch that could not be transcribed is the one failure the overlay
+    /// does carry: dictation is still running, and this is the only place the
+    /// lost utterance is ever mentioned.
+    func testTheOverlayStaysUpForABatchThatCouldNotBeTranscribed() async {
+        let overlay = makeOverlay()
+
+        overlay.appState.status = .ready
+        await waitUntil("the overlay appears") { overlay.controller.window?.isVisible == true }
+
+        overlay.appState.triggerFailedBatch()
+        await assertNever("the overlay to disappear over a lost batch") {
+            overlay.controller.window?.isVisible == false
+        }
+    }
+
     /// Loading and failing are not dictation, and the overlay says nothing
     /// about either — the menu bar icon carries those.
     func testTheOverlayStaysAwayForEveryStateThatIsNotDictation() async {

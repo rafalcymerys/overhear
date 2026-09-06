@@ -10,16 +10,28 @@ struct OverlayView: View {
     }
 
     private var darkBackground: Bool {
-        appState.status == .ready && !appState.showCancelled
+        appState.status == .ready && !appState.showCancelled && !appState.showFailedBatch
     }
 
+    /// Red and shaking for either, and only here. A lost batch reads the same
+    /// way a cancel does — a second of red and the word gone — but the menu bar
+    /// draws none of it: the engine is still dictating, and the exclamation is
+    /// for the failures only the user can clear.
     private var markState: MarkState {
-        MarkState(status: appState.status,
-                  showCancelled: appState.showCancelled,
-                  needsSetup: appState.needsSetup)
+        if appState.showFailedBatch { return .cancelled }
+        return MarkState(status: appState.status,
+                         showCancelled: appState.showCancelled,
+                         needsSetup: appState.needsSetup)
+    }
+
+    private var isFailure: Bool {
+        appState.showCancelled || appState.showFailedBatch
     }
 
     private var label: String? {
+        if appState.showFailedBatch {
+            return "Couldn't transcribe that"
+        }
         if appState.showCancelled {
             return "Cancelled"
         }
@@ -41,7 +53,7 @@ struct OverlayView: View {
                         .frame(width: 14, height: 14)
                     Text(label)
                         .font(.system(.body, design: .rounded, weight: .medium))
-                        .foregroundColor(appState.showCancelled ? .red : .primary)
+                        .foregroundColor(isFailure ? .red : .primary)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -87,5 +99,6 @@ struct OverlayView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .animation(.easeInOut(duration: 0.35), value: appState.status)
         .animation(.easeInOut(duration: 0.35), value: appState.showCancelled)
+        .animation(.easeInOut(duration: 0.35), value: appState.showFailedBatch)
     }
 }

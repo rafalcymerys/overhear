@@ -43,6 +43,14 @@ actor DictationEngine {
     private var isDictating = false
     private var hasAudio = false
 
+    /// Batches that failed since the last one that worked, or since dictation
+    /// was last started by hand. Three in a row is the model rather than the
+    /// audio; three spread over an afternoon are three bad batches.
+    private static let failuresBeforeGivingUp = 3
+    private var consecutiveFailures = 0
+
+    private var hasGivenUp: Bool { consecutiveFailures >= Self.failuresBeforeGivingUp }
+
     /// How long a device change may take before dictation stops meaning to
     /// come back.
     ///
@@ -115,7 +123,7 @@ actor DictationEngine {
             )
             emit(.status("wake_word_ready"))
         } catch {
-            emit(.error("Failed to load the cancel word model: \(error.localizedDescription)"))
+            emit(.failed("Failed to load the cancel word model: \(error.localizedDescription)"))
             return
         }
 
@@ -123,7 +131,7 @@ actor DictationEngine {
             try await transcriber.load()
             emit(.status("transcriber_ready"))
         } catch {
-            emit(.error("Failed to load the transcription model: \(error.localizedDescription)"))
+            emit(.failed("Failed to load the transcription model: \(error.localizedDescription)"))
             return
         }
 
@@ -134,6 +142,7 @@ actor DictationEngine {
     func activate() {
         resumeBy = nil
         isDictating = true
+        consecutiveFailures = 0
     }
 
     /// Applied to the next batch — no restart, unlike a language change.
@@ -226,6 +235,7 @@ actor DictationEngine {
 
             await dictate()
 
+            if hasGivenUp { return }
             if !Task.isCancelled {
                 detector?.reset()
                 emit(.idle)
@@ -249,9 +259,20 @@ actor DictationEngine {
                     translatesUnsupported: translatesUnsupported
                 )
             } catch {
-                emit(.error("Transcription failed: \(error.localizedDescription)"))
+                let message = "Transcription failed: \(error.localizedDescription)"
+                consecutiveFailures += 1
+                guard !hasGivenUp else {
+                    // The failure it has become, not a third lost utterance:
+                    // nothing said after this would transcribe either.
+                    isDictating = false
+                    emit(.failed(message))
+                    return
+                }
+                emit(.batchFailed(message))
                 continue
             }
+
+            consecutiveFailures = 0
 
             // A cancel word spoken while Whisper was running lands in the
             // backlog, not in the batch that was transcribed. Checking it here

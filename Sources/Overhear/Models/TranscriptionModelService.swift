@@ -290,6 +290,30 @@ final class TranscriptionModelService: ObservableObject {
     func remove(_ model: TranscriptionModel) -> Bool {
         guard !isActive(model) else { return false }
 
+        delete(model)
+        refresh()
+        return true
+    }
+
+    /// Delete every model's weights, the active one included.
+    ///
+    /// `remove(_:)` refuses the active model because something has to
+    /// transcribe. That reasoning does not hold here: this is what happens when
+    /// the engine could not read the model it has, so leaving that one behind
+    /// is leaving the whole problem behind. What stands in for the guard is
+    /// setup, which the caller opens — nothing transcribes again until a model
+    /// has been chosen and fetched.
+    func removeAll() {
+        for model in ModelCatalog.all where isDownloaded(model) {
+            delete(model)
+        }
+        refresh()
+    }
+
+    /// Take a model's files off disk. Says nothing about whether it should be
+    /// taken off — `remove(_:)` and `removeAll()` each answer that their own
+    /// way, and both end up here.
+    private func delete(_ model: TranscriptionModel) {
         try? FileManager.default.removeItem(at: folder(for: model))
         // The tokenizer WhisperKit fetched alongside the weights, where its
         // folder is named after the variant. Left alone when it is not — a few
@@ -300,9 +324,6 @@ final class TranscriptionModelService: ObservableObject {
                 .appendingPathComponent("models/openai/whisper-\(model.variant)")
             try? FileManager.default.removeItem(at: tokenizer)
         }
-
-        refresh()
-        return true
     }
 
     /// The real downloader: whichever library owns the model.
