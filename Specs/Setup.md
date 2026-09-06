@@ -349,6 +349,23 @@ Assert: the menu bar menu offers **Finish Setup…** rather than a **Try Again**
 of its own while this is outstanding — a missing Hot Word model is setup's
 business now, whether or not the user chose it.
 
+## Does not open for a file that is present but unreadable
+
+1. Quit Overhear after a completed setup.
+2. Truncate `melspectrogram.onnx` in
+   `~/Library/Application Support/Overhear/models/` to a few bytes, so the file
+   is there but will not load.
+3. Open Overhear.
+
+Assert: the setup window does not open — setup looks for whether the file is
+there, not for whether it loads, and every file it looks for is on disk.
+Assert: nothing is re-downloaded on its own — the file stays as it is until the
+user asks for it to be replaced.
+
+Deleting the file outright takes the other path entirely: setup sees it is gone
+and fetches it back before the engine ever tries to load it. What the engine
+makes of an unreadable one is `Specs/StatusDisplay.md`.
+
 ## Starts listening on launch by default
 
 1. Open Overhear with setup already complete and **Start listening on launch**
@@ -358,22 +375,3 @@ business now, whether or not the user chose it.
 Assert: dictation activates without any click.
 Assert: the menu bar icon shows the active state.
 Assert: the menu bar menu offers **Stop Listening**.
-
-## Engine failure is only visible as an icon [to review]
-
-1. Quit Overhear.
-2. Truncate `melspectrogram.onnx` in
-   `~/Library/Application Support/Overhear/models/` to a few bytes, so the file
-   is there but will not load.
-3. Open Overhear.
-4. Click the menu bar icon.
-
-Assert: the setup window does not open — every file it looks for is on disk.
-Assert: the menu bar icon shows the error state.
-Assert: the reason for the failure is available to the user somewhere in the UI.
-
-The engine records a message describing the failure, and no part of the
-interface displays it. The menu offers **Start Listening** as though nothing is
-wrong. Deleting the file outright no longer reaches this state — setup sees it
-is gone and fetches it back — so a corrupt one is what is left to reach it
-with.

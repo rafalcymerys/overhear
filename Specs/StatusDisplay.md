@@ -35,19 +35,80 @@ Assert: granting the last permission, or finishing the model download, replaces
 it with the ordinary states without the app being restarted.
 Assert: revoking a permission after setup was finished brings it back.
 
-## An engine that failed to load shows the same exclamation
+## A Hot Word model that will not load shows the same exclamation
 
-1. Truncate `melspectrogram.onnx` in
+1. Quit Overhear after a completed setup.
+2. Truncate `melspectrogram.onnx` in
    `~/Library/Application Support/Overhear/models/` to a few bytes, so the file
-   is there but will not load, and open Overhear.
-2. Look at the menu bar icon.
+   is there but will not load.
+3. Open Overhear.
+4. Look at the menu bar icon, then click it.
 
 Assert: the icon shows the exclamation rather than the idle dot.
-Assert: setup does not open over it — the file is on disk, so setup counts it
-as settled and it is the engine that fails on it.
+Assert: setup does not open over it — the files are on disk, so setup counts
+them as settled and it is the engine that fails on them — `Specs/Setup.md`.
 Assert: it is the same mark unfinished setup draws — both mean dictation cannot
 happen and only the user can change that.
-Assert: the menu says which of the two it is, since the icon does not.
+Assert: the menu says which of the two it is, since the icon does not: it names
+the failure the engine recorded, in a line of its own, in the place
+**Finish Setup…** would otherwise take.
+Assert: **Start Listening** is not offered, since it could not work.
+Assert: the menu offers **Try Again**, which brings the engine up again, and
+**Re-download Models**, which deletes the Hot Word models and every
+transcription model from disk and opens the setup window.
+
+## A transcription model that will not load shows the same exclamation
+
+1. Quit Overhear after a completed setup, with Whisper Base active.
+2. Truncate `AudioEncoder.mlmodelc/model.mil` in Whisper Base's folder under
+   `~/Library/Application Support/Overhear/whisper/` to a few bytes, so the
+   folder still holds its `.mlmodelc` bundles but Whisper cannot load them.
+3. Open Overhear.
+4. Look at the menu bar icon, then click it.
+
+Assert: the icon shows the exclamation rather than the idle dot.
+Assert: setup does not open over it — the files are on disk, so setup counts
+them as settled and it is the engine that fails on them — `Specs/Setup.md`.
+Assert: it is the same mark unfinished setup draws — both mean dictation cannot
+happen and only the user can change that.
+Assert: the menu says which of the two it is, since the icon does not: it names
+the failure the engine recorded, in a line of its own, in the place
+**Finish Setup…** would otherwise take.
+Assert: **Start Listening** is not offered, since it could not work.
+Assert: the menu offers **Try Again**, which brings the engine up again, and
+**Re-download Models**, which deletes the Hot Word models and every
+transcription model from disk and opens the setup window.
+
+## A failed batch keeps dictation running
+
+1. Start dictation with TextEdit focused and the overlay shown.
+2. Say `HelloEn`, pause two seconds, and let it arrive.
+3. Delete the active model's folder under
+   `~/Library/Application Support/Overhear/whisper/` while dictation is still
+   running.
+4. Say `SentenceEn` and pause two seconds.
+
+Assert: the menu bar icon stays in its dictating states throughout — speaking
+sends its ring out, pausing draws one in, and the exclamation never appears.
+Assert: the overlay says the utterance could not be transcribed, in red for
+about a second the way the cancel word is shown, then returns to "Ready".
+Assert: nothing is inserted into the document for that utterance.
+Assert: the menu offers **Stop Listening**, as it did before.
+Assert: dictation is still active afterwards, ready for the next utterance.
+Assert: the failure leaves nothing behind — nothing in the menu names it once
+the next utterance has transcribed.
+
+## Repeated failures stop the engine
+
+1. From the case above, with the model's folder still gone, say `HelloEn` three
+   times, pausing two seconds after each.
+
+Assert: dictation stops of its own accord rather than failing once per
+utterance for as long as the user keeps speaking.
+Assert: the overlay disappears.
+Assert: the icon shows the exclamation, and the menu names the failure and
+offers **Try Again** and **Re-download Models** — the same as a model that
+would not load.
 
 ## Loading is told apart from idle
 
