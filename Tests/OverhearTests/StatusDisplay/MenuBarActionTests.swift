@@ -27,6 +27,40 @@ final class MenuBarActionTests: XCTestCase {
         }
     }
 
+    /// R-125: the state between launching and being able to dictate. Offering
+    /// **Start Listening** here reaches a toggle that acts only when the status
+    /// is idle, so it does nothing for as long as the weights take.
+    func testSaysSoWhileTheModelLoads() {
+        let action = MenuBarAction(needsSetup: false, status: .loading, failure: nil)
+
+        XCTAssertEqual(action, .loading)
+        XCTAssertEqual(action.title, "Loading the model…")
+    }
+
+    func testNeverOffersDictationWhileTheModelLoads() {
+        let action = MenuBarAction(needsSetup: false, status: .loading, failure: nil)
+
+        XCTAssertNotEqual(action.title, "Start Listening")
+        XCTAssertNotEqual(action.title, "Stop Listening")
+    }
+
+    /// Loading is what the engine does on the way up, and the engine only comes
+    /// up once setup has everything — so unfinished setup is the truer thing to
+    /// say, and the window it opens is the one that can act on it.
+    func testSetupComesBeforeLoading() {
+        let action = MenuBarAction(needsSetup: true, status: .loading, failure: nil)
+
+        XCTAssertEqual(action, .finishSetup)
+    }
+
+    /// A load that failed is not a load still running. `.error` is a terminal
+    /// state the engine does not leave on its own.
+    func testAFailureIsNotMistakenForLoading() {
+        let action = MenuBarAction(needsSetup: false, status: .error, failure: "no")
+
+        XCTAssertNotEqual(action, .loading)
+    }
+
     func testOffersSetupWhileAnythingItCoversIsMissing() {
         let action = MenuBarAction(needsSetup: true, status: .idle, failure: nil)
 

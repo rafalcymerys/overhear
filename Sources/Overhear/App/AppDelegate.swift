@@ -267,6 +267,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 extension AppDelegate: NSMenuDelegate {
+    /// A line that names the state instead of offering to do something about
+    /// it. Disabled rather than merely inert, so it does not highlight under
+    /// the pointer as though it were about to work.
+    private static func stateLine(_ title: String) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        item.isEnabled = false
+        return item
+    }
+
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
 
@@ -285,11 +294,16 @@ extension AppDelegate: NSMenuDelegate {
         case .failed:
             // The reason first, where Finish Setup… would have been, since the
             // icon has already said something is wrong without saying what.
-            let reason = NSMenuItem(title: action.title, action: nil, keyEquivalent: "")
-            reason.isEnabled = false
-            menu.addItem(reason)
+            menu.addItem(Self.stateLine(action.title))
             menu.addItem(NSMenuItem(title: "Try Again", action: #selector(retryEngine), keyEquivalent: ""))
             menu.addItem(NSMenuItem(title: "Re-download Models", action: #selector(redownloadModels), keyEquivalent: ""))
+
+        case .loading:
+            // Nothing to offer, and nothing to fix. The load ends on its own,
+            // and Start Listening before it does reaches a toggle that acts
+            // only when the status is idle — so it would sit there doing
+            // nothing for as long as the weights took.
+            menu.addItem(Self.stateLine(action.title))
 
         case .dictate:
             dictateMenuItem.title = action.title

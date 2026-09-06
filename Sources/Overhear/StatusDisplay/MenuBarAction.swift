@@ -13,17 +13,25 @@ enum MenuBarAction: Equatable {
     case finishSetup
     /// The engine is down, and the reason it gave.
     case failed(reason: String)
+    /// The weights are still coming into memory. Nothing is wrong and there is
+    /// nothing to do about it but wait.
+    case loading
     /// The ordinary case, active or not.
     case dictate(isActive: Bool)
 
     /// Setup comes first. A missing wake word model fails the engine as surely
     /// as a corrupt one does, and the window that can fetch it back is a better
     /// answer than a **Try Again** that would fail on the same missing file.
+    ///
+    /// Loading comes last of the three that are not dictation. It is the only
+    /// one of them that ends on its own.
     init(needsSetup: Bool, status: EngineStatus, failure: String?) {
         if needsSetup {
             self = .finishSetup
         } else if status == .error {
             self = .failed(reason: failure ?? MenuBarAction.unexplained)
+        } else if status == .loading {
+            self = .loading
         } else {
             self = .dictate(isActive: status.isActive)
         }
@@ -39,6 +47,8 @@ enum MenuBarAction: Equatable {
             return "Finish Setup…"
         case let .failed(reason):
             return Self.oneLine(reason)
+        case .loading:
+            return "Loading the model…"
         case let .dictate(isActive):
             return isActive ? "Stop Listening" : "Start Listening"
         }
