@@ -102,6 +102,47 @@ Assert: no entry is added to **Last Transcriptions**.
 Assert: the second utterance is transcribed and inserted.
 Assert: the earlier transcription is still listed under **Last Transcriptions**.
 
+## Starting and stopping with the global hotkey
+
+1. Record ⌃⌥D as the listening hotkey in **Settings… → General**.
+2. Close Overhear's windows and focus TextEdit.
+3. Press ⌃⌥D.
+4. Say `HelloEn` and wait for the insertion.
+5. Press ⌃⌥D again.
+
+Assert: the first press starts dictation, and the menu bar icon and overlay
+show it, without Overhear taking focus.
+Assert: the transcription lands in TextEdit.
+Assert: the second press stops dictation, as **Stop Listening** would.
+Assert: holding the combination down is one toggle, not a repeating one.
+
+## The hotkey does not reach the focused application
+
+1. With ⌃⌥D recorded, place the cursor in a TextEdit document.
+2. Press ⌃⌥D twice.
+
+Assert: nothing is typed into the document.
+Assert: TextEdit gives no sign of the keystroke, such as an alert beep.
+
+## The hotkey works while Overhear's own windows are open
+
+1. Open **Settings…** and leave it focused.
+2. Press the hotkey.
+3. Press it again while the overlay is showing.
+
+Assert: dictation starts and stops as it does from any other app.
+Assert: the settings window keeps focus and its controls are unaffected.
+
+## The hotkey does nothing while the engine is not ready
+
+1. Launch Overhear with the models still downloading, or with the engine in
+   its error state.
+2. Press the hotkey.
+
+Assert: dictation does not start.
+Assert: the menu bar icon does not change.
+Assert: the hotkey works as usual once the engine reaches idle.
+
 ## Text arrives in whichever application is focused
 
 1. Start dictation.

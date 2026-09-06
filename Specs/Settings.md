@@ -41,8 +41,13 @@ Assert: the search field at the top of the pull-down stays reachable.
 1. Open **Settings… → General**.
 
 Assert: the pane offers **Start listening on launch**, **Show overlay window
-while listening** and **Strip transcription annotations**.
-Assert: on a fresh install all three are on.
+while listening**, **Listening hotkey** and **Strip transcription
+annotations**.
+Assert: on a fresh install all three toggles are on.
+Assert: the hotkey row sits with the two toggles, above the **Transcription**
+heading.
+Assert: the hotkey row shows the combination as symbols, or **Record
+Shortcut** when none is set.
 Assert: translation is not offered here — it belongs to the active model, in
 **Settings… → Transcription**.
 Assert: the transcription settings sit under a **Transcription** heading.
@@ -71,16 +76,78 @@ Assert: the menu bar menu offers **Start Listening**.
 Assert: turning the setting back on and relaunching activates dictation
 automatically.
 
+## No hotkey is set on a fresh install
+
+1. Install Overhear fresh and open **Settings… → General**.
+
+Assert: the hotkey row reads **Record Shortcut** rather than a combination.
+Assert: no combination starts listening until one is recorded.
+
+Overhear ships without a default deliberately: any combination we picked
+might already belong to the app the user is typing in.
+
+## Records a hotkey
+
+1. Open **Settings… → General**.
+2. Click the hotkey row.
+3. Press Ctrl+Option+D.
+
+Assert: the row shows that it is waiting while it records.
+Assert: the row then shows ⌃⌥D and stops recording.
+Assert: the combination is not typed anywhere, and the settings window does
+not act on it — recording a shortcut never triggers what it is bound to.
+Assert: clicking elsewhere while recording leaves the previous combination
+unchanged.
+Assert: pressing Escape while recording cancels without changing anything.
+
+## Records a modifier on its own
+
+1. Click the hotkey row.
+2. Hold Right Option briefly and release it.
+
+Assert: the row shows the modifier as the recorded combination.
+Assert: it is stored and re-registered like any other combination.
+
+A bare modifier types nothing while held, which is what makes it the
+combination hold-to-listen will want later.
+
+## Refuses a combination that is already taken
+
+1. Click the hotkey row.
+2. Press a combination macOS reserves, such as Cmd+Space.
+
+Assert: the row says the combination is taken and keeps recording.
+Assert: the previous combination, if any, stays in force.
+
+## Clearing the hotkey
+
+1. Record a hotkey and confirm it starts listening.
+2. Open **Settings… → General** and clear the hotkey row.
+
+Assert: the row returns to **Record Shortcut**.
+Assert: the combination no longer starts listening.
+Assert: it reaches the focused application again instead of being swallowed.
+
+## A changed hotkey applies immediately
+
+1. Record ⌃⌥D and confirm it toggles listening.
+2. Open **Settings… → General** and record ⌃⌥L instead.
+
+Assert: ⌃⌥L toggles listening without relaunching Overhear.
+Assert: ⌃⌥D does nothing.
+Assert: no engine reload happens, and dictation in progress is unaffected.
+
 ## Settings persist across restarts
 
 1. Change every setting from its default: turn the three General toggles to
-   their opposite, pick a different cancel word, activate a different model,
-   and change the language selection.
+   their opposite, record a listening hotkey, pick a different cancel word,
+   activate a different model, and change the language selection.
 2. Quit Overhear and open it again.
 3. Open each settings pane.
 
 Assert: every changed setting keeps its new value.
 Assert: a setting turned off stays off rather than reverting to its default.
+Assert: the recorded hotkey still toggles listening after the restart.
 
 ## Reopening settings returns to General [to review]
 
