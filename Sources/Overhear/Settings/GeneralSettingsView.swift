@@ -9,6 +9,7 @@ struct GeneralSettingsView: View {
             Section {
                 Toggle("Start listening on launch", isOn: $settings.dictateOnLaunch)
                 Toggle("Show overlay window while listening", isOn: $settings.showOverlay)
+                HotkeyRecorderRow()
             }
 
             Section {

@@ -14,6 +14,7 @@ final class AppSettings: ObservableObject {
     private let activeModelKey = "activeTranscriptionModel"
     private let overlayKey = "showOverlay"
     private let dictateOnLaunchKey = "dictateOnLaunch"
+    private let listeningHotkeyKey = "listeningHotkey"
     private let cancelWordKey = "cancelWord"
     private let stripAnnotationsKey = "stripTranscriptionAnnotations"
     private let translateUnsupportedKey = "translateUnsupportedLanguages"
@@ -44,6 +45,24 @@ final class AppSettings: ObservableObject {
     @Published var dictateOnLaunch: Bool {
         didSet {
             defaults.set(dictateOnLaunch, forKey: dictateOnLaunchKey)
+        }
+    }
+
+    /// The combination that starts and stops listening from any app, or none.
+    ///
+    /// Nothing on a fresh install, deliberately: any combination shipped as a
+    /// default might already belong to the app the user is typing in, and a
+    /// hotkey in the way is worse than one they have to record.
+    ///
+    /// Applies live, like `showOverlay`. Changing it re-registers the tap and
+    /// reloads nothing.
+    @Published var listeningHotkey: ListeningHotkey? {
+        didSet {
+            if let listeningHotkey {
+                defaults.set(listeningHotkey.stored, forKey: listeningHotkeyKey)
+            } else {
+                defaults.removeObject(forKey: listeningHotkeyKey)
+            }
         }
     }
 
@@ -135,6 +154,8 @@ final class AppSettings: ObservableObject {
             stripAnnotations = true
         }
         translateUnsupported = defaults.bool(forKey: translateUnsupportedKey)
+        listeningHotkey = defaults.dictionary(forKey: listeningHotkeyKey)
+            .flatMap(ListeningHotkey.init(stored:))
         activeModelID = defaults.string(forKey: activeModelKey) ?? ModelCatalog.defaultModel.id
         cancelWord = HotWord.defaultWord
         if let saved = defaults.string(forKey: cancelWordKey) {

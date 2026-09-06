@@ -22,6 +22,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var cancelWordObservation: AnyCancellable?
     private var modelObservation: AnyCancellable?
     private var launchObservation: AnyCancellable?
+    private var hotkeyObservation: AnyCancellable?
+    private let hotkeyMonitor = ListeningHotkeyMonitor.shared
     private var restartTask: Task<Void, Never>?
     /// Whether the engine has been brought up. Not the same question as
     /// "is setup finished", which is true from the assignment that completes
@@ -43,7 +45,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.addSubview(iconView)
         statusItem.button?.frame = iconView.frame
 
-        dictateMenuItem = NSMenuItem(title: "Start Listening", action: #selector(toggleDictation), keyEquivalent: "d")
+        // No key equivalent of its own. A menu's own shortcut fires only while
+        // that menu is open, and this one advertised ⌘D as though it were a
+        // way to start dictating; the combination it shows now is the global
+        // hotkey, which works from wherever the user is typing.
+        dictateMenuItem = NSMenuItem(title: "Start Listening", action: #selector(toggleDictation), keyEquivalent: "")
 
         // Menu items are populated in menuNeedsUpdate(_:)
         let menu = NSMenu()
@@ -85,6 +91,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
 
+        watchForTheHotkey()
+
         setup = SetupCoordinator(permissions: permissions, wakeWords: wakeWords)
         setupMarkObservation = setup.$isComplete
             .sink { [weak self] isComplete in
@@ -94,6 +102,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsWindow = SettingsWindowController(appState: appState)
 
         start()
+    }
+
+    /// Watch for the listening hotkey, and keep watching for whatever it is
+    /// changed to.
+    ///
+    /// The press runs the same toggle the menu item does, which acts only when
+    /// the engine is idle or dictating — so a hotkey pressed during the load
+    /// or after a failure does nothing, without this having to know that.
+    private func watchForTheHotkey() {
+        hotkeyMonitor.onToggle = { [weak self] in
+            self?.toggleDictation()
+        }
+        hotkeyMonitor.update(AppSettings.shared.listeningHotkey)
+        hotkeyObservation = AppSettings.shared.$listeningHotkey
+            .dropFirst()
+            .sink { [weak self] hotkey in
+                Task { @MainActor in
+                    self?.hotkeyMonitor.update(hotkey)
+                }
+            }
     }
 
     /// Nothing works without both downloads, the microphone and the right to
@@ -137,6 +165,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func startEngine() {
         hasStartedEngine = true
         engine.start()
+
+        // The tap needs Accessibility, which setup is what asks for. On the
+        // launch that grants it there was none to build one with, so this is
+        // where a stored hotkey starts working rather than after a relaunch.
+        hotkeyMonitor.update(AppSettings.shared.listeningHotkey)
 
         if AppSettings.shared.dictateOnLaunch {
             launchObservation = appState.$status
@@ -307,6 +340,9 @@ extension AppDelegate: NSMenuDelegate {
 
         case .dictate:
             dictateMenuItem.title = action.title
+            let shortcut = action.shortcut(AppSettings.shared.listeningHotkey)
+            dictateMenuItem.keyEquivalent = shortcut.keyEquivalent
+            dictateMenuItem.keyEquivalentModifierMask = shortcut.modifiers
             menu.addItem(dictateMenuItem)
         }
 

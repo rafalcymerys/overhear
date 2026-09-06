@@ -11,6 +11,54 @@ import XCTest
 /// does nothing and says nothing.
 final class MenuBarActionTests: XCTestCase {
 
+    // MARK: - The shortcut the item shows
+
+    private let controlOptionD = ListeningHotkey(keyCode: 2,
+                                                 character: "d",
+                                                 modifiers: [.control, .option])
+
+    func testTheListeningItemShowsTheHotkey() {
+        for status in [EngineStatus.idle, .ready, .listening, .transcribing] {
+            let action = MenuBarAction(needsSetup: false, status: status, failure: nil)
+            let shortcut = action.shortcut(controlOptionD)
+
+            XCTAssertEqual(shortcut.keyEquivalent, "d", "for \(status)")
+            XCTAssertEqual(shortcut.modifiers, [.control, .option], "for \(status)")
+        }
+    }
+
+    /// Not ⌘D, which is what the item advertised before there was a hotkey to
+    /// show — a menu's own key equivalent fires only while that menu is open.
+    func testTheListeningItemShowsNothingWithNoHotkeyRecorded() {
+        let action = MenuBarAction(needsSetup: false, status: .idle, failure: nil)
+
+        XCTAssertEqual(action.shortcut(nil).keyEquivalent, "")
+        XCTAssertEqual(action.shortcut(nil).modifiers, [])
+    }
+
+    /// The lines that replace the item cannot be clicked, and the hotkey is
+    /// inert in the states they stand for.
+    func testTheStatesThatReplaceDictationShowNoShortcut() {
+        let actions = [
+            MenuBarAction(needsSetup: true, status: .idle, failure: nil),
+            MenuBarAction(needsSetup: false, status: .loading, failure: nil),
+            MenuBarAction(needsSetup: false, status: .error, failure: "no model"),
+        ]
+
+        for action in actions {
+            XCTAssertEqual(action.shortcut(controlOptionD).keyEquivalent, "", "for \(action)")
+            XCTAssertEqual(action.shortcut(controlOptionD).modifiers, [], "for \(action)")
+        }
+    }
+
+    func testAModifierHeldOnItsOwnIsNotDrawnAsAShortcut() {
+        let rightOption = ListeningHotkey(keyCode: 61, character: "", modifiers: [.option])
+        let action = MenuBarAction(needsSetup: false, status: .idle, failure: nil)
+
+        XCTAssertEqual(action.shortcut(rightOption).keyEquivalent, "")
+        XCTAssertEqual(action.shortcut(rightOption).modifiers, [])
+    }
+
     // MARK: - Which of the three it is
 
     func testOffersDictationWhenNothingIsWrong() {

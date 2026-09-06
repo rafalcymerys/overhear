@@ -155,6 +155,7 @@ Settings is split into three panes.
 
 - **Start listening on launch**: begin listening automatically when the app finishes loading (on by default)
 - **Show overlay window while listening**: toggle the floating status overlay that appears while dictation is active
+- **Listening hotkey**: a combination that starts and stops listening from whichever app you're typing in. Nothing is set until you record one — click the row and press the combination, or hold a single modifier such as Right Option and let it go. The menu bar item shows whatever is recorded.
 - **Strip transcription annotations**: drop the `(coughing)`-style notes a model sometimes writes instead of transcribing (on by default)
 
 **Transcription**

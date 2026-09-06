@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 
 /// What the menu offers where **Start Listening** would go.
 ///
@@ -52,6 +52,20 @@ enum MenuBarAction: Equatable {
         case let .dictate(isActive):
             return isActive ? "Stop Listening" : "Start Listening"
         }
+    }
+
+    /// The shortcut the item carries, as `NSMenuItem` wants it.
+    ///
+    /// Only where dictation is on offer. The lines that replace it cannot be
+    /// clicked and the hotkey is inert in the states they stand for, so a
+    /// combination drawn beside one would promise a way past a wait that has
+    /// to be waited out.
+    ///
+    /// A modifier held on its own has no key equivalent to give — the menu has
+    /// no way to draw one — so it shows nothing rather than a bare ⌥.
+    func shortcut(_ hotkey: ListeningHotkey?) -> (keyEquivalent: String, modifiers: NSEvent.ModifierFlags) {
+        guard case .dictate = self, let hotkey, !hotkey.isModifierOnly else { return ("", []) }
+        return (hotkey.menuKeyEquivalent, hotkey.modifiers)
     }
 
     /// A menu item is one line. Sixty characters is what fits before the menu

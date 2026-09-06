@@ -138,6 +138,15 @@ behaviour — a spec has one obvious place to land.
 | `ModelCatalog.swift` | Every model offered, and which one is the default |
 | `TranscriptionModelService.swift` | What is downloaded, downloading, activated and removed |
 
+### `Hotkey/`
+
+| File | Role |
+|---|---|
+| `ListeningHotkey.swift` | The combination itself: how it is written, drawn and stored |
+| `ListeningHotkeyMonitor.swift` | The session event tap that watches for it, and swallows what it acts on |
+| `HotkeyRecorder.swift` | What a press means while the settings row is waiting for one |
+| `SystemShortcuts.swift` | The combinations macOS has already taken, read from `com.apple.symbolichotkeys` |
+
 ### `HotWords/`
 
 | File | Role |
@@ -169,6 +178,7 @@ behaviour — a spec has one obvious place to land.
 | `RecognitionLanguage.swift` | The languages that can be selected, with their codes and flags |
 | `SettingsWindow.swift` | The window and its toolbar of panes |
 | `GeneralSettingsView.swift` | The General pane |
+| `HotkeyRecorderRow.swift` | The **Listening hotkey** row and the recording it drives |
 | `HotWordSettingsView.swift` | The Hot Words pane |
 | `TranscriptionSettingsView.swift` | The Transcription pane: active model, its languages, translation |
 | `AvailableModels.swift` | The catalogue half of that pane, grouped by engine |
@@ -282,10 +292,23 @@ All settings live in `AppSettings.shared`, backed by `UserDefaults` and publishe
 | Translate unsupported languages | `translateUnsupportedLanguages` | off | Whether speech in an unselected language is translated to English |
 | Recognition languages | `selectedLanguages` | `en`, `pl` | Whisper language set; at least one must be selected |
 | Active model | `activeTranscriptionModel` | `whisper-base` | Which model transcribes; stored by catalogue id |
+| Listening hotkey | `listeningHotkey` | none | The combination that starts and stops listening from any app |
 
 The engine takes its language set, cancel word and model when it starts, so changing any of them restarts it — and the model change reloads the weights with it. The annotation and translation settings do not: both are read per batch, so they apply live. `AppDelegate` observes both and calls `scheduleRestart()`, which debounces for 1 second — so toggling several languages in a row produces a single restart rather than one per toggle. Whisper stays loaded across a restart: neither setting affects the model, and reloading it would turn a settings toggle into a multi-second stall. The overlay and launch toggles apply live and never restart the engine.
 
 `selectedLanguageCodes` is a `Set`, whose iteration order changes between launches, so `EngineController` sorts it before handing it over — the single-language shortcut and the detection fallback both depend on that order.
+
+## The Listening Hotkey
+
+`AppSettings.listeningHotkey` is empty on a fresh install and stays that way until the user records one: any default might already belong to the app they are typing in, and a hotkey in the way is worse than one that has to be recorded.
+
+`ListeningHotkeyMonitor` watches for it with a `CGEvent` session tap rather than `RegisterEventHotKey`, which cannot register a modifier held on its own, or `NSEvent.addGlobalMonitorForEvents`, which only watches — so the keystroke would land in whatever the user was typing into as well. The tap needs Accessibility, which Overhear already has for the synthetic Cmd+V behind text injection; `update(_:)` builds one whenever it is called without one, so the launch that grants the permission is the launch where a stored hotkey starts working.
+
+Two shapes of combination, and they behave differently at the tap. A key with modifiers is swallowed — the press never reaches the app underneath, and the repeats of a held key go with it, so holding it down is one toggle. A modifier held on its own is passed on: it types nothing, and every app tracks which modifiers are down, so swallowing it would leave them believing it still is. That shape exists because hold-to-listen (R-114) wants a key that types nothing while it is down.
+
+A press runs the same toggle the menu item does, which acts only when the engine is idle or dictating — so the hotkey is inert while the model loads and after a failure, exactly as the menu is. The menu item draws the combination as its own key equivalent, which is also what answers to it while the menu is open; `MenuBarAction.shortcut(_:)` is the one place that decides whether an item gets one.
+
+Recording holds the tap off through `ListeningHotkeyMonitor.isSuspended`. The tap is ahead of every app including this one, so without it the row would never see the keys pressed at it — and the combination already stored would start dictation instead of being replaced.
 
 ## Hot Words
 
@@ -341,6 +364,7 @@ Because they are a requirement, setup finishing and the engine starting are not 
 - `ChunkAccumulatorTests` — that no sample is lost or duplicated across awkward buffer boundaries.
 - `WhisperTranscriberTests` — real WhisperKit, opt-in via `OVERHEAR_RUN_MODEL_TESTS=1` because it downloads model weights: the language scenarios from `Specs/Languages.md`, and what a cough comes back as, and that `load()` leaves the weights in memory so the first batch costs what the second one does.
 - `WhisperConfigurationTests` — the same claim without the weights: that the configuration handed to WhisperKit resolves to loading, for every Whisper model in the catalogue. Fast, so it runs everywhere.
+- `HotkeyRecorderTests` and `ListeningHotkeyTests` — `Specs/Settings.md` without a keyboard: which presses are a shortcut, which are refused and why, and that a combination survives storage with the key code that tells Right Option from Left. The tap itself needs Accessibility and a real keystroke, so it is manual.
 - `AudioCaptureTests` — the real microphone, opt-in via `OVERHEAR_RUN_AUDIO_TESTS=1` because CI has no input device.
 
 ## Licensing

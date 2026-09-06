@@ -15,6 +15,7 @@ final class SettingsTests: OverhearTestCase {
         XCTAssertTrue(settings.stripAnnotations, "annotations are filtered unless the user opts out")
         XCTAssertFalse(settings.translateUnsupported, "translation is a choice, not something that happens by accident")
         XCTAssertEqual(settings.cancelWord, HotWord.defaultWord)
+        XCTAssertNil(settings.listeningHotkey, "a default combination might already belong to the app the user is typing in")
     }
 
     func testTranslateUnsupportedRoundTripsWhenTurnedOn() {
@@ -33,6 +34,26 @@ final class SettingsTests: OverhearTestCase {
 
         let reloaded = AppSettings(defaults: defaults, availableHotWords: HotWord.builtIn)
         XCTAssertFalse(reloaded.stripAnnotations)
+    }
+
+    func testListeningHotkeyRoundTripsThroughStorage() {
+        let defaults = makeDefaults()
+        let hotkey = ListeningHotkey(keyCode: 2, character: "d", modifiers: [.control, .option])
+        AppSettings(defaults: defaults, availableHotWords: HotWord.builtIn).listeningHotkey = hotkey
+
+        let reloaded = AppSettings(defaults: defaults, availableHotWords: HotWord.builtIn)
+        XCTAssertEqual(reloaded.listeningHotkey, hotkey)
+    }
+
+    /// Clearing has to be storable in its own right: a hotkey the user removed
+    /// must not come back on the next launch.
+    func testClearedListeningHotkeyStaysCleared() {
+        let defaults = makeDefaults()
+        let first = AppSettings(defaults: defaults, availableHotWords: HotWord.builtIn)
+        first.listeningHotkey = ListeningHotkey(keyCode: 2, character: "d", modifiers: [.control])
+        first.listeningHotkey = nil
+
+        XCTAssertNil(AppSettings(defaults: defaults, availableHotWords: HotWord.builtIn).listeningHotkey)
     }
 
     func testDefaultCancelWordIsAlexa() {
