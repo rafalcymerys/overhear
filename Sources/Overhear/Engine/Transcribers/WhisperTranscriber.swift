@@ -32,16 +32,36 @@ actor WhisperTranscriber: Transcribing {
         self.model = model
     }
 
+    /// Whether the weights are in memory, as opposed to merely found on disk.
+    ///
+    /// The distinction is the whole of R-122: WhisperKit will happily hand back
+    /// an instance that has located the model files and loaded none of them.
+    var isLoaded: Bool { whisper?.modelState == .loaded }
+
+    /// What WhisperKit is asked for.
+    ///
+    /// Named rather than written inline for `load`, which is the setting the
+    /// engine's whole start-at-launch arrangement depends on. WhisperKit
+    /// resolves it as `config.load ?? (config.modelFolder != nil)`, so leaving
+    /// it out of a config that names no model folder means *do not load*: the
+    /// initialiser returns having only found the weights, and the CoreML models
+    /// are then loaded lazily by whichever call needs them first — which is the
+    /// user's first transcription, plus a tokenizer download on a first run.
+    static func configuration(for model: TranscriptionModel) -> WhisperKitConfig {
+        WhisperKitConfig(
+            model: model.variant,
+            downloadBase: downloadBase,
+            verbose: false,
+            logLevel: .error,
+            load: true
+        )
+    }
+
     /// Load the model, downloading and compiling it if this is the first run —
     /// slow enough on that first run to be worth a status event.
     func load() async throws {
         guard whisper == nil else { return }
-        whisper = try await WhisperKit(WhisperKitConfig(
-            model: model.variant,
-            downloadBase: Self.downloadBase,
-            verbose: false,
-            logLevel: .error
-        ))
+        whisper = try await WhisperKit(Self.configuration(for: model))
     }
 
     /// Transcribe one batch of speech.

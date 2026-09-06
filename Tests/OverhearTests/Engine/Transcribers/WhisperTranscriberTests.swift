@@ -264,4 +264,50 @@ final class WhisperTranscriberTests: XCTestCase {
         XCTAssertEqual(AnnotationFilter(stripsParentheses: true).filter(result.text), result.text,
                        "nothing in ordinary dictation looks like an annotation")
     }
+
+    // MARK: - Loading
+
+    /// R-122: `load()` has to leave the weights in memory, not merely on disk.
+    /// The bug was a configuration that let WhisperKit return without loading,
+    /// which pushed the model load — and, on a first run, a tokenizer download
+    /// — into the first transcription.
+    func testLoadPutsTheWeightsInMemory() async throws {
+        let transcriber = WhisperTranscriber()
+        let before = await transcriber.isLoaded
+        XCTAssertFalse(before, "nothing should be in memory before load()")
+
+        try await transcriber.load()
+
+        let after = await transcriber.isLoaded
+        XCTAssertTrue(after, "load() returned with the weights still on disk")
+    }
+
+    /// R-122 as it is felt: the first batch costs about what the second one
+    /// does. Before the fix the first paid for the whole model load on top of
+    /// its own inference, seconds of it.
+    ///
+    /// The allowance is deliberately loose. A first inference is still somewhat
+    /// dearer than a second — CoreML specialization and the first prediction's
+    /// weight paging, which is R-123 — and this test is about the multi-second
+    /// cliff, not that remainder.
+    func testTheFirstTranscriptionCostsAboutWhatTheSecondDoes() async throws {
+        let transcriber = WhisperTranscriber()
+        try await transcriber.load()
+
+        let audio = try SyntheticSample.sentenceEn.load()
+        func timeOneBatch() async throws -> TimeInterval {
+            let start = Date()
+            _ = try await transcriber.transcribe(audio, languages: ["en"], translatesUnsupported: false)
+            return Date().timeIntervalSince(start)
+        }
+
+        let first = try await timeOneBatch()
+        let second = try await timeOneBatch()
+
+        print("Whisper first batch: \(String(format: "%.2f", first))s, second: \(String(format: "%.2f", second))s")
+        XCTAssertLessThan(
+            first, second * 4 + 2,
+            "the first transcription is still loading the model: \(first)s against \(second)s"
+        )
+    }
 }
