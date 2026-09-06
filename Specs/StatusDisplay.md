@@ -131,6 +131,22 @@ Assert: the menu offers **Start Listening**, **Last Transcriptions**,
 Assert: with no transcriptions yet, the menu says so under
 **Last Transcriptions**.
 
+## Menu contents while the model loads
+
+1. Open Overhear with setup complete.
+2. Click the menu bar icon before the icon's dot stops pulsing.
+
+Assert: **Start Listening** is replaced by **Loading the model…**, which is not
+an action — it says what is happening and cannot be clicked, because dictation
+cannot start before the weights are in memory.
+Assert: the rest of the menu is unchanged.
+Assert: opening the menu again once the dot has stopped pulsing offers
+**Start Listening**.
+
+It is every load rather than the launch. Changing a language or the cancel word
+rebuilds the engine and passes through the same state, where the menu has the
+same thing to say — `Specs/Languages.md`, `Specs/CancelWord.md`.
+
 ## Menu contents while dictating
 
 1. Start dictation.
