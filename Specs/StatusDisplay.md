@@ -154,6 +154,32 @@ same thing to say — `Specs/Languages.md`, `Specs/CancelWord.md`.
 
 Assert: **Start Listening** is replaced by **Stop Listening**.
 
+## Start Listening shows the hotkey
+
+1. Record ⌃⌥D as the listening hotkey in **Settings… → General**.
+2. Ensure dictation is stopped and click the menu bar icon.
+
+Assert: **Start Listening** shows ⌃⌥D against its right edge, the way any
+menu item shows its shortcut.
+Assert: choosing the item still starts dictation.
+Assert: recording a different combination changes what the item shows the
+next time the menu opens.
+Assert: with no hotkey recorded the item shows no shortcut at all — not
+⌘D, which would only work while this menu is already open —
+`Specs/Settings.md`.
+
+## Stop Listening shows the hotkey
+
+1. With ⌃⌥D recorded, start dictation and click the menu bar icon.
+
+Assert: **Stop Listening** shows ⌃⌥D, the same combination
+**Start Listening** showed.
+Assert: pressing the combination with the menu open stops dictation, as
+choosing the item would.
+Assert: **Loading the model…** and **Finish Setup…** show no shortcut —
+the hotkey does nothing in either state, and a shortcut on a line that
+cannot be clicked would say otherwise.
+
 ## Menu contents before setup is finished
 
 1. Revoke microphone access in System Settings.
