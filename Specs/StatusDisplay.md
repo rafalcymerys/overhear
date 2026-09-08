@@ -123,13 +123,15 @@ because nothing here knows how long the load will take.
 
 ## Menu contents while idle
 
-1. Ensure dictation is stopped.
+1. With **Press to start and stop** chosen, ensure dictation is stopped.
 2. Click the menu bar icon.
 
 Assert: the menu offers **Start Listening**, **Last Transcriptions**,
 **Settings…**, **About Overhear** and **Quit Overhear**.
 Assert: with no transcriptions yet, the menu says so under
 **Last Transcriptions**.
+Assert: **Hold to talk** puts its own line in the first item's place instead —
+below.
 
 ## Menu contents while the model loads
 
@@ -149,14 +151,15 @@ same thing to say — `Specs/Languages.md`, `Specs/CancelWord.md`.
 
 ## Menu contents while dictating
 
-1. Start dictation.
+1. With **Press to start and stop** chosen, start dictation.
 2. Click the menu bar icon.
 
 Assert: **Start Listening** is replaced by **Stop Listening**.
 
 ## Start Listening shows the hotkey
 
-1. Record ⌃⌥D as the listening hotkey in **Settings… → General**.
+1. Record ⌃⌥D as the listening hotkey in **Settings… → General**, with
+   **Press to start and stop** chosen.
 2. Ensure dictation is stopped and click the menu bar icon.
 
 Assert: **Start Listening** shows ⌃⌥D against its right edge, the way any
@@ -167,10 +170,13 @@ next time the menu opens.
 Assert: with no hotkey recorded the item shows no shortcut at all — not
 ⌘D, which would only work while this menu is already open —
 `Specs/Settings.md`.
+Assert: the combination is shown only while **Press to start and stop** is
+chosen; **Hold to talk** offers no such item to put it on.
 
 ## Stop Listening shows the hotkey
 
-1. With ⌃⌥D recorded, start dictation and click the menu bar icon.
+1. With ⌃⌥D recorded and **Press to start and stop** chosen, start dictation
+   and click the menu bar icon.
 
 Assert: **Stop Listening** shows ⌃⌥D, the same combination
 **Start Listening** showed.
@@ -179,6 +185,25 @@ choosing the item would.
 Assert: **Loading the model…** and **Finish Setup…** show no shortcut —
 the hotkey does nothing in either state, and a shortcut on a line that
 cannot be clicked would say otherwise.
+
+## Menu contents in hold to talk
+
+1. Choose **Hold to talk** in **Settings… → General**, with ⌃⌥D recorded.
+2. Click the menu bar icon while idle, while the key is held, and with the
+   model still loading.
+
+Assert: **Hold ⌃⌥D to talk** takes the first line in the first two, in place
+of **Start Listening** and **Stop Listening** — neither appears in this mode,
+where the key is the only way in and out — `Specs/Dictation.md`.
+Assert: the line is not an action and cannot be clicked, and shows no shortcut
+of its own.
+Assert: the line names whatever combination is recorded, and follows a change
+to it.
+Assert: with no combination recorded it reads **Set a Listening Hotkey…**
+instead, which can be clicked and opens **Settings… → General**.
+Assert: **Loading the model…** still takes that line while the model loads,
+and **Finish Setup…** and the engine failure line still take it in their own
+states — those are about the engine, not the mode.
 
 ## Menu contents before setup is finished
 

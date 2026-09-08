@@ -41,13 +41,14 @@ Assert: the search field at the top of the pull-down stays reachable.
 1. Open **Settings… → General**.
 
 Assert: the pane offers **Start listening on launch**, **Show overlay window
-while listening**, **Listening hotkey** and **Strip transcription
-annotations**.
+while listening**, **Listening hotkey**, the choice between **Press to start
+and stop** and **Hold to talk**, and **Strip transcription annotations**.
 Assert: on a fresh install all three toggles are on.
 Assert: the hotkey row sits with the two toggles, above the **Transcription**
-heading.
+heading, and the mode choice sits directly under it.
 Assert: the hotkey row shows the combination as symbols, or **Record
 Shortcut** when none is set.
+Assert: **Press to start and stop** is what a fresh install has.
 Assert: translation is not offered here — it belongs to the active model, in
 **Settings… → Transcription**.
 Assert: the transcription settings sit under a **Transcription** heading.
@@ -109,7 +110,7 @@ Assert: the row shows the modifier as the recorded combination.
 Assert: it is stored and re-registered like any other combination.
 
 A bare modifier types nothing while held, which is what makes it the
-combination hold-to-listen will want later.
+combination hold to talk wants.
 
 ## Refuses a combination that is already taken
 
@@ -127,6 +128,11 @@ Assert: the previous combination, if any, stays in force.
 Assert: the row returns to **Record Shortcut**.
 Assert: the combination no longer starts listening.
 Assert: it reaches the focused application again instead of being swallowed.
+Assert: the mode choice stays where it is, and stays on whichever mode was
+chosen.
+Assert: clearing it while **Hold to talk** is chosen leaves no way to dictate,
+which the menu says in the line **Set a Listening Hotkey…** —
+`Specs/Dictation.md`.
 
 ## A changed hotkey applies immediately
 
@@ -137,17 +143,41 @@ Assert: ⌃⌥L toggles listening without relaunching Overhear.
 Assert: ⌃⌥D does nothing.
 Assert: no engine reload happens, and dictation in progress is unaffected.
 
+## Choosing hold to talk
+
+1. Open **Settings… → General**.
+2. Choose **Hold to talk**.
+
+Assert: the choice sits under the hotkey row, since it says what that
+combination does.
+Assert: it is offered whether or not a hotkey is recorded — it describes the
+mode the app is in, and the row above it is where a combination is given to
+that mode.
+Assert: with no hotkey recorded the choice is still made and stored; the first
+combination recorded afterwards is held rather than pressed, with no second
+visit to settings.
+Assert: it applies immediately — no relaunch, no engine reload, and dictation
+in progress is unaffected.
+Assert: **Start listening on launch** has no effect while **Hold to talk** is
+chosen — there would be no key held and, in this mode, no **Stop Listening**
+to reach the session with. [to review]
+
+Whether the launch toggle is visibly disabled in this mode or merely inert is
+not settled.
+
 ## Settings persist across restarts
 
 1. Change every setting from its default: turn the three General toggles to
-   their opposite, record a listening hotkey, pick a different cancel word,
-   activate a different model, and change the language selection.
+   their opposite, record a listening hotkey, choose **Hold to talk**, pick a
+   different cancel word, activate a different model, and change the language
+   selection.
 2. Quit Overhear and open it again.
 3. Open each settings pane.
 
 Assert: every changed setting keeps its new value.
 Assert: a setting turned off stays off rather than reverting to its default.
-Assert: the recorded hotkey still toggles listening after the restart.
+Assert: the recorded hotkey still starts listening after the restart, in the
+mode that was chosen.
 
 ## Reopening settings returns to General [to review]
 
