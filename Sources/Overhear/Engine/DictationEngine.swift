@@ -7,20 +7,11 @@ import OnnxRuntimeBindings
 /// batches — accumulating chunks until a pause, transcribing that batch, then
 /// listening again — and watches every chunk for the cancel word.
 actor DictationEngine {
-    private static let sampleRate = 16000
-    private static let chunkDuration = Double(WakeWordDetector.chunkSamples) / Double(sampleRate)
-    private static let silenceThreshold: Float = 0.008
-    private static let silenceDuration = 1.5
-    private static let maxBatchDuration = 30.0
-
-    private var silenceChunksNeeded: Int { Int(Self.silenceDuration / Self.chunkDuration) }
-    private var maxChunks: Int { Int(Self.maxBatchDuration / Self.chunkDuration) }
-
     private let capture: any AudioSource
     private let transcriber: any Transcribing
     private let modelsDirectory: URL
 
-    private var detector: WakeWordDetector?
+    private var cancelWord: CancelWordListener?
 
     private var continuation: AsyncStream<EngineEvent>.Continuation?
     private var loop: Task<Void, Never>?
@@ -36,12 +27,16 @@ actor DictationEngine {
     /// arrive.
     private var queue: [[Float]] = []
 
-    /// Ten seconds. The queue is a handover buffer, not a recording — if
-    /// something downstream stalls for longer than that, the audio is stale
-    /// enough that dropping it beats growing without limit.
-    private static let maxQueuedChunks = 125
     private var isDictating = false
     private var hasAudio = false
+
+    /// Set by `finish()`: the batch being recorded should end where it is and
+    /// be transcribed, and dictation should stop once it has.
+    ///
+    /// Not `isDictating = false`, which is what stopping does — that voids the
+    /// batch in progress and drops the result of one already running. This is
+    /// the other ending: the one hold to talk's release means.
+    private var isFinishing = false
 
     /// Batches that failed since the last one that worked, or since dictation
     /// was last started by hand. Three in a row is the model rather than the
@@ -50,15 +45,6 @@ actor DictationEngine {
     private var consecutiveFailures = 0
 
     private var hasGivenUp: Bool { consecutiveFailures >= Self.failuresBeforeGivingUp }
-
-    /// How long a device change may take before dictation stops meaning to
-    /// come back.
-    ///
-    /// Long enough for AirPods to hand over or an interface to be replugged,
-    /// short enough that a Mac left alone never opens its microphone at
-    /// whatever hour the device happens to reappear. Injected so a test can
-    /// watch it lapse without waiting out half a minute.
-    private let resumeWindow: TimeInterval
 
     /// Bumped whenever the recording in progress becomes void — the device
     /// went away, or the user stopped. A batch carries the value it began
@@ -71,12 +57,7 @@ actor DictationEngine {
     /// nothing happened.
     private var recordingGeneration = 0
 
-    /// When the intention to resume expires, or nothing if there is none.
-    ///
-    /// Set only by a device going away under someone who was dictating, and
-    /// dropped the moment they decide for themselves — starting or stopping by
-    /// hand both answer the question this is holding open.
-    private var resumeBy: Date?
+    private var resume: ResumeIntent
 
     /// Whether speech in an unselected language should be translated to
     /// English. Held rather than taken at `start(...)` like `languages`: it
@@ -93,7 +74,7 @@ actor DictationEngine {
         self.capture = capture
         self.transcriber = transcriber
         self.modelsDirectory = modelsDirectory
-        self.resumeWindow = resumeWindow
+        resume = ResumeIntent(window: resumeWindow)
     }
 
     func events() -> AsyncStream<EngineEvent> {
@@ -112,15 +93,9 @@ actor DictationEngine {
         emit(.status("loading_models"))
 
         do {
-            let env = try ORTEnvironment.shared()
-            detector = try WakeWordDetector(
-                wordModelPath: cancelWordPath,
-                featureModels: FeatureModelPaths(
-                    melspectrogram: modelsDirectory.appendingPathComponent("melspectrogram.onnx").path,
-                    embedding: modelsDirectory.appendingPathComponent("embedding_model.onnx").path
-                ),
-                env: env
-            )
+            cancelWord = try CancelWordListener(modelPath: cancelWordPath,
+                                               modelsDirectory: modelsDirectory,
+                                               env: try ORTEnvironment.shared())
             emit(.status("wake_word_ready"))
         } catch {
             emit(.failed("Failed to load the cancel word model: \(error.localizedDescription)"))
@@ -140,9 +115,24 @@ actor DictationEngine {
     }
 
     func activate() {
-        resumeBy = nil
+        resume.cancel()
+        isFinishing = false
         isDictating = true
         consecutiveFailures = 0
+    }
+
+    /// End the batch being recorded and stop dictating, keeping what was said.
+    ///
+    /// What a hold-to-talk release means, and the one way out of a session that
+    /// is not a discard: the words spoken up to here still reach the document.
+    /// Dictation stops once they have.
+    func finish() {
+        // Dropped before the guard: a release during a device change answers
+        // the question the resumption was holding open, so nothing comes back
+        // afterwards with nobody holding a key.
+        resume.cancel()
+        guard isDictating else { return }
+        isFinishing = true
     }
 
     /// Applied to the next batch — no restart, unlike a language change.
@@ -151,13 +141,15 @@ actor DictationEngine {
     }
 
     func deactivate() {
-        resumeBy = nil
+        resume.cancel()
+        isFinishing = false
         recordingGeneration += 1
         isDictating = false
     }
 
     func stop() {
         isDictating = false
+        isFinishing = false
         loop?.cancel()
         loop = nil
         pump?.cancel()
@@ -183,8 +175,8 @@ actor DictationEngine {
                     resumeIfIntended()
                 }
                 queue.append(chunk)
-                if queue.count > Self.maxQueuedChunks {
-                    queue.removeFirst(queue.count - Self.maxQueuedChunks)
+                if queue.count > BatchRules.maxQueuedChunks {
+                    queue.removeFirst(queue.count - BatchRules.maxQueuedChunks)
                 }
 
             case .interrupted(let reason):
@@ -195,14 +187,15 @@ actor DictationEngine {
                 let wasDictating = isDictating
                 recordingGeneration += 1
                 isDictating = false
+                isFinishing = false
                 hasAudio = false
                 queue.removeAll()
-                detector?.reset()
+                cancelWord?.reset()
                 if wasDictating {
                     // The utterance is gone either way; the intention to be
                     // dictating is not. Whoever was talking into the old device
                     // means to carry on into the new one.
-                    resumeBy = Date().addingTimeInterval(resumeWindow)
+                    resume.expect()
                     emit(.idle)
                 }
             }
@@ -217,9 +210,7 @@ actor DictationEngine {
     /// the switch stays unsaid rather than arriving stitched to whatever
     /// followed it.
     private func resumeIfIntended() {
-        guard let resumeBy else { return }
-        self.resumeBy = nil
-        guard Date() < resumeBy else { return }
+        guard resume.claim() else { return }
         isDictating = true
     }
 
@@ -237,7 +228,7 @@ actor DictationEngine {
 
             if hasGivenUp { return }
             if !Task.isCancelled {
-                detector?.reset()
+                cancelWord?.reset()
                 emit(.idle)
             }
         }
@@ -246,52 +237,65 @@ actor DictationEngine {
     /// Record and transcribe batches until dictation is switched off.
     private func dictate() async {
         while isDictating, !Task.isCancelled {
-            emit(.ready)
+            await dictateOneBatch()
 
-            guard let audio = await recordBatch() else { continue }
+            // A release ends the session, but only after the batch it ended has
+            // been through transcription — which is the whole of what separates
+            // it from a stop.
+            guard isFinishing else { continue }
+            isFinishing = false
+            recordingGeneration += 1
+            isDictating = false
+        }
+    }
 
-            emit(.transcribing)
-            let result: Transcription
-            do {
-                result = try await transcriber.transcribe(
-                    audio,
-                    languages: languages,
-                    translatesUnsupported: translatesUnsupported
-                )
-            } catch {
-                let message = "Transcription failed: \(error.localizedDescription)"
-                consecutiveFailures += 1
-                guard !hasGivenUp else {
-                    // The failure it has become, not a third lost utterance:
-                    // nothing said after this would transcribe either.
-                    isDictating = false
-                    emit(.failed(message))
-                    return
-                }
-                emit(.batchFailed(message))
-                continue
+    /// Record one batch and transcribe it, or return having emitted why not.
+    private func dictateOneBatch() async {
+        emit(.ready)
+
+        guard let audio = await recordBatch() else { return }
+
+        emit(.transcribing)
+        let result: Transcription
+        do {
+            result = try await transcriber.transcribe(
+                audio,
+                languages: languages,
+                translatesUnsupported: translatesUnsupported
+            )
+        } catch {
+            let message = "Transcription failed: \(error.localizedDescription)"
+            consecutiveFailures += 1
+            guard !hasGivenUp else {
+                // The failure it has become, not a third lost utterance:
+                // nothing said after this would transcribe either.
+                isDictating = false
+                emit(.failed(message))
+                return
             }
+            emit(.batchFailed(message))
+            return
+        }
 
-            consecutiveFailures = 0
+        consecutiveFailures = 0
 
-            // A cancel word spoken while Whisper was running lands in the
-            // backlog, not in the batch that was transcribed. Checking it here
-            // is what makes cancelling work right up until the paste.
-            if cancelWordInBacklog() {
-                emit(.wakeWordCancel)
-                continue
-            }
+        // A cancel word spoken while Whisper was running lands in the
+        // backlog, not in the batch that was transcribed. Checking it here
+        // is what makes cancelling work right up until the paste.
+        if cancelWordInBacklog() {
+            emit(.wakeWordCancel)
+            return
+        }
 
-            if let language = result.language {
-                emit(.languageDetected(language))
-            }
+        if let language = result.language {
+            emit(.languageDetected(language))
+        }
 
-            // Transcription can outlive a stop request. Dropping the result
-            // keeps the promise that nothing reaches the user's document after
-            // they press Stop.
-            if !result.text.isEmpty, isDictating {
-                emit(.transcription(result.text))
-            }
+        // Transcription can outlive a stop request. Dropping the result
+        // keeps the promise that nothing reaches the user's document after
+        // they press Stop.
+        if !result.text.isEmpty, isDictating {
+            emit(.transcription(result.text))
         }
     }
 
@@ -309,22 +313,30 @@ actor DictationEngine {
         var completed = false
 
         while isDictating, generation == recordingGeneration, !Task.isCancelled {
-            if chunks.count >= maxChunks {
+            // A release ends the batch where the speaker left off, the way the
+            // duration cap does — not where a pause would have ended it, since
+            // there may never be one.
+            if isFinishing || chunks.count >= BatchRules.maxChunks {
                 completed = true
                 break
             }
 
-            guard let chunk = await nextChunk(generation) else { return nil }
+            guard let chunk = await nextChunk(generation) else {
+                // Nothing more is coming. A release is the batch ending where
+                // the speaker left off; anything else voided it.
+                completed = isFinishing
+                break
+            }
 
-            if detected(in: chunk) {
-                detector?.reset()
+            if cancelWord?.hears(chunk) == true {
+                cancelWord?.reset()
                 emit(.wakeWordCancel)
                 queue.removeAll()
                 return nil
             }
 
             chunks.append(chunk)
-            let quiet = isSilent(chunk)
+            let quiet = BatchRules.isSilent(chunk)
 
             if !quiet, !heardSpeech {
                 heardSpeech = true
@@ -333,7 +345,7 @@ actor DictationEngine {
 
             if heardSpeech, quiet {
                 silenceChunks += 1
-                if silenceChunks >= silenceChunksNeeded {
+                if silenceChunks >= BatchRules.silenceChunksNeeded {
                     completed = true
                     break
                 }
@@ -348,11 +360,12 @@ actor DictationEngine {
 
     /// The next chunk of audio, waiting for capture to deliver one.
     ///
-    /// Returns nil when dictation is switched off while waiting, or when the
-    /// batch this belongs to has been voided under it, which unwinds the
-    /// recorder without emitting anything.
+    /// Returns nil when dictation is switched off while waiting, when the batch
+    /// this belongs to has been voided under it, or when a release has ended
+    /// the batch — the recorder must not sit here waiting for audio that would
+    /// only arrive after the words it was asked to keep.
     private func nextChunk(_ generation: Int) async -> [Float]? {
-        while isDictating, generation == recordingGeneration, !Task.isCancelled {
+        while isDictating, !isFinishing, generation == recordingGeneration, !Task.isCancelled {
             if !queue.isEmpty {
                 return queue.removeFirst()
             }
@@ -370,28 +383,13 @@ actor DictationEngine {
         let backlog = queue
         queue.removeAll()
 
-        for chunk in backlog where detected(in: chunk) {
-            detector?.reset()
+        for chunk in backlog where cancelWord?.hears(chunk) == true {
+            cancelWord?.reset()
             return true
         }
 
         queue = backlog
         return false
-    }
-
-    private func detected(in chunk: [Float]) -> Bool {
-        guard let detector else { return false }
-        // The feature models were trained on int16 PCM; capture hands out the
-        // conventional -1...1 float range.
-        let scaled = chunk.map { $0 * 32767 }
-        guard let score = try? detector.predict(scaled) else { return false }
-        return score > WakeWordDetector.threshold
-    }
-
-    private func isSilent(_ chunk: [Float]) -> Bool {
-        guard !chunk.isEmpty else { return true }
-        let sum = chunk.reduce(Float(0)) { $0 + abs($1) }
-        return sum / Float(chunk.count) < Self.silenceThreshold
     }
 
     private func emit(_ event: EngineEvent) {

@@ -151,8 +151,15 @@ struct HotkeyRecorderRow: View {
         return settings.listeningHotkey?.displayString ?? "Record Shortcut"
     }
 
+    /// What the combination is for, which is whatever the mode below makes of
+    /// it — a toggle in one, a key to hold in the other.
     private var caption: String {
         if let refusal = recording.refusal { return refusal }
-        return "Use a global keyboard shortcut to toggle the listening on and off."
+        switch settings.listeningMode {
+        case .alwaysOn:
+            return "Use a global keyboard shortcut to toggle the listening on and off."
+        case .holdToTalk:
+            return "Use a global keyboard shortcut to listen for as long as you hold it."
+        }
     }
 }

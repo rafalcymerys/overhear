@@ -16,22 +16,46 @@ enum MenuBarAction: Equatable {
     /// The weights are still coming into memory. Nothing is wrong and there is
     /// nothing to do about it but wait.
     case loading
-    /// The ordinary case, active or not.
+    /// The ordinary case in always-on listening, active or not.
     case dictate(isActive: Bool)
+
+    /// Hold to talk, with a combination to hold. Not an action: the key is the
+    /// only way in and out, and an item that started dictation from the mouse
+    /// would leave nothing to release.
+    case holdToTalk(combination: String)
+
+    /// Hold to talk with nothing recorded to hold. The one line in this mode
+    /// that can be clicked, because it leads somewhere that can fix it.
+    case setHotkey
 
     /// Setup comes first. A missing wake word model fails the engine as surely
     /// as a corrupt one does, and the window that can fetch it back is a better
     /// answer than a **Try Again** that would fail on the same missing file.
     ///
     /// Loading comes last of the three that are not dictation. It is the only
-    /// one of them that ends on its own.
-    init(needsSetup: Bool, status: EngineStatus, failure: String?) {
+    /// one of them that ends on its own — and it comes before the mode, since
+    /// what the user chose says nothing about weights that are not in memory
+    /// yet.
+    ///
+    /// - Parameters:
+    ///   - mode: which of the two ways in the user chose. It decides only the
+    ///     ordinary line: the three states above it are about the engine, and
+    ///     say the same thing in either mode.
+    ///   - hotkey: the combination, which hold to talk names in its line and
+    ///     always-on listening draws beside its item.
+    init(needsSetup: Bool,
+         status: EngineStatus,
+         failure: String?,
+         mode: ListeningMode,
+         hotkey: ListeningHotkey?) {
         if needsSetup {
             self = .finishSetup
         } else if status == .error {
             self = .failed(reason: failure ?? MenuBarAction.unexplained)
         } else if status == .loading {
             self = .loading
+        } else if mode == .holdToTalk {
+            self = hotkey.map { .holdToTalk(combination: $0.displayString) } ?? .setHotkey
         } else {
             self = .dictate(isActive: status.isActive)
         }
@@ -51,6 +75,10 @@ enum MenuBarAction: Equatable {
             return "Loading the model…"
         case let .dictate(isActive):
             return isActive ? "Stop Listening" : "Start Listening"
+        case let .holdToTalk(combination):
+            return "Hold \(combination) to talk"
+        case .setHotkey:
+            return "Set a Listening Hotkey…"
         }
     }
 
@@ -59,7 +87,8 @@ enum MenuBarAction: Equatable {
     /// Only where dictation is on offer. The lines that replace it cannot be
     /// clicked and the hotkey is inert in the states they stand for, so a
     /// combination drawn beside one would promise a way past a wait that has
-    /// to be waited out.
+    /// to be waited out. Hold to talk's line names its combination in the
+    /// title instead — a shortcut there would read as something to press.
     ///
     /// A modifier held on its own has no key equivalent to give — the menu has
     /// no way to draw one — so it shows nothing rather than a bare ⌥.

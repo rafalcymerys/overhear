@@ -10,6 +10,26 @@ struct GeneralSettingsView: View {
                 Toggle("Start listening on launch", isOn: $settings.dictateOnLaunch)
                 Toggle("Show overlay window while listening", isOn: $settings.showOverlay)
                 HotkeyRecorderRow()
+                // Under the row, because it says what that combination does.
+                // Offered whether or not one is recorded: it describes the mode
+                // the app is in, and the row above is where a combination is
+                // given to that mode.
+                Picker("", selection: $settings.listeningMode) {
+                    ForEach(ListeningMode.allCases) { mode in
+                        // The explanation rides with the option it describes,
+                        // the way each transcription setting's does.
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(mode.title)
+                            Text(mode.explanation)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .tag(mode)
+                    }
+                }
+                .pickerStyle(.radioGroup)
+                .labelsHidden()
             }
 
             Section {

@@ -62,7 +62,9 @@ final class BatchFailureTests: OverhearTestCase {
         XCTAssertNotNil(harness.appState.errorMessage, "the menu has something to name")
         XCTAssertEqual(MenuBarAction(needsSetup: false,
                                      status: harness.appState.status,
-                                     failure: harness.appState.errorMessage),
+                                     failure: harness.appState.errorMessage,
+                                     mode: .alwaysOn,
+                                     hotkey: nil),
                        .failed(reason: harness.appState.errorMessage!),
                        "and offers Try Again rather than Start Listening")
     }

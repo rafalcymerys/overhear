@@ -108,6 +108,9 @@ behaviour — a spec has one obvious place to land.
 | `DictationEngine.swift` | The dictation loop: batching, cancel word, stop rules |
 | `AudioCapture.swift` | `AVAudioEngine` capture, resampling, device-loss recovery |
 | `ChunkAccumulator.swift` | Re-slices arbitrary buffers into exact 1280-sample chunks |
+| `BatchRules.swift` | The numbers the loop runs on: silence, the batch cap, the queue cap |
+| `CancelWordListener.swift` | Whether a chunk had the cancel word in it, over the detector |
+| `ResumeIntent.swift` | The intention to carry on dictating across a device change |
 | `EngineEvent.swift` | The event vocabulary and engine errors |
 
 ### `Engine/Transcribers/`
@@ -143,6 +146,8 @@ behaviour — a spec has one obvious place to land.
 | File | Role |
 |---|---|
 | `ListeningHotkey.swift` | The combination itself: how it is written, drawn and stored |
+| `ListeningMode.swift` | Whether that combination toggles listening or is held for an utterance |
+| `ListeningController.swift` | What a press means in each mode, and who ends a session |
 | `ListeningHotkeyMonitor.swift` | The session event tap that watches for it, and swallows what it acts on |
 | `HotkeyRecorder.swift` | What a press means while the settings row is waiting for one |
 | `SystemShortcuts.swift` | The combinations macOS has already taken, read from `com.apple.symbolichotkeys` |
@@ -293,8 +298,9 @@ All settings live in `AppSettings.shared`, backed by `UserDefaults` and publishe
 | Recognition languages | `selectedLanguages` | `en`, `pl` | Whisper language set; at least one must be selected |
 | Active model | `activeTranscriptionModel` | `whisper-base` | Which model transcribes; stored by catalogue id |
 | Listening hotkey | `listeningHotkey` | none | The combination that starts and stops listening from any app |
+| Listening mode | `listeningMode` | always-on | Whether that combination toggles listening or is held for the length of an utterance |
 
-The engine takes its language set, cancel word and model when it starts, so changing any of them restarts it — and the model change reloads the weights with it. The annotation and translation settings do not: both are read per batch, so they apply live. `AppDelegate` observes both and calls `scheduleRestart()`, which debounces for 1 second — so toggling several languages in a row produces a single restart rather than one per toggle. Whisper stays loaded across a restart: neither setting affects the model, and reloading it would turn a settings toggle into a multi-second stall. The overlay and launch toggles apply live and never restart the engine.
+The engine takes its language set, cancel word and model when it starts, so changing any of them restarts it — and the model change reloads the weights with it. The annotation and translation settings do not: both are read per batch, so they apply live. `AppDelegate` observes both and calls `scheduleRestart()`, which debounces for 1 second — so toggling several languages in a row produces a single restart rather than one per toggle. Whisper stays loaded across a restart: neither setting affects the model, and reloading it would turn a settings toggle into a multi-second stall. The overlay, launch and listening mode settings apply live and never restart the engine — the mode decides who starts and ends a session, not what a session does.
 
 `selectedLanguageCodes` is a `Set`, whose iteration order changes between launches, so `EngineController` sorts it before handing it over — the single-language shortcut and the detection fallback both depend on that order.
 
@@ -304,11 +310,25 @@ The engine takes its language set, cancel word and model when it starts, so chan
 
 `ListeningHotkeyMonitor` watches for it with a `CGEvent` session tap rather than `RegisterEventHotKey`, which cannot register a modifier held on its own, or `NSEvent.addGlobalMonitorForEvents`, which only watches — so the keystroke would land in whatever the user was typing into as well. The tap needs Accessibility, which Overhear already has for the synthetic Cmd+V behind text injection; `update(_:)` builds one whenever it is called without one, so the launch that grants the permission is the launch where a stored hotkey starts working.
 
-Two shapes of combination, and they behave differently at the tap. A key with modifiers is swallowed — the press never reaches the app underneath, and the repeats of a held key go with it, so holding it down is one toggle. A modifier held on its own is passed on: it types nothing, and every app tracks which modifiers are down, so swallowing it would leave them believing it still is. That shape exists because hold-to-listen (R-114) wants a key that types nothing while it is down.
+Two shapes of combination, and they behave differently at the tap. A key with modifiers is swallowed — the press never reaches the app underneath, and the repeats of a held key go with it, so holding it down is one press however long it lasts; its key up is swallowed too, matched on the key alone, because a hand coming off ⌃⌥D rarely lets go of all three at once and a release read as somebody else's would leave a hold running with nobody holding it. A modifier held on its own is passed on: it types nothing, and every app tracks which modifiers are down, so swallowing it would leave them believing it still is. That shape is what hold to talk wants — a key that types nothing while it is down.
 
-A press runs the same toggle the menu item does, which acts only when the engine is idle or dictating — so the hotkey is inert while the model loads and after a failure, exactly as the menu is. The menu item draws the combination as its own key equivalent, which is also what answers to it while the menu is open; `MenuBarAction.shortcut(_:)` is the one place that decides whether an item gets one.
+The monitor reports a press and a release and nothing more. What they mean is the mode's business, in `AppDelegate`: always-on listening toggles on the press and ignores the release; hold to talk starts a session on the press and ends it on the release. Either way nothing happens unless the engine is idle or dictating — so the hotkey is inert while the model loads and after a failure, in both modes, exactly as the menu is. The menu item draws the combination as its own key equivalent, which is also what answers to it while the menu is open; `MenuBarAction.shortcut(_:)` is the one place that decides whether an item gets one.
+
+A third callback, `onLostPress`, covers the key that never comes back up: the screen locking over a held key, the user being switched away, the Mac going to sleep. None of them delivers a key up, so without it hold to talk would leave a session running that nothing could end. It ends as stopping does rather than as a release does — nobody said they had finished speaking, and there is no longer a document to paste into.
 
 Recording holds the tap off through `ListeningHotkeyMonitor.isSuspended`. The tap is ahead of every app including this one, so without it the row would never see the keys pressed at it — and the combination already stored would start dictation instead of being replaced.
+
+## Listening Modes
+
+Always-on listening and hold to talk differ in one thing: how a session ends.
+
+Stopping discards. `deactivate()` voids the batch being recorded and drops the result of one already running, which is the promise **Stop Listening** and the overlay's stop button make — nothing reaches the document after the user asks to stop. A release cannot do that, because it is how the user says they have *finished speaking*. So `DictationEngine.finish()` is a third state alongside activate and deactivate: it ends the batch where the speaker left off, the way the duration cap does, lets it through transcription, and stops dictating once it has arrived. `isFinishing` is what carries that, and it is deliberately not `isDictating = false` — the result is only emitted while dictation is still on, so clearing the flag early would throw away the words the release was meant to keep.
+
+There is no minimum hold. A tap is a session with silence in it, and silence already produces nothing.
+
+The mode is not one of the settings the engine is built from, so changing it reloads nothing — but it does end whatever is running, whichever mode that session was started in. Left running it would be a session no key could end: the release ends only what a hold started, and hold to talk offers no **Stop Listening** to reach it with. For the same reason **Start listening on launch** does nothing in hold to talk, and a model swap does not resume a session that a held key started.
+
+In hold to talk the menu offers no toggle at all — an item that started dictation from the mouse would leave nothing to release — so `MenuBarAction` grows two cases for that line: `holdToTalk`, which names the combination and cannot be clicked, and `setHotkey`, which is what the line says when nothing is recorded and is the one line in this mode that leads somewhere.
 
 ## Hot Words
 
@@ -364,7 +384,9 @@ Because they are a requirement, setup finishing and the engine starting are not 
 - `ChunkAccumulatorTests` — that no sample is lost or duplicated across awkward buffer boundaries.
 - `WhisperTranscriberTests` — real WhisperKit, opt-in via `OVERHEAR_RUN_MODEL_TESTS=1` because it downloads model weights: the language scenarios from `Specs/Languages.md`, and what a cough comes back as, and that `load()` leaves the weights in memory so the first batch costs what the second one does.
 - `WhisperConfigurationTests` — the same claim without the weights: that the configuration handed to WhisperKit resolves to loading, for every Whisper model in the catalogue. Fast, so it runs everywhere.
-- `HotkeyRecorderTests` and `ListeningHotkeyTests` — `Specs/Settings.md` without a keyboard: which presses are a shortcut, which are refused and why, and that a combination survives storage with the key code that tells Right Option from Left. The tap itself needs Accessibility and a real keystroke, so it is manual.
+- `HotkeyRecorderTests` and `ListeningHotkeyTests` — `Specs/Settings.md` without a keyboard: which presses are a shortcut, which are refused and why, and that a combination survives storage with the key code that tells Right Option from Left.
+- `ListeningHotkeyMonitorTests` — what the tap makes of a press and a release, driven with synthesised `CGEvent`s: one press however long a key is held, a release matched on the key alone, and what is swallowed rather than left to the app underneath. Building the tap needs Accessibility and a real keystroke, so that part stays manual.
+- `HoldToTalkTests` — `Specs/Dictation.md` on the ending a release means: what it keeps that stopping discards, that the session ends with the batch it ended, and that a tap with no speech in it leaves nothing behind.
 - `AudioCaptureTests` — the real microphone, opt-in via `OVERHEAR_RUN_AUDIO_TESTS=1` because CI has no input device.
 
 ## Licensing

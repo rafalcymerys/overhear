@@ -16,6 +16,7 @@ final class SettingsTests: OverhearTestCase {
         XCTAssertFalse(settings.translateUnsupported, "translation is a choice, not something that happens by accident")
         XCTAssertEqual(settings.cancelWord, HotWord.defaultWord)
         XCTAssertNil(settings.listeningHotkey, "a default combination might already belong to the app the user is typing in")
+        XCTAssertEqual(settings.listeningMode, .alwaysOn, "a fresh install listens in the background")
     }
 
     func testTranslateUnsupportedRoundTripsWhenTurnedOn() {
@@ -43,6 +44,39 @@ final class SettingsTests: OverhearTestCase {
 
         let reloaded = AppSettings(defaults: defaults, availableHotWords: HotWord.builtIn)
         XCTAssertEqual(reloaded.listeningHotkey, hotkey)
+    }
+
+    func testListeningModeRoundTripsThroughStorage() {
+        let defaults = makeDefaults()
+        AppSettings(defaults: defaults, availableHotWords: HotWord.builtIn).listeningMode = .holdToTalk
+
+        let reloaded = AppSettings(defaults: defaults, availableHotWords: HotWord.builtIn)
+        XCTAssertEqual(reloaded.listeningMode, .holdToTalk)
+    }
+
+    /// The mode is chosen and stored whether or not a combination is recorded:
+    /// the first one recorded afterwards is held rather than pressed, with no
+    /// second visit to settings.
+    func testHoldToTalkIsStoredWithNoHotkeyRecorded() {
+        let defaults = makeDefaults()
+        let first = AppSettings(defaults: defaults, availableHotWords: HotWord.builtIn)
+        first.listeningMode = .holdToTalk
+
+        let reloaded = AppSettings(defaults: defaults, availableHotWords: HotWord.builtIn)
+        XCTAssertEqual(reloaded.listeningMode, .holdToTalk)
+        XCTAssertNil(reloaded.listeningHotkey)
+    }
+
+    /// Clearing the combination leaves the mode where it is — the row above is
+    /// where a combination is given to the mode, not what chooses it.
+    func testClearingTheHotkeyLeavesTheModeAlone() {
+        let settings = AppSettings(defaults: makeDefaults(), availableHotWords: HotWord.builtIn)
+        settings.listeningMode = .holdToTalk
+        settings.listeningHotkey = ListeningHotkey(keyCode: 2, character: "d", modifiers: [.control])
+
+        settings.listeningHotkey = nil
+
+        XCTAssertEqual(settings.listeningMode, .holdToTalk)
     }
 
     /// Clearing has to be storable in its own right: a hotkey the user removed

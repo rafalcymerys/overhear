@@ -21,9 +21,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsObservation: AnyCancellable?
     private var cancelWordObservation: AnyCancellable?
     private var modelObservation: AnyCancellable?
-    private var launchObservation: AnyCancellable?
-    private var hotkeyObservation: AnyCancellable?
-    private let hotkeyMonitor = ListeningHotkeyMonitor.shared
+    /// Who starts and ends a session: the hotkey, the mode, and the hold.
+    private var listening: ListeningController!
     private var restartTask: Task<Void, Never>?
     /// Whether the engine has been brought up. Not the same question as
     /// "is setup finished", which is true from the assignment that completes
@@ -58,7 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         engine = EngineController(appState: appState, injector: injector)
         overlay = OverlayController(appState: appState, onStop: { [weak self] in
-            self?.engine.deactivate()
+            self?.listening.stopDictating()
         }, onOpenSettings: { [weak self] in
             self?.openSettings()
         })
@@ -91,7 +90,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
 
-        watchForTheHotkey()
+        listening = ListeningController(engine: engine, appState: appState)
+        listening.start()
 
         setup = SetupCoordinator(permissions: permissions, wakeWords: wakeWords)
         setupMarkObservation = setup.$isComplete
@@ -102,26 +102,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsWindow = SettingsWindowController(appState: appState)
 
         start()
-    }
-
-    /// Watch for the listening hotkey, and keep watching for whatever it is
-    /// changed to.
-    ///
-    /// The press runs the same toggle the menu item does, which acts only when
-    /// the engine is idle or dictating — so a hotkey pressed during the load
-    /// or after a failure does nothing, without this having to know that.
-    private func watchForTheHotkey() {
-        hotkeyMonitor.onToggle = { [weak self] in
-            self?.toggleDictation()
-        }
-        hotkeyMonitor.update(AppSettings.shared.listeningHotkey)
-        hotkeyObservation = AppSettings.shared.$listeningHotkey
-            .dropFirst()
-            .sink { [weak self] hotkey in
-                Task { @MainActor in
-                    self?.hotkeyMonitor.update(hotkey)
-                }
-            }
     }
 
     /// Nothing works without both downloads, the microphone and the right to
@@ -169,15 +149,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // The tap needs Accessibility, which setup is what asks for. On the
         // launch that grants it there was none to build one with, so this is
         // where a stored hotkey starts working rather than after a relaunch.
-        hotkeyMonitor.update(AppSettings.shared.listeningHotkey)
+        listening.registerHotkey()
 
         if AppSettings.shared.dictateOnLaunch {
-            launchObservation = appState.$status
-                .first { $0 == .idle }
-                .sink { [weak self] _ in
-                    self?.engine.activate()
-                    self?.launchObservation = nil
-                }
+            listening.listenWhenIdle()
         }
     }
 
@@ -197,6 +172,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func scheduleRestart() {
+        listening.forgetTheHold()
         restartTask?.cancel()
         restartTask = Task {
             try? await Task.sleep(for: .seconds(1))
@@ -229,6 +205,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard hasStartedEngine else { return }
 
         let wasDictating = appState.status.isActive
+        // The hold does not survive the swap: the audio it recorded is gone
+        // with the engine, and a session resumed under a key that is already
+        // down would have no release left to end it.
+        listening.forgetTheHold()
         restartTask?.cancel()
         restartTask = Task { @MainActor in
             engine.stop()
@@ -236,12 +216,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard !Task.isCancelled else { return }
             engine.start()
             guard wasDictating else { return }
-            launchObservation = appState.$status
-                .first { $0 == .idle }
-                .sink { [weak self] _ in
-                    self?.engine.activate()
-                    self?.launchObservation = nil
-                }
+            listening.listenWhenIdle()
         }
     }
 
@@ -273,7 +248,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// activates the model it is about to download.
     @objc private func redownloadModels() {
         restartTask?.cancel()
-        launchObservation = nil
+        listening.cancelPendingStart()
         engine.stop()
         hasStartedEngine = false
 
@@ -282,11 +257,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func toggleDictation() {
-        if appState.status.isActive {
-            engine.deactivate()
-        } else if appState.status == .idle {
-            engine.activate()
-        }
+        listening.toggle()
     }
 
     @objc private func pasteTranscription(_ sender: NSMenuItem) {
@@ -315,7 +286,9 @@ extension AppDelegate: NSMenuDelegate {
         setup.refresh()
         let action = MenuBarAction(needsSetup: !setup.isComplete,
                                    status: appState.status,
-                                   failure: appState.errorMessage)
+                                   failure: appState.errorMessage,
+                                   mode: AppSettings.shared.listeningMode,
+                                   hotkey: AppSettings.shared.listeningHotkey)
         switch action {
         case .finishSetup:
             // Dictating is impossible until setup has all four, so offer the
@@ -344,6 +317,18 @@ extension AppDelegate: NSMenuDelegate {
             dictateMenuItem.keyEquivalent = shortcut.keyEquivalent
             dictateMenuItem.keyEquivalentModifierMask = shortcut.modifiers
             menu.addItem(dictateMenuItem)
+
+        case .holdToTalk:
+            // Neither Start nor Stop Listening: the key is the only way in and
+            // out, and an item that started dictation from the mouse would
+            // leave nothing to release. So this says what to hold instead.
+            menu.addItem(Self.stateLine(action.title))
+
+        case .setHotkey:
+            // The one line in this mode that can be clicked. There is no key to
+            // hold and no toggle to offer, so the menu is where the user finds
+            // that out — and it leads to the row that fixes it.
+            menu.addItem(NSMenuItem(title: action.title, action: #selector(openSettings), keyEquivalent: ""))
         }
 
         menu.addItem(.separator())

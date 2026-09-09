@@ -125,6 +125,12 @@ final class EngineController {
         Task { await engine?.deactivate() }
     }
 
+    /// End the batch being recorded and stop, keeping what was said — what a
+    /// hold-to-talk release means, as against `deactivate()`, which discards.
+    func finish() {
+        Task { await engine?.finish() }
+    }
+
     func stop() {
         appState.status = .stopped
         appState.errorMessage = nil

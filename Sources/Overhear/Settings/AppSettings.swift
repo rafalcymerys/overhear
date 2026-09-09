@@ -15,6 +15,7 @@ final class AppSettings: ObservableObject {
     private let overlayKey = "showOverlay"
     private let dictateOnLaunchKey = "dictateOnLaunch"
     private let listeningHotkeyKey = "listeningHotkey"
+    private let listeningModeKey = "listeningMode"
     private let cancelWordKey = "cancelWord"
     private let stripAnnotationsKey = "stripTranscriptionAnnotations"
     private let translateUnsupportedKey = "translateUnsupportedLanguages"
@@ -63,6 +64,20 @@ final class AppSettings: ObservableObject {
             } else {
                 defaults.removeObject(forKey: listeningHotkeyKey)
             }
+        }
+    }
+
+    /// Whether the hotkey toggles listening or is held for the length of an
+    /// utterance.
+    ///
+    /// Applies live and reloads nothing: the engine is built from the language
+    /// set, the cancel word and the model, and this is none of them. What it
+    /// does change is who ends a session, so `AppDelegate` stops whatever is
+    /// running when it changes — the release ends only what a hold started,
+    /// and hold to talk has no **Stop Listening** to reach a session with.
+    @Published var listeningMode: ListeningMode {
+        didSet {
+            defaults.set(listeningMode.rawValue, forKey: listeningModeKey)
         }
     }
 
@@ -156,6 +171,8 @@ final class AppSettings: ObservableObject {
         translateUnsupported = defaults.bool(forKey: translateUnsupportedKey)
         listeningHotkey = defaults.dictionary(forKey: listeningHotkeyKey)
             .flatMap(ListeningHotkey.init(stored:))
+        listeningMode = defaults.string(forKey: listeningModeKey)
+            .flatMap(ListeningMode.init(rawValue:)) ?? .alwaysOn
         activeModelID = defaults.string(forKey: activeModelKey) ?? ModelCatalog.defaultModel.id
         cancelWord = HotWord.defaultWord
         if let saved = defaults.string(forKey: cancelWordKey) {
