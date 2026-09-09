@@ -40,12 +40,15 @@ Assert: the search field at the top of the pull-down stays reachable.
 
 1. Open **Settings… → General**.
 
-Assert: the pane offers **Start listening on launch**, **Show overlay window
-while listening**, **Listening hotkey**, the choice between **Always-on
-listening** and **Hold to talk**, and **Strip transcription annotations**.
+Assert: the pane offers **Show overlay window while listening**, a
+**Listening Mode** group, and **Strip transcription annotations** under a
+**Transcription** heading.
+Assert: **Show overlay window while listening** sits on its own above the
+**Listening Mode** heading.
+Assert: the **Listening Mode** group holds three things, in this order: the
+choice between **Always-on listening** and **Hold to talk**, the **Listening
+hotkey** row, and **Start listening on launch**.
 Assert: on a fresh install all three toggles are on.
-Assert: the hotkey row sits with the two toggles, above the **Transcription**
-heading, and the mode choice sits directly under it.
 Assert: the hotkey row shows the combination as symbols, or **Record
 Shortcut** when none is set.
 Assert: **Always-on listening** is what a fresh install has.
@@ -81,6 +84,8 @@ Assert: dictation does not activate on its own.
 Assert: the menu bar menu offers **Start Listening**.
 Assert: turning the setting back on and relaunching activates dictation
 automatically.
+Assert: the toggle is always shown, and is enabled only while **Always-on
+listening** is chosen — below.
 
 ## No hotkey is set on a fresh install
 
@@ -133,8 +138,8 @@ Assert: the previous combination, if any, stays in force.
 Assert: the row returns to **Record Shortcut**.
 Assert: the combination no longer starts listening.
 Assert: it reaches the focused application again instead of being swallowed.
-Assert: the mode choice stays where it is, and stays on whichever mode was
-chosen.
+Assert: the mode choice above the row is unaffected, and stays on whichever
+mode was chosen.
 Assert: clearing it while **Hold to talk** is chosen leaves no way to dictate,
 which the menu says in the line **Set a Listening Hotkey…** —
 `Specs/Dictation.md`.
@@ -153,10 +158,10 @@ Assert: no engine reload happens, and dictation in progress is unaffected.
 1. Open **Settings… → General**.
 2. Choose **Hold to talk**.
 
-Assert: the choice sits under the hotkey row, since it says what that
-combination does.
+Assert: the choice sits at the top of the **Listening Mode** group, above the
+row that gives it a combination.
 Assert: it is offered whether or not a hotkey is recorded — it describes the
-mode the app is in, and the row above it is where a combination is given to
+mode the app is in, and the row below it is where a combination is given to
 that mode.
 Assert: with no hotkey recorded the choice is still made and stored; the first
 combination recorded afterwards is held rather than pressed, with no second
@@ -164,17 +169,33 @@ visit to settings.
 Assert: it applies immediately — no relaunch and no engine reload.
 Assert: dictation running when the mode changes is stopped, whichever mode it
 was started in and whichever was chosen — `Specs/Dictation.md`.
-Assert: **Start listening on launch** has no effect while **Hold to talk** is
-chosen — there would be no key held and, in this mode, no **Stop Listening**
-to reach the session with. [to review]
+Assert: **Start listening on launch** is shown but disabled, and has no effect
+— there would be no key held and, in this mode, no **Stop Listening** to reach
+the session with.
+Assert: it keeps the value it was left with rather than reading as off.
 
-Whether the launch toggle is visibly disabled in this mode or merely inert is
-not settled.
+## The launch toggle follows the mode
+
+1. Open **Settings… → General** with **Always-on listening** chosen and
+   **Start listening on launch** on.
+2. Choose **Hold to talk**.
+3. Choose **Always-on listening** again.
+
+Assert: the toggle is enabled to begin with.
+Assert: choosing **Hold to talk** disables it at once, with the window still
+open and without the pane being left and returned to.
+Assert: choosing **Always-on listening** again enables it at once.
+Assert: it reads as on throughout — neither switch changes the value, only
+whether the toggle can be reached.
+Assert: the same holds for a toggle left off: it comes back off rather than
+back on.
+Assert: the value it ends on is the one that takes effect on the next launch.
 
 ## Settings persist across restarts
 
 1. Change every setting from its default: turn the three General toggles to
-   their opposite, record a listening hotkey, choose **Hold to talk**, pick a
+   their opposite, record a listening hotkey, choose **Hold to talk** — in that
+   order, since the last of those disables one of the toggles — pick a
    different cancel word, activate a different model, and change the language
    selection.
 2. Quit Overhear and open it again.
@@ -184,6 +205,9 @@ Assert: every changed setting keeps its new value.
 Assert: a setting turned off stays off rather than reverting to its default.
 Assert: the recorded hotkey still starts listening after the restart, in the
 mode that was chosen.
+Assert: **Start listening on launch** comes back disabled, still showing the
+value it was given — a setting the mode has taken out of use is not a setting
+that has been forgotten.
 
 ## Reopening settings returns to General [to review]
 
