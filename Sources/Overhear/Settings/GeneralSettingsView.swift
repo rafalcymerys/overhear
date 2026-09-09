@@ -7,13 +7,12 @@ struct GeneralSettingsView: View {
     var body: some View {
         Form {
             Section {
-                Toggle("Start listening on launch", isOn: $settings.dictateOnLaunch)
                 Toggle("Show overlay window while listening", isOn: $settings.showOverlay)
-                HotkeyRecorderRow()
-                // Under the row, because it says what that combination does.
-                // Offered whether or not one is recorded: it describes the mode
-                // the app is in, and the row above is where a combination is
-                // given to that mode.
+            }
+
+            Section {
+                // The choice first: the row under it means nothing until the
+                // mode has said what a press is worth.
                 Picker("", selection: $settings.listeningMode) {
                     ForEach(ListeningMode.allCases) { mode in
                         // The explanation rides with the option it describes,
@@ -30,6 +29,18 @@ struct GeneralSettingsView: View {
                 }
                 .pickerStyle(.radioGroup)
                 .labelsHidden()
+
+                HotkeyRecorderRow()
+
+                // Shown in both modes and enabled in one. Hold to talk has no
+                // key held at launch, and no **Stop Listening** to reach the
+                // session it would start with — but a toggle that vanished
+                // would take its value with it, and it is kept rather than
+                // forgotten.
+                Toggle("Start listening on launch", isOn: $settings.dictateOnLaunch)
+                    .disabled(settings.listeningMode == .holdToTalk)
+            } header: {
+                Text("Listening Mode")
             }
 
             Section {

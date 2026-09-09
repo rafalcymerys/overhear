@@ -156,10 +156,11 @@ Settings is split into three panes.
 
 **General**
 
-- **Start listening on launch**: begin listening automatically when the app finishes loading (on by default)
 - **Show overlay window while listening**: toggle the floating status overlay that appears while dictation is active
-- **Listening hotkey**: a combination that starts and stops listening from whichever app you're typing in. Nothing is set until you record one — click the row and press the combination, or hold a single modifier such as Right Option and let it go. The menu bar item shows whatever is recorded.
-- **Always-on listening** or **Hold to talk**: what that combination does. Always-on listening is a toggle — press once to start, again to stop — and is what a fresh install uses. Hold to talk listens for as long as you hold the key: letting go transcribes what you said and ends the session, so a bare modifier such as Right Option, which types nothing while it is down, makes a good combination for it. In hold to talk the key is the only way in and out, so the menu says **Hold ⌃⌥D to talk** in place of **Start Listening**, and **Start listening on launch** has nothing to act on.
+- **Listening Mode**, a group of three:
+  - **Always-on listening** or **Hold to talk**: how listening starts and stops. Always-on listening is a toggle — press once to start, again to stop — and is what a fresh install uses. Hold to talk listens for as long as you hold the key: letting go transcribes what you said and ends the session, so a bare modifier such as Right Option, which types nothing while it is down, makes a good combination for it. In hold to talk the key is the only way in and out, so the menu says **Hold ⌃⌥D to talk** in place of **Start Listening**.
+  - **Listening hotkey**: the combination itself, which works from whichever app you're typing in. Nothing is set until you record one — click the row and press the combination, or hold a single modifier such as Right Option and let it go. The menu bar item shows whatever is recorded.
+  - **Start listening on launch**: begin listening automatically when the app finishes loading (on by default). Disabled while **Hold to talk** is chosen, which has no key held at launch — it keeps its value for when you switch back.
 - **Strip transcription annotations**: drop the `(coughing)`-style notes a model sometimes writes instead of transcribing (on by default)
 
 **Transcription**

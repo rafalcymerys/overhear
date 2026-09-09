@@ -326,7 +326,9 @@ Stopping discards. `deactivate()` voids the batch being recorded and drops the r
 
 There is no minimum hold. A tap is a session with silence in it, and silence already produces nothing.
 
-The mode is not one of the settings the engine is built from, so changing it reloads nothing — but it does end whatever is running, whichever mode that session was started in. Left running it would be a session no key could end: the release ends only what a hold started, and hold to talk offers no **Stop Listening** to reach it with. For the same reason **Start listening on launch** does nothing in hold to talk, and a model swap does not resume a session that a held key started.
+The mode is not one of the settings the engine is built from, so changing it reloads nothing — but it does end whatever is running, whichever mode that session was started in. Left running it would be a session no key could end: the release ends only what a hold started, and hold to talk offers no **Stop Listening** to reach it with. For the same reason **Start listening on launch** does nothing in hold to talk — the General pane shows its toggle disabled there, keeping its value for the mode that can honour it — and a model swap does not resume a session that a held key started.
+
+The pane groups the three settings this depends on under a **Listening Mode** heading, in the order they depend on each other: the mode, then the combination it gives meaning to, then the launch toggle only one mode can honour.
 
 In hold to talk the menu offers no toggle at all — an item that started dictation from the mouse would leave nothing to release — so `MenuBarAction` grows two cases for that line: `holdToTalk`, which names the combination and cannot be clicked, and `setHotkey`, which is what the line says when nothing is recorded and is the one line in this mode that leads somewhere.
 
