@@ -3,7 +3,7 @@
 The core loop: activating dictation, speaking in batches, and having text
 arrive in the focused application.
 
-Every scenario is in the default **Press to start and stop** mode unless it
+Every scenario is in the default **Always-on listening** mode unless it
 says otherwise — hold to talk names itself in the step that sets it up, here
 and in every other spec.
 
@@ -109,7 +109,7 @@ Assert: the earlier transcription is still listed under **Last Transcriptions**.
 ## Starting and stopping with the global hotkey
 
 1. Record ⌃⌥D as the listening hotkey in **Settings… → General**, with
-   **Press to start and stop** chosen.
+   **Always-on listening** chosen.
 2. Close Overhear's windows and focus TextEdit.
 3. Press ⌃⌥D.
 4. Say `HelloEn` and wait for the insertion.
@@ -123,7 +123,7 @@ Assert: holding the combination down is one toggle, not a repeating one.
 
 ## The hotkey does not reach the focused application
 
-1. With ⌃⌥D recorded and **Press to start and stop** chosen, place the cursor
+1. With ⌃⌥D recorded and **Always-on listening** chosen, place the cursor
    in a TextEdit document.
 2. Press ⌃⌥D twice.
 
@@ -132,7 +132,7 @@ Assert: TextEdit gives no sign of the keystroke, such as an alert beep.
 
 ## The hotkey works while Overhear's own windows are open
 
-1. With ⌃⌥D recorded and **Press to start and stop** chosen, open
+1. With ⌃⌥D recorded and **Always-on listening** chosen, open
    **Settings…** and leave it focused.
 2. Press the hotkey.
 3. Press it again while the overlay is showing.
@@ -233,7 +233,7 @@ Assert: in their place the menu says **Hold ⌃⌥D to talk**, which is not an
 action and cannot be clicked, the way **Loading the model…** is not —
 `Specs/StatusDisplay.md`.
 Assert: the rest of the menu is unchanged.
-Assert: choosing **Press to start and stop** brings **Start Listening** back,
+Assert: choosing **Always-on listening** brings **Start Listening** back,
 with its combination against its right edge.
 
 ## Hold to talk with no hotkey recorded
@@ -277,19 +277,55 @@ Assert: the overlay disappears and the icon returns to idle.
 Assert: releasing the key afterwards does nothing and does not start a new
 session.
 
-## Switching modes while dictating
+## Switching to hold to talk while dictating stops it
 
-1. With ⌃⌥D recorded and **Press to start and stop** chosen, start dictation
-   with the hotkey.
-2. Open **Settings… → General** and choose **Hold to talk**.
+1. With ⌃⌥D recorded and **Always-on listening** chosen, start dictation with
+   the hotkey.
+2. Say `HelloEn` and let it arrive, then begin saying `ParagraphEn`.
+3. While still speaking, open **Settings… → General** and choose
+   **Hold to talk**.
 
-Assert: dictation stays active — the mode says how the next press behaves, not
-whether this session continues.
-Assert: no engine reload happens.
-Assert: the menu offers **Stop Listening** for as long as this session lasts,
-since it is the only way left to end it.
-Assert: the next hold starts and ends a session in the new mode, and the menu
-says **Hold ⌃⌥D to talk** once it does.
+Assert: dictation stops of its own accord, as **Stop Listening** would — the
+session belonged to the mode that has just been replaced.
+Assert: the utterance in progress is discarded: nothing of `ParagraphEn` is
+inserted, and no entry is added to **Last Transcriptions** for it.
+Assert: the transcription from step 2 is still listed, and still in the
+document.
+Assert: the menu bar icon returns to idle, the overlay disappears, and the menu
+says **Hold ⌃⌥D to talk**.
+Assert: no engine reload happens — the mode is not one of the settings the
+engine is built from.
+Assert: the next hold starts and ends a session in the new mode.
+
+Left running, the session would be one no key could end: the release ends only
+what a hold started, and hold to talk offers no **Stop Listening** to reach it
+with — `Specs/StatusDisplay.md`.
+
+Changing the mode ends whatever is running, whichever way it is changed —
+below.
+
+## Switching to always-on listening mid-hold stops it too
+
+1. With Right Option recorded and **Hold to talk** chosen, hold it and begin
+   saying `ParagraphEn`.
+2. Still holding, open **Settings… → General** and choose **Always-on
+   listening**.
+3. Let go of the key.
+
+Assert: dictation stops as the switch is made, without waiting for the key to
+come up.
+Assert: the utterance in progress is discarded — nothing of `ParagraphEn` is
+inserted, and no entry is added to **Last Transcriptions** for it.
+Assert: the menu bar icon returns to idle, the overlay disappears, and the menu
+offers **Start Listening**.
+Assert: letting go does nothing: it does not transcribe what was said before
+the switch, and it does not start a session in the new mode.
+Assert: pressing the combination afterwards starts one, as a press does in this
+mode.
+
+The session belonged to the mode it was started in. Ending it either way is
+one rule rather than two, and it leaves nothing running that the mode the user
+has just chosen would not have started.
 
 ## The hotkey does nothing while the engine is not ready
 

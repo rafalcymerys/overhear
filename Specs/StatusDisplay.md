@@ -123,7 +123,7 @@ because nothing here knows how long the load will take.
 
 ## Menu contents while idle
 
-1. With **Press to start and stop** chosen, ensure dictation is stopped.
+1. With **Always-on listening** chosen, ensure dictation is stopped.
 2. Click the menu bar icon.
 
 Assert: the menu offers **Start Listening**, **Last Transcriptions**,
@@ -151,7 +151,7 @@ same thing to say — `Specs/Languages.md`, `Specs/CancelWord.md`.
 
 ## Menu contents while dictating
 
-1. With **Press to start and stop** chosen, start dictation.
+1. With **Always-on listening** chosen, start dictation.
 2. Click the menu bar icon.
 
 Assert: **Start Listening** is replaced by **Stop Listening**.
@@ -159,7 +159,7 @@ Assert: **Start Listening** is replaced by **Stop Listening**.
 ## Start Listening shows the hotkey
 
 1. Record ⌃⌥D as the listening hotkey in **Settings… → General**, with
-   **Press to start and stop** chosen.
+   **Always-on listening** chosen.
 2. Ensure dictation is stopped and click the menu bar icon.
 
 Assert: **Start Listening** shows ⌃⌥D against its right edge, the way any
@@ -170,12 +170,12 @@ next time the menu opens.
 Assert: with no hotkey recorded the item shows no shortcut at all — not
 ⌘D, which would only work while this menu is already open —
 `Specs/Settings.md`.
-Assert: the combination is shown only while **Press to start and stop** is
+Assert: the combination is shown only while **Always-on listening** is
 chosen; **Hold to talk** offers no such item to put it on.
 
 ## Stop Listening shows the hotkey
 
-1. With ⌃⌥D recorded and **Press to start and stop** chosen, start dictation
+1. With ⌃⌥D recorded and **Always-on listening** chosen, start dictation
    and click the menu bar icon.
 
 Assert: **Stop Listening** shows ⌃⌥D, the same combination

@@ -41,14 +41,19 @@ Assert: the search field at the top of the pull-down stays reachable.
 1. Open **Settings… → General**.
 
 Assert: the pane offers **Start listening on launch**, **Show overlay window
-while listening**, **Listening hotkey**, the choice between **Press to start
-and stop** and **Hold to talk**, and **Strip transcription annotations**.
+while listening**, **Listening hotkey**, the choice between **Always-on
+listening** and **Hold to talk**, and **Strip transcription annotations**.
 Assert: on a fresh install all three toggles are on.
 Assert: the hotkey row sits with the two toggles, above the **Transcription**
 heading, and the mode choice sits directly under it.
 Assert: the hotkey row shows the combination as symbols, or **Record
 Shortcut** when none is set.
-Assert: **Press to start and stop** is what a fresh install has.
+Assert: **Always-on listening** is what a fresh install has.
+Assert: **Always-on listening** carries an explanation below it, reading
+"Overhear keeps listening in the background. Use the menu or the hotkey to
+turn listening on and off."
+Assert: the explanation sits with the option it describes, the way each
+transcription setting's does.
 Assert: translation is not offered here — it belongs to the active model, in
 **Settings… → Transcription**.
 Assert: the transcription settings sit under a **Transcription** heading.
@@ -156,8 +161,9 @@ that mode.
 Assert: with no hotkey recorded the choice is still made and stored; the first
 combination recorded afterwards is held rather than pressed, with no second
 visit to settings.
-Assert: it applies immediately — no relaunch, no engine reload, and dictation
-in progress is unaffected.
+Assert: it applies immediately — no relaunch and no engine reload.
+Assert: dictation running when the mode changes is stopped, whichever mode it
+was started in and whichever was chosen — `Specs/Dictation.md`.
 Assert: **Start listening on launch** has no effect while **Hold to talk** is
 chosen — there would be no key held and, in this mode, no **Stop Listening**
 to reach the session with. [to review]
