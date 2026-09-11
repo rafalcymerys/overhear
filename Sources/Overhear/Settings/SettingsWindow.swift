@@ -61,9 +61,20 @@ enum SettingsTab: String, CaseIterable {
     }
 
     /// What the window's content rect should be for a freshly built pane.
+    ///
+    /// Laid out twice, because once is not enough. A pane that has never been
+    /// given a width reports the height its text wants at the width it assumed,
+    /// and the wrapped explanations under the toggles settle a few points
+    /// taller once they have been laid out at 460 — four for General, one for
+    /// Transcription. The window took the first number and the pane went on to
+    /// occupy the second, which is how a pane whose content plainly fits still
+    /// had a few points to scroll. The second pass is where it converges.
     @MainActor
     func contentSize(of view: NSView) -> NSSize {
         view.layoutSubtreeIfNeeded()
+        view.frame = NSRect(origin: .zero, size: NSSize(width: Self.width, height: view.fittingSize.height))
+        view.layoutSubtreeIfNeeded()
+
         let height = min(view.fittingSize.height, maximumHeight)
         return NSSize(width: Self.width, height: height)
     }

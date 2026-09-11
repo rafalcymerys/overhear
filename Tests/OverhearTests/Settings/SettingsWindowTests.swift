@@ -136,4 +136,37 @@ final class SettingsWindowTests: XCTestCase {
     private func expectedContentHeight(of tab: SettingsTab) -> CGFloat {
         tab.contentSize(of: tab.makeContentView()).height
     }
+
+    /// A pane whose content fits must not scroll at all. Measured where the
+    /// user finds it — in the window, after the pane has been laid out there —
+    /// rather than from the height the window was sized to, which is the number
+    /// that was wrong when this last happened.
+    func testPanesThatFitDoNotScroll() async throws {
+        let controller = SettingsWindowController()
+        controller.show()
+        defer { controller.close() }
+
+        let window = try XCTUnwrap(controller.window)
+
+        for tab in SettingsTab.allCases {
+            controller.select(tab)
+            await waitUntil("\(tab.title) is installed in the window") {
+                window.contentView.map { !Self.scrollViews(in: $0).isEmpty } ?? false
+            }
+
+            let content = try XCTUnwrap(window.contentView)
+            content.layoutSubtreeIfNeeded()
+
+            for scroll in Self.scrollViews(in: content) {
+                let document = try XCTUnwrap(scroll.documentView).frame.height
+                XCTAssertLessThanOrEqual(document, scroll.contentView.bounds.height,
+                                         "\(tab.title) overflows its window by \(document - scroll.contentView.bounds.height)pt")
+            }
+        }
+    }
+
+    private static func scrollViews(in view: NSView) -> [NSScrollView] {
+        let here = (view as? NSScrollView).map { [$0] } ?? []
+        return here + view.subviews.flatMap(scrollViews(in:))
+    }
 }
