@@ -62,6 +62,14 @@ struct GeneralSettingsView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("Match the case of the current sentence", isOn: $settings.matchSentenceCase)
+                    Text("When dictating into the middle of a sentence, continue it in lower case; when there's nothing to continue, capitalise what you've just dictated.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             } header: {
                 Text("Transcription")
             }

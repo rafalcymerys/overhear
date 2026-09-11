@@ -24,12 +24,19 @@ The rule, in one place, so the scenarios below can be read against it:
   lowercased.
 - **Starting.** When the caret sits where a sentence begins, it is uppercased.
 - **Where a sentence begins.** Read back from the caret, stepping over spaces
-  and tabs, over closing brackets and quotes — `)` `]` `}` `"` `”` — and over
-  opening brackets `(` `[` `{`, which say nothing either way. A sentence begins
-  at: nothing at all, the start of the field; a newline; `.` `!` `?` `…`; their
-  fullwidth counterparts `。` `！` `？`; the Spanish `¿` and `¡`, which open the
-  sentence they mark; and an opening double quote, `"` or `“`. Everything else
-  is mid-sentence — a letter, a digit, `,` `;` `:` and a dash among them.
+  and tabs, over closing brackets and the single quotes — `)` `]` `}` `”` `'`
+  `’` — and over opening brackets `(` `[` `{`, which say nothing either way. A
+  sentence begins at: nothing at all, the start of the field; a newline; `.`
+  `!` `?` `…`; their fullwidth counterparts `。` `！` `？`; the Spanish `¿` and
+  `¡`, which open the sentence they mark; and a double quote, `"` or `“`.
+  Everything else is mid-sentence — a letter, a digit, `,` `;` `:` and a dash
+  among them.
+- **The double quote is read as a boundary from either end.** Nothing in the
+  field says which end of a pair a `"` is, and it does not have to: `He said "`
+  opens a quotation and wants a capital, and `He said "Hello." ` has a full
+  stop one step further back and wants one too. The single quotes go the other
+  way for the same reason — they are apostrophes more often than quotation
+  marks, and `the dogs' ` continues its sentence.
 - **Words that keep their case.** An acronym, meaning a first word of two or
   more characters written entirely in capitals. A word with a capital inside it
   but not at the front, such as `iPhone`. The English `I`, alone or contracted
@@ -125,13 +132,15 @@ cell, and none of those continue the sentence above them.
 
 ## Reads back past closing punctuation
 
-1. In TextEdit, type `He said "The fox jumps." ` and leave the caret after the
+1. In TextEdit, type `He said “The fox jumps.” ` and leave the caret after the
    trailing space.
 2. Start dictation and say `HelloEn`.
 
 Assert: the insertion is capitalised — reading back steps over the closing
 quote to find the full stop.
 Assert: the same holds after `)`, `]` and `}` following a full stop.
+Assert: the same holds with straight quotes, `He said "The fox jumps." `,
+though by the other half of the rule: a `"` is a boundary in its own right.
 Assert: `The fox (jumps) ` — a closing bracket with a letter before it — gets a
 lowercased insertion, because what the step back finds is `s`.
 
@@ -142,10 +151,10 @@ lowercased insertion, because what the step back finds is `s`.
 
 Assert: the insertion is capitalised.
 Assert: the same holds after `“`.
-Assert: an opening single quote does not do this: `don't|` and `the dogs' |`
-get a lowercased insertion, because a straight or curly single quote is an
-apostrophe more often than it is a quotation mark, and nothing in the field
-says which.
+Assert: a single quote does not do this: `the dogs' |` and `the dogs’ |` get a
+lowercased insertion, because a single quote is an apostrophe more often than
+it is a quotation mark, and nothing in the field says which. It is read past
+rather than read as a boundary, so what decides is the `s` in front of it.
 
 ## Opening brackets say nothing either way
 

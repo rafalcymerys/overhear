@@ -20,6 +20,7 @@ final class AppSettings: ObservableObject {
     private let stripAnnotationsKey = "stripTranscriptionAnnotations"
     private let translateUnsupportedKey = "translateUnsupportedLanguages"
     private let spaceInsertedTextKey = "addSpacesAroundInsertedText"
+    private let matchSentenceCaseKey = "matchSentenceCase"
 
     private let defaults: UserDefaults
 
@@ -111,6 +112,18 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    /// Whether to case the front of an insertion to suit the sentence it is
+    /// joining — lower where it continues one, a capital where it starts one
+    /// or where the field will not say.
+    ///
+    /// Applies live, like `spaceInsertedText`, and read on the same insertion:
+    /// both settings work off one read of the field.
+    @Published var matchSentenceCase: Bool {
+        didSet {
+            defaults.set(matchSentenceCase, forKey: matchSentenceCaseKey)
+        }
+    }
+
     /// Whether speech in a language the user did not select is translated to
     /// English. A selected language is never translated, whatever this says.
     ///
@@ -184,6 +197,11 @@ final class AppSettings: ObservableObject {
             spaceInsertedText = defaults.bool(forKey: spaceInsertedTextKey)
         } else {
             spaceInsertedText = true
+        }
+        if defaults.object(forKey: matchSentenceCaseKey) != nil {
+            matchSentenceCase = defaults.bool(forKey: matchSentenceCaseKey)
+        } else {
+            matchSentenceCase = true
         }
         translateUnsupported = defaults.bool(forKey: translateUnsupportedKey)
         listeningHotkey = defaults.dictionary(forKey: listeningHotkeyKey)

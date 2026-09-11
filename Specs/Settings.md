@@ -20,7 +20,7 @@ Assert: the window title is "General".
 4. Click **General**.
 
 Assert: each click changes the window title to the pane name.
-Assert: the window resizes to fit each pane, with General shortest and
+Assert: the window resizes to fit each pane, with Hot Words shortest and
 Transcription tallest.
 Assert: the window stays anchored at its top-left corner while resizing.
 Assert: the pane's contents appear only after the resize completes.

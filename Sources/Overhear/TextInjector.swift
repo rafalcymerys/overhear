@@ -19,21 +19,35 @@ struct PasteboardTextInjector: TextInjecting {
     var performPaste: () -> Void = PasteboardTextInjector.simulatePaste
     var restoreDelay: TimeInterval = 0.3
 
-    /// Whether to separate the insertion from what is already in the field, and
-    /// what is on either side of the caret when it is.
+    /// Whether to separate the insertion from what is already in the field,
+    /// whether to case its front to suit the sentence, and what is around the
+    /// caret when either of them asks.
     ///
-    /// Both are read at the moment of the insertion: the setting so that
-    /// toggling it applies to the next utterance rather than to the next
-    /// launch, the surroundings so that spacing follows the caret rather than
+    /// All three are read at the moment of the insertion: the settings so that
+    /// toggling one applies to the next utterance rather than to the next
+    /// launch, the surroundings so that both rules follow the caret rather than
     /// what was inserted last. Closures so tests can place a caret without an
     /// application to read it out of.
     var spacesInsertedText: @MainActor () -> Bool = { AppSettings.shared.spaceInsertedText }
+    var matchesSentenceCase: @MainActor () -> Bool = { AppSettings.shared.matchSentenceCase }
     var caretContext: @MainActor () -> CaretContext = { FocusedField.caretContext() }
 
     func inject(text: String) {
-        // Spaced before it reaches the pasteboard rather than typed around the
-        // paste: what goes in is one insertion, which is one undo.
-        let text = spacesInsertedText() ? InsertionSpacing.apply(to: text, in: caretContext()) : text
+        let spacing = spacesInsertedText()
+        let casing = matchesSentenceCase()
+        // One read for both rules. Asking the focused application twice would
+        // cost twice as much for the same two answers, and a caret that moved
+        // between the reads would have them disagree.
+        let context = spacing || casing ? caretContext() : .unknown
+
+        // Cased before it is spaced, since casing works off the front of the
+        // transcription and spacing would put a space in front of it. Both
+        // before the pasteboard rather than typed around the paste: what goes
+        // in is one insertion, which is one undo.
+        var text = text
+        if casing { text = InsertionCasing.apply(to: text, in: context) }
+        if spacing { text = InsertionSpacing.apply(to: text, in: context) }
+
         let previousContents = pasteboard.string(forType: .string)
 
         pasteboard.clearContents()

@@ -24,6 +24,16 @@ enum FocusedField {
     /// have added.
     private static let timeout: Float = 0.25
 
+    /// How much of the text before the caret to ask for.
+    ///
+    /// Spacing wants the one character meeting the insertion, but casing reads
+    /// back over a run of spaces and closing brackets to reach the punctuation
+    /// that ended the last sentence, and that run is short. Sixty-four
+    /// characters is far more than it has ever taken, and still a fraction of
+    /// copying the document out of the application every time someone finishes
+    /// a sentence.
+    private static let lookBehind = 64
+
     static func caretContext() -> CaretContext {
         if let context = read() { return context }
 
@@ -49,14 +59,15 @@ enum FocusedField {
         let end = range.location + range.length
         guard start >= 0, end >= start else { return .unknown }
 
-        // Ask for the two characters themselves where the field can answer
-        // that. The alternative copies the whole document out of the
-        // application, which is the difference between reading two characters
-        // and reading a novel every time someone finishes a sentence.
+        // Ask for the surroundings themselves where the field can answer that.
+        // The alternative copies the whole document out of the application,
+        // which is the difference between reading a line and reading a novel
+        // every time someone finishes a sentence.
         if start > 0 {
-            guard let before = character(of: element, at: start - 1) else {
+            let location = max(0, start - lookBehind)
+            guard let before = string(of: element, in: CFRange(location: location, length: start - location)) else {
                 // The field has text before the caret and would not hand it
-                // over one character at a time, so it does not support this.
+                // over by range, so it does not support this.
                 return contextFromWholeValue(of: element, start: start, end: end)
             }
             return CaretContext(before: before, after: character(of: element, at: end))
@@ -66,7 +77,7 @@ enum FocusedField {
         // missing character after it could be the end of the field or a field
         // that will not answer. Reading the value settles which.
         if let after = character(of: element, at: end) {
-            return CaretContext(before: nil, after: after)
+            return CaretContext(before: "", after: after)
         }
         return contextFromWholeValue(of: element, start: start, end: end)
     }
@@ -108,7 +119,11 @@ enum FocusedField {
     }
 
     private static func character(of element: AXUIElement, at index: Int) -> Character? {
-        var range = CFRange(location: index, length: 1)
+        string(of: element, in: CFRange(location: index, length: 1))?.first
+    }
+
+    private static func string(of element: AXUIElement, in range: CFRange) -> String? {
+        var range = range
         guard let requested = AXValueCreate(.cfRange, &range) else { return nil }
 
         var value: CFTypeRef?
@@ -119,7 +134,7 @@ enum FocusedField {
             &value
         )
         guard result == .success else { return nil }
-        return (value as? String)?.first
+        return value as? String
     }
 
     /// The fallback for fields that hold their text but will not serve a range
@@ -133,9 +148,10 @@ enum FocusedField {
 
         let startIndex = String.Index(utf16Offset: start, in: text)
         let endIndex = String.Index(utf16Offset: end, in: text)
+        let behind = String.Index(utf16Offset: max(0, start - lookBehind), in: text)
 
         return CaretContext(
-            before: startIndex > text.startIndex ? text[text.index(before: startIndex)] : nil,
+            before: String(text[behind..<startIndex]),
             after: endIndex < text.endIndex ? text[endIndex] : nil
         )
     }

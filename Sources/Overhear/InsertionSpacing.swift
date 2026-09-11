@@ -1,19 +1,5 @@
 import Foundation
 
-/// The characters either side of the point text is about to be inserted at.
-///
-/// Both are optional, and for two different reasons that the rule does not have
-/// to tell apart: the caret can be at the start or the end of the field, or the
-/// field can be one whose contents Overhear cannot read. Nothing is ever added
-/// against a character that is not there.
-struct CaretContext: Equatable {
-    var before: Character?
-    var after: Character?
-
-    /// A field that said nothing about itself. Text goes in as transcribed.
-    static let unknown = CaretContext(before: nil, after: nil)
-}
-
 /// Separates what is being inserted from what is already in the field.
 ///
 /// Dictation rarely lands in an empty document — it arrives after a word
@@ -31,7 +17,7 @@ enum InsertionSpacing {
     static func apply(to text: String, in context: CaretContext) -> String {
         guard let first = text.first, let last = text.last else { return text }
 
-        let leading = wantsSpace(between: context.before, and: first)
+        let leading = wantsSpace(between: context.characterBefore, and: first)
         let trailing = wantsSpace(between: last, and: context.after)
 
         return (leading ? " " : "") + text + (trailing ? " " : "")

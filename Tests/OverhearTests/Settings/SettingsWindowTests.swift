@@ -103,7 +103,7 @@ final class SettingsWindowTests: XCTestCase {
         let general = try XCTUnwrap(heights[.general])
         let transcription = try XCTUnwrap(heights[.transcription])
         XCTAssertLessThan(general, transcription,
-                          "General holds two toggles; Transcription holds the active model and the catalogue")
+                          "General holds the listening and transcription settings; Transcription holds the active model and the catalogue")
     }
 
     /// Selecting the pane that is already showing must not restart the resize —

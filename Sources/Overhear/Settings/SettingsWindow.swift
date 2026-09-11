@@ -36,8 +36,8 @@ enum SettingsTab: String, CaseIterable {
     /// popover rather than in a pane.
     var maximumHeight: CGFloat {
         switch self {
-        case .general, .hotWords: return 600
-        case .transcription: return 700
+        case .hotWords: return 600
+        case .general, .transcription: return 700
         }
     }
 

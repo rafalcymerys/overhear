@@ -5,7 +5,9 @@ import XCTest
 /// rather than read out of an application.
 final class InsertionSpacingTests: XCTestCase {
     private func insert(_ text: String, between left: Character?, and right: Character?) -> String {
-        InsertionSpacing.apply(to: text, in: CaretContext(before: left, after: right))
+        // The context carries a run before the caret for casing's sake; spacing
+        // reads the last character of it, which is the one the tests place.
+        InsertionSpacing.apply(to: text, in: CaretContext(before: left.map(String.init) ?? "", after: right))
     }
 
     // MARK: - Before the insertion
