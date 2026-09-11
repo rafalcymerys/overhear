@@ -49,6 +49,42 @@ final class TranscriptionModelTests: OverhearTestCase {
         XCTAssertEqual(ModelCatalog.whisperBaseEnglish.languageSummary, "English only")
     }
 
+    /// What a row and a picker item both say about a model, which is why it is
+    /// on the model rather than in either of them.
+    func testSummaryIsTheSizeAndTheNoteWhenThereIsOne() {
+        XCTAssertEqual(ModelCatalog.whisperBase.summary,
+                       byteCount(ModelCatalog.whisperBase.downloadSize))
+        XCTAssertEqual(ModelCatalog.whisperTiny.summary,
+                       "\(byteCount(ModelCatalog.whisperTiny.downloadSize)) · fastest")
+    }
+
+    /// The languages are named only where they are a surprise. Every
+    /// multilingual Whisper build recognises the same hundred, so saying so on
+    /// each of them is a column of identical text.
+    func testSummaryNamesTheLanguagesOnlyWhereTheyDifferFromTheGroup() {
+        let base = ModelCatalog.whisperBase
+        XCTAssertFalse(base.summary.contains(base.languageSummary), base.summary)
+
+        XCTAssertTrue(ModelCatalog.whisperBaseEnglish.summary.contains("English only"))
+        XCTAssertTrue(ModelCatalog.parakeetV2.summary.contains("English only"))
+
+        let multilingual = ModelCatalog.parakeetV3
+        XCTAssertTrue(multilingual.summary.contains(multilingual.languageSummary), multilingual.summary)
+    }
+
+    /// A model being fetched says how far it has got rather than what it will
+    /// cost, in the sizes the rest of the interface is written in.
+    func testDownloadSummarySaysHowMuchOfTheModelHasArrived() {
+        let model = ModelCatalog.whisperBase
+
+        let started = model.downloadSummary(fraction: 0)
+        XCTAssertTrue(started.hasPrefix("Downloading · 0"), started)
+        XCTAssertTrue(started.hasSuffix("of \(byteCount(model.downloadSize))"), started)
+
+        let half = model.downloadSummary(fraction: 0.5)
+        XCTAssertTrue(half.contains(byteCount(model.downloadSize / 2)), half)
+    }
+
     // MARK: - A fresh install
 
     func testFreshInstallHasWhisperBaseActiveAndNothingDownloaded() {

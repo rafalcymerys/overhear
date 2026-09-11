@@ -174,9 +174,8 @@ private struct SetupCard: View {
                         .keyboardShortcut(.defaultAction)
                 }
             } else if let fraction = setup.downloadProgress {
-                let received = Int64(Double(setup.chosenModel.downloadSize) * fraction)
                 ProgressView(value: fraction)
-                Text("Downloading · \(byteCount(received)) of \(byteCount(setup.chosenModel.downloadSize))")
+                Text(setup.chosenModel.downloadSummary(fraction: fraction))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Button("Cancel") { setup.cancelDownload() }
@@ -225,15 +224,10 @@ private struct SetupCard: View {
         .disabled(!setup.canChooseModel)
     }
 
+    /// A picker item has no line of its own to carry the name, so it goes in
+    /// front of what every other place says about a model.
     private func label(for model: TranscriptionModel) -> String {
-        var parts = [model.displayName, byteCount(model.downloadSize)]
-        if !model.supportsEveryLanguage || model.engine != .whisper {
-            parts.append(model.languageSummary)
-        }
-        if let note = model.note {
-            parts.append(note)
-        }
-        return parts.joined(separator: " · ")
+        "\(model.displayName) · \(model.summary)"
     }
 
     private func explanation(_ text: String) -> some View {

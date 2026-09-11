@@ -92,4 +92,35 @@ struct TranscriptionModel: Identifiable, Hashable, Sendable {
         }
         return "\(supported.count) languages"
     }
+
+    /// What is said about a model beside its name: what it costs, what it
+    /// recognises, and what it is good or bad at.
+    ///
+    /// Here rather than in the two places that draw it — the Transcription
+    /// pane's list and setup's picker — which had the same three parts and the
+    /// same rule about which of them to leave out. What they still choose for
+    /// themselves is whether the name goes in front of it, since one draws the
+    /// name on its own line and the other has no line to draw it on.
+    var summary: String {
+        var parts = [byteCount(downloadSize)]
+        // The languages are worth naming only where they are a surprise. Every
+        // multilingual Whisper build recognises the same hundred, so saying so
+        // on each of them is a column of identical text; anything narrower —
+        // an English-only build, either Parakeet — is what the reader is
+        // choosing between.
+        if !supportsEveryLanguage || engine != .whisper {
+            parts.append(languageSummary)
+        }
+        if let note {
+            parts.append(note)
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    /// What `summary` becomes while the model is being fetched: how far it has
+    /// got rather than what it will cost.
+    func downloadSummary(fraction: Double) -> String {
+        let received = Int64(Double(downloadSize) * fraction)
+        return "Downloading · \(byteCount(received)) of \(byteCount(downloadSize))"
+    }
 }

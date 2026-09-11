@@ -161,17 +161,9 @@ struct AvailableModels: View {
             return "Download failed — \(failure)"
         }
         if let fraction = models.progress[model.id] {
-            let received = Int64(Double(model.downloadSize) * fraction)
-            return "Downloading · \(byteCount(received)) of \(byteCount(model.downloadSize))"
+            return model.downloadSummary(fraction: fraction)
         }
-        var parts = [byteCount(model.downloadSize)]
-        if !model.supportsEveryLanguage || model.engine != .whisper {
-            parts.append(model.languageSummary)
-        }
-        if let note = model.note {
-            parts.append(note)
-        }
-        return parts.joined(separator: " · ")
+        return model.summary
     }
 
     private func isActive(_ model: TranscriptionModel) -> Bool {
