@@ -162,6 +162,7 @@ Settings is split into three panes.
   - **Listening hotkey**: the combination itself, which works from whichever app you're typing in. Nothing is set until you record one — click the row and press the combination, or hold a single modifier such as Right Option and let it go. The menu bar item shows whatever is recorded.
   - **Start listening on launch**: begin listening automatically when the app finishes loading (on by default). Disabled while **Hold to talk** is chosen, which has no key held at launch — it keeps its value for when you switch back.
 - **Strip transcription annotations**: drop the `(coughing)`-style notes a model sometimes writes instead of transcribing (on by default)
+- **Ensure spaces around inserted text**: put a space between what's already in the field and what's pasted into it, and one on each side when you dictate into the middle of a sentence (on by default). Fields that don't say where the cursor is — a terminal, a password field — get the text exactly as transcribed.
 
 **Transcription**
 

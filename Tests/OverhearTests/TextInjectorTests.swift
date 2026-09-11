@@ -24,12 +24,19 @@ final class TextInjectorTests: OverhearTestCase {
         try super.tearDownWithError()
     }
 
+    /// Spacing is off unless a test asks for it, and the caret is always the
+    /// one the test hands over rather than whatever field happens to be focused
+    /// while the suite runs.
     private func makeInjector(restoreDelay: TimeInterval = 0.05,
+                              spacing: Bool = false,
+                              caret: CaretContext = .unknown,
                               onPaste: @escaping () -> Void = {}) -> PasteboardTextInjector {
         var injector = PasteboardTextInjector()
         injector.pasteboard = pasteboard
         injector.performPaste = onPaste
         injector.restoreDelay = restoreDelay
+        injector.spacesInsertedText = { spacing }
+        injector.caretContext = { caret }
         return injector
     }
 
@@ -98,6 +105,81 @@ final class TextInjectorTests: OverhearTestCase {
 
         await waitUntil("clipboard restored after both injections", timeout: 1.0) {
             self.pasteboard.string(forType: .string) == "original"
+        }
+    }
+
+    // MARK: - Spacing
+
+    /// `Specs/Spacing.md` — the rule is exercised in `InsertionSpacingTests`;
+    /// what matters here is that the text reaching the pasteboard is the spaced
+    /// one, so the spaces arrive as part of the same paste.
+    func testSpacedTextIsWhatGetsPasted() {
+        var contentsAtPasteTime: String?
+        var pasteCount = 0
+        let injector = makeInjector(spacing: true,
+                                    caret: CaretContext(before: "o", after: "t"),
+                                    onPaste: { [pasteboard] in
+            contentsAtPasteTime = pasteboard?.string(forType: .string)
+            pasteCount += 1
+        })
+
+        injector.inject(text: "hello")
+
+        XCTAssertEqual(contentsAtPasteTime, " hello ")
+        XCTAssertEqual(pasteCount, 1, "one insertion, so one undo")
+    }
+
+    func testTextIsPastedVerbatimWhenTheSettingIsOff() {
+        var contentsAtPasteTime: String?
+        let injector = makeInjector(spacing: false,
+                                    caret: CaretContext(before: "o", after: "t"),
+                                    onPaste: { [pasteboard] in
+            contentsAtPasteTime = pasteboard?.string(forType: .string)
+        })
+
+        injector.inject(text: "hello")
+
+        XCTAssertEqual(contentsAtPasteTime, "hello")
+    }
+
+    func testTextIsPastedVerbatimWhenTheFieldSaysNothing() {
+        var contentsAtPasteTime: String?
+        let injector = makeInjector(spacing: true, caret: .unknown, onPaste: { [pasteboard] in
+            contentsAtPasteTime = pasteboard?.string(forType: .string)
+        })
+
+        injector.inject(text: "hello")
+
+        XCTAssertEqual(contentsAtPasteTime, "hello",
+                       "a field that will not say where the caret is gets no space guessed at")
+    }
+
+    func testTheSettingIsReadOnEveryInjection() {
+        var spacing = false
+        var pasted: [String] = []
+        var injector = makeInjector(onPaste: { [pasteboard] in
+            pasted.append(pasteboard?.string(forType: .string) ?? "")
+        })
+        injector.spacesInsertedText = { spacing }
+        injector.caretContext = { CaretContext(before: "o", after: nil) }
+
+        injector.inject(text: "hello")
+        spacing = true
+        injector.inject(text: "hello")
+
+        XCTAssertEqual(pasted, ["hello", " hello"],
+                       "turning it on applies to the next utterance, not the next launch")
+    }
+
+    func testTheClipboardIsStillRestoredAfterASpacedInsertion() async {
+        pasteboard.clearContents()
+        pasteboard.setString("something the user copied", forType: .string)
+
+        let injector = makeInjector(spacing: true, caret: CaretContext(before: "o", after: nil))
+        injector.inject(text: "dictated text")
+
+        await waitUntil("clipboard restored") {
+            self.pasteboard.string(forType: .string) == "something the user copied"
         }
     }
 

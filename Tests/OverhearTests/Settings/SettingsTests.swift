@@ -13,6 +13,7 @@ final class SettingsTests: OverhearTestCase {
         XCTAssertTrue(settings.showOverlay)
         XCTAssertTrue(settings.dictateOnLaunch)
         XCTAssertTrue(settings.stripAnnotations, "annotations are filtered unless the user opts out")
+        XCTAssertTrue(settings.spaceInsertedText, "dictation is separated from what it lands next to unless the user opts out")
         XCTAssertFalse(settings.translateUnsupported, "translation is a choice, not something that happens by accident")
         XCTAssertEqual(settings.cancelWord, HotWord.defaultWord)
         XCTAssertNil(settings.listeningHotkey, "a default combination might already belong to the app the user is typing in")
@@ -35,6 +36,14 @@ final class SettingsTests: OverhearTestCase {
 
         let reloaded = AppSettings(defaults: defaults, availableHotWords: HotWord.builtIn)
         XCTAssertFalse(reloaded.stripAnnotations)
+    }
+
+    func testSpaceInsertedTextRoundTripsWhenTurnedOff() {
+        let defaults = makeDefaults()
+        AppSettings(defaults: defaults, availableHotWords: HotWord.builtIn).spaceInsertedText = false
+
+        let reloaded = AppSettings(defaults: defaults, availableHotWords: HotWord.builtIn)
+        XCTAssertFalse(reloaded.spaceInsertedText)
     }
 
     func testListeningHotkeyRoundTripsThroughStorage() {

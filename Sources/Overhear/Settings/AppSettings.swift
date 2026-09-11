@@ -19,6 +19,7 @@ final class AppSettings: ObservableObject {
     private let cancelWordKey = "cancelWord"
     private let stripAnnotationsKey = "stripTranscriptionAnnotations"
     private let translateUnsupportedKey = "translateUnsupportedLanguages"
+    private let spaceInsertedTextKey = "addSpacesAroundInsertedText"
 
     private let defaults: UserDefaults
 
@@ -99,6 +100,17 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    /// Whether to separate what is pasted from what is already in the field —
+    /// a space before it, and one after it as well when it lands mid-sentence.
+    ///
+    /// Applies live, like `stripAnnotations`: it is read on every insertion
+    /// rather than baked into anything, so toggling it reloads nothing.
+    @Published var spaceInsertedText: Bool {
+        didSet {
+            defaults.set(spaceInsertedText, forKey: spaceInsertedTextKey)
+        }
+    }
+
     /// Whether speech in a language the user did not select is translated to
     /// English. A selected language is never translated, whatever this says.
     ///
@@ -167,6 +179,11 @@ final class AppSettings: ObservableObject {
             stripAnnotations = defaults.bool(forKey: stripAnnotationsKey)
         } else {
             stripAnnotations = true
+        }
+        if defaults.object(forKey: spaceInsertedTextKey) != nil {
+            spaceInsertedText = defaults.bool(forKey: spaceInsertedTextKey)
+        } else {
+            spaceInsertedText = true
         }
         translateUnsupported = defaults.bool(forKey: translateUnsupportedKey)
         listeningHotkey = defaults.dictionary(forKey: listeningHotkeyKey)

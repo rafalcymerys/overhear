@@ -54,6 +54,14 @@ struct GeneralSettingsView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("Ensure spaces around inserted text", isOn: $settings.spaceInsertedText)
+                    Text("When transcribing text next to an existing sentence, make sure that there is a space around what you've just dictated.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             } header: {
                 Text("Transcription")
             }

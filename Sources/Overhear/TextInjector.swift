@@ -2,7 +2,10 @@ import AppKit
 import Carbon.HIToolbox
 
 protocol TextInjecting {
-    func inject(text: String)
+    /// On the main actor: it reads a setting, reads the focused field, and
+    /// drives the pasteboard, all of which belong there. Both call sites are
+    /// already there too.
+    @MainActor func inject(text: String)
 }
 
 /// Pastes text by putting it on the general pasteboard, simulating Cmd+V, then
@@ -16,7 +19,21 @@ struct PasteboardTextInjector: TextInjecting {
     var performPaste: () -> Void = PasteboardTextInjector.simulatePaste
     var restoreDelay: TimeInterval = 0.3
 
+    /// Whether to separate the insertion from what is already in the field, and
+    /// what is on either side of the caret when it is.
+    ///
+    /// Both are read at the moment of the insertion: the setting so that
+    /// toggling it applies to the next utterance rather than to the next
+    /// launch, the surroundings so that spacing follows the caret rather than
+    /// what was inserted last. Closures so tests can place a caret without an
+    /// application to read it out of.
+    var spacesInsertedText: @MainActor () -> Bool = { AppSettings.shared.spaceInsertedText }
+    var caretContext: @MainActor () -> CaretContext = { FocusedField.caretContext() }
+
     func inject(text: String) {
+        // Spaced before it reaches the pasteboard rather than typed around the
+        // paste: what goes in is one insertion, which is one undo.
+        let text = spacesInsertedText() ? InsertionSpacing.apply(to: text, in: caretContext()) : text
         let previousContents = pasteboard.string(forType: .string)
 
         pasteboard.clearContents()

@@ -60,8 +60,8 @@ transcription setting's does.
 Assert: translation is not offered here — it belongs to the active model, in
 **Settings… → Transcription**.
 Assert: the transcription settings sit under a **Transcription** heading.
-Assert: **Add spaces around inserted text** describes both sides of the
-insertion, and what it does is specified in `Specs/Spacing.md`.
+Assert: **Ensure spaces around inserted text** carries the explanation its
+own spec gives it, and what it does is specified in `Specs/Spacing.md`.
 Assert: each transcription setting's explanation appears inside the same group
 box as its checkbox.
 

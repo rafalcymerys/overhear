@@ -2,7 +2,7 @@
 
 Dictation rarely lands in an empty field. It arrives at the end of a
 half-written sentence, or in the middle of one the user has gone back to.
-**Add spaces around inserted text** decides whether Overhear separates what it
+**Ensure spaces around inserted text** decides whether Overhear separates what it
 inserts from what is already there.
 
 The setting lives in **Settings… → General**, under the **Transcription**
@@ -38,14 +38,14 @@ contents write the caret as `|`, and a space that has to be counted as `·`.
 
 1. Open **Settings… → General** on a fresh install.
 
-Assert: **Add spaces around inserted text** is offered under the
+Assert: **Ensure spaces around inserted text** is offered under the
 **Transcription** heading, below **Strip transcription annotations**.
 Assert: it is on.
 Assert: its explanation sits inside the same group box as its checkbox, the
 way the other transcription setting's does.
-Assert: the explanation covers both sides — a space between what is already
-in the field and what is pasted, and one on each side of an insertion that
-lands mid-sentence.
+Assert: the explanation says what it does in one sentence, reading "When
+transcribing text next to an existing sentence, make sure that there is a
+space around what you've just dictated."
 Assert: it is stored and restored with every other setting —
 `Specs/Settings.md`.
 
@@ -248,6 +248,23 @@ Assert: no error is shown and dictation stays active.
 Assert: the same holds in any other field whose contents Overhear cannot read,
 including a password field and a canvas-drawn editor in a browser.
 
+## An Electron application
+
+1. Start dictation and focus the message box in Slack, or another Electron
+   application, with a word already typed and the caret after it.
+2. Say `HelloEn` and wait for the insertion.
+3. Say `HelloEn` again.
+
+Assert: the second insertion is spaced.
+Assert: the first is spaced too, or inserted unspaced — Chromium builds the
+accessibility tree only once it is asked to, and the asking and the reading
+happen in the same breath.
+Assert: nothing is asked of the user, and no permission dialog appears.
+Assert: the application is asked once — a third and fourth utterance are
+spaced like the second.
+Assert: quitting and reopening the application starts the same way: at worst
+one unspaced insertion, then spacing.
+
 ## One paste, one undo
 
 1. In TextEdit, type `Hello` and leave the caret after it.
@@ -263,7 +280,7 @@ spacing — `Specs/TranscriptionOutput.md`.
 
 ## Off inserts exactly what was transcribed
 
-1. Open **Settings… → General** and turn **Add spaces around inserted text**
+1. Open **Settings… → General** and turn **Ensure spaces around inserted text**
    off.
 2. In TextEdit, type `Hello` and leave the caret after it.
 3. Start dictation and say `HelloEn`.
@@ -276,7 +293,7 @@ still goes in.
 ## Turning it on takes effect on the next utterance
 
 1. With the setting off, dictate an utterance and see it arrive unspaced.
-2. Open **Settings… → General** and turn **Add spaces around inserted text**
+2. Open **Settings… → General** and turn **Ensure spaces around inserted text**
    on, leaving dictation running.
 3. Say `HelloEn` again.
 

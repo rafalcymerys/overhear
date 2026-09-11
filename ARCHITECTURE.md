@@ -203,6 +203,8 @@ behaviour — a spec has one obvious place to land.
 | File | Role |
 |---|---|
 | `TextInjector.swift` | Pastes transcribed text via pasteboard + simulated Cmd+V, restores previous clipboard |
+| `InsertionSpacing.swift` | Whether the insertion is separated from what it lands next to, and by which side |
+| `FocusedField.swift` | What surrounds the caret in the focused application, read over the Accessibility API |
 | `ByteCount.swift` | The one place every size in the interface is written by |
 
 ## Audio Capture
@@ -284,6 +286,14 @@ Uses the pasteboard approach rather than CGEvent key simulation or Accessibility
 
 This works reliably across all macOS apps without requiring Accessibility permissions for the target app.
 
+**Spacing.** A paste says nothing about where it landed, and dictation rarely lands in an empty field — it arrives after a word someone just typed, or inside a sentence they went back to. So the insertion is separated from its surroundings first, by `InsertionSpacing`, and the spaced string is what reaches the pasteboard: one insertion, which is one undo. `Specs/Spacing.md` is the rule, and it comes down to the pair of characters meeting at the caret — the existing one and the first of the insertion on the way in, the last of the insertion and the existing one on the way out — with the two sets it consults asked only about the side each can speak for. A character that opens something never takes a space after it; punctuation that attaches to the word in front of it never takes one before it; two characters of a script that separates words without spaces never take one between them.
+
+The one thing that has to come from outside is those two characters, and that is where the Accessibility API does get used after all — for reading, never for writing. `FocusedField` asks the focused element for its selected range and then for the single character either side of it, preferring `kAXStringForRangeParameterizedAttribute` over copying the whole document out of the application on every utterance, and falling back to `kAXValue` for elements that will not serve a range. Every part of it is best effort: a password field, a terminal or an editor that draws its own text yields `CaretContext.unknown`, and the transcription goes in exactly as it did before any of this existed. Messaging is capped at 250ms so an unresponsive application costs a missing space rather than a visible stall.
+
+Chromium is the exception that needs asking. Chrome and every Electron app — Slack, VS Code, Linear — keep their accessibility tree unbuilt until a client asks for it by name, since maintaining it costs memory in every renderer, and they ignore the ordinary signs of being read. So a read that comes back with nothing at all is followed by setting `AXManualAccessibility` on the focused application, once per process, and reading again. The tree is built after the attribute is set rather than during it, so the utterance that prompted the asking can still go in unspaced; the next one lands in a window that answers. Applications that are not Chromium ignore the attribute, which makes it a question that answers itself.
+
+Read on every insertion rather than remembered from the last one, so someone who types a comma or moves the caret between utterances gets the spacing their caret asks for. Overhear already holds the Accessibility grant the synthetic Cmd+V needs, so this asks nothing more of the user.
+
 ## Settings
 
 All settings live in `AppSettings.shared`, backed by `UserDefaults` and published via Combine.
@@ -294,6 +304,7 @@ All settings live in `AppSettings.shared`, backed by `UserDefaults` and publishe
 | Show overlay window while listening | `showOverlay` | on | Whether the floating overlay appears during dictation |
 | Cancel word | `cancelWord` | Alexa | Which wake word model cancels the current batch |
 | Strip transcription annotations | `stripTranscriptionAnnotations` | on | Whether `(coughing)` and the like are dropped instead of pasted |
+| Ensure spaces around inserted text | `addSpacesAroundInsertedText` | on | Whether an insertion is separated from the text it lands next to |
 | Translate unsupported languages | `translateUnsupportedLanguages` | off | Whether speech in an unselected language is translated to English |
 | Recognition languages | `selectedLanguages` | `en`, `pl` | Whisper language set; at least one must be selected |
 | Active model | `activeTranscriptionModel` | `whisper-base` | Which model transcribes; stored by catalogue id |
@@ -382,6 +393,7 @@ Because they are a requirement, setup finishing and the engine starting are not 
 - `CancelWordTests` — `Specs/CancelWord.md` against the same harness, covering all three places the word can land: mid-utterance, at the end of one, and in the backlog that piles up while Whisper is running.
 - `EngineControllerTests` — engine events reaching `AppState` and the pasteboard, the layer the menu bar and overlay render from, including the settings that apply without rebuilding the engine.
 - `AnnotationFilterTests` — that Whisper's descriptions of non-speech never reach the document, using the strings from the bug report.
+- `InsertionSpacingTests` — `Specs/Spacing.md` with the caret placed by hand: every character that suppresses a space and which side it speaks for, text that arrives with its own spacing, and the script boundaries that are word boundaries. `TextInjectorTests` covers the rest of the path, that the spaced string is what reaches the pasteboard. Reading the caret out of a real application stays manual.
 - `DecodePolicyTests` — the table above, including that a misdetected language is never forced to English.
 - `ChunkAccumulatorTests` — that no sample is lost or duplicated across awkward buffer boundaries.
 - `WhisperTranscriberTests` — real WhisperKit, opt-in via `OVERHEAR_RUN_MODEL_TESTS=1` because it downloads model weights: the language scenarios from `Specs/Languages.md`, and what a cough comes back as, and that `load()` leaves the weights in memory so the first batch costs what the second one does.
