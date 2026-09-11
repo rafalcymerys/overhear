@@ -25,14 +25,11 @@ enum EngineEvent: Equatable {
 }
 
 enum EngineError: LocalizedError, Equatable {
-    case modelMissing(String)
     case modelInvalid(String)
     case audioUnavailable(String)
 
     var errorDescription: String? {
         switch self {
-        case .modelMissing(let name):
-            return "Model file not found: \(name)"
         case .modelInvalid(let name):
             return "Model could not be read: \(name)"
         case .audioUnavailable(let reason):
