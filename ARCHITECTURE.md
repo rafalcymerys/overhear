@@ -203,7 +203,7 @@ behaviour — a spec has one obvious place to land.
 | File | Role |
 |---|---|
 | `TextInjector.swift` | Pastes transcribed text via pasteboard + simulated Cmd+V, restores previous clipboard |
-| `ByteCountFormatter+Sizes.swift` | The one formatter every size in the interface goes through |
+| `ByteCount.swift` | The one place every size in the interface is written by |
 
 ## Audio Capture
 

@@ -243,10 +243,6 @@ private struct SetupCard: View {
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
-
-    private func byteCount(_ bytes: Int64) -> String {
-        ByteCountFormatter.overhear.string(fromByteCount: bytes)
-    }
 }
 
 /// `keyboardShortcut` has no conditional form, so wrap it. Only the card the

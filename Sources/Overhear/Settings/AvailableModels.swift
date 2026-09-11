@@ -177,8 +177,4 @@ struct AvailableModels: View {
     private func isActive(_ model: TranscriptionModel) -> Bool {
         settings.activeModelID == model.id
     }
-
-    private func byteCount(_ bytes: Int64) -> String {
-        ByteCountFormatter.overhear.string(fromByteCount: bytes)
-    }
 }
