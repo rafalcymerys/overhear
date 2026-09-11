@@ -30,6 +30,8 @@ Assert: dictation stays active afterwards, ready for the next utterance.
 Assert: three separate insertions arrive, in the order spoken.
 Assert: each insertion arrives after its own pause rather than all at the end.
 Assert: no utterance is merged with the next.
+Assert: consecutive insertions are separated rather than run together, by the
+rule in `Specs/Spacing.md`.
 
 ## Keeps recording through a long utterance
 

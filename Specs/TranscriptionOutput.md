@@ -1,7 +1,9 @@
 # Transcription Output
 
 What reaches the document after a batch is transcribed: annotation filtering,
-and the pasteboard mechanics of the insertion itself.
+and the pasteboard mechanics of the insertion itself. The spacing between what
+is inserted and what was already in the field has its own spec —
+`Specs/Spacing.md`.
 
 ## Drops non-speech annotations
 

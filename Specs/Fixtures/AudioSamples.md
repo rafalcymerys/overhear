@@ -44,6 +44,10 @@ Guten Tag, das ist ein Test der Spracherkennung auf Deutsch.
 
 Bonjour, ceci est un test de reconnaissance vocale en français.
 
+## SentenceZh
+
+你好，这是一个语音识别测试。
+
 ## Alexa
 
 Alexa.

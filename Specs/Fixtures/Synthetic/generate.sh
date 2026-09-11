@@ -18,6 +18,7 @@ EN=Samantha
 PL=Zosia
 DE=Anna
 FR=Thomas
+ZH=Tingting
 
 # say → 16 kHz mono WAV
 speak() {
@@ -35,6 +36,7 @@ speak SentencePl "$PL" "Dzień dobry, to jest test rozpoznawania mowy po polsku.
 speak ParagraphPl "$PL" "Piszę dłuższą wiadomość, żeby sprawdzić jak aplikacja radzi sobie z dłuższą wypowiedzią po polsku. Powinna nagrywać tak długo, jak długo mówię, i nie powinna mi przerywać w środku zdania."
 speak GutenTagDe "$DE" "Guten Tag, das ist ein Test der Spracherkennung auf Deutsch."
 speak BonjourFr "$FR" "Bonjour, ceci est un test de reconnaissance vocale en français."
+speak SentenceZh "$ZH" "你好，这是一个语音识别测试。"
 speak Alexa "$EN" "Alexa."
 speak HeyJarvis "$EN" "Hey Jarvis."
 speak SentenceThenAlexa "$EN" "The quick brown fox jumps over, Alexa."

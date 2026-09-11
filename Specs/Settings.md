@@ -41,14 +41,14 @@ Assert: the search field at the top of the pull-down stays reachable.
 1. Open **Settings… → General**.
 
 Assert: the pane offers **Show overlay window while listening**, a
-**Listening Mode** group, and **Strip transcription annotations** under a
-**Transcription** heading.
+**Listening Mode** group, and **Strip transcription annotations** and **Add
+spaces around inserted text** under a **Transcription** heading, in that order.
 Assert: **Show overlay window while listening** sits on its own above the
 **Listening Mode** heading.
 Assert: the **Listening Mode** group holds three things, in this order: the
 choice between **Always-on listening** and **Hold to talk**, the **Listening
 hotkey** row, and **Start listening on launch**.
-Assert: on a fresh install all three toggles are on.
+Assert: on a fresh install all four toggles are on.
 Assert: the hotkey row shows the combination as symbols, or **Record
 Shortcut** when none is set.
 Assert: **Always-on listening** is what a fresh install has.
@@ -60,6 +60,8 @@ transcription setting's does.
 Assert: translation is not offered here — it belongs to the active model, in
 **Settings… → Transcription**.
 Assert: the transcription settings sit under a **Transcription** heading.
+Assert: **Add spaces around inserted text** describes both sides of the
+insertion, and what it does is specified in `Specs/Spacing.md`.
 Assert: each transcription setting's explanation appears inside the same group
 box as its checkbox.
 
@@ -193,7 +195,7 @@ Assert: the value it ends on is the one that takes effect on the next launch.
 
 ## Settings persist across restarts
 
-1. Change every setting from its default: turn the three General toggles to
+1. Change every setting from its default: turn the four General toggles to
    their opposite, record a listening hotkey, choose **Hold to talk** — in that
    order, since the last of those disables one of the toggles — pick a
    different cancel word, activate a different model, and change the language
