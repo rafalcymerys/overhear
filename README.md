@@ -102,6 +102,18 @@ This produces a `dist/` folder containing:
 - `Overhear.app`: the app bundle — a single self-contained binary
 - `Overhear.zip`: zipped archive of the app
 
+The bundle is signed with the first Developer ID Application certificate in
+your keychain, or with the one you name:
+
+```bash
+./scripts/build.sh --identity "Developer ID Application: Jane Doe (AB12CD34EF)"
+```
+
+Signing matters beyond distribution: macOS remembers the accessibility
+permission against the signing identity, so an unsigned build is a new app to
+it every time you rebuild, and each new build finds the permission missing
+however many times you have granted it.
+
 To wrap the built bundle in a drag-to-install disk image:
 
 ```bash
