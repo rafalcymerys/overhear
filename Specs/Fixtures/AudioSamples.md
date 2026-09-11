@@ -22,6 +22,32 @@ speaking for some time.
 
 [the user speaks continuously for more than 35 seconds without pausing]
 
+## ContinuationEn
+
+and some bread.
+
+[a fragment that continues a sentence rather than opening one; the model still
+transcribes it with a leading capital]
+
+## AcronymEn
+
+NASA hired her.
+
+[the utterance opens with an acronym, which stays in capitals wherever it falls]
+
+## PronounEn
+
+I was late.
+
+[the utterance opens with the English pronoun `I`, which keeps its capital
+mid-sentence]
+
+## NumberEn
+
+1999 was a good year.
+
+[the utterance opens with a number, which carries no case at all]
+
 ## DzienDobryPl
 
 Dzień dobry.
@@ -36,13 +62,33 @@ Piszę dłuższą wiadomość, żeby sprawdzić jak aplikacja radzi sobie z dłu
 wypowiedzią po polsku. Powinna nagrywać tak długo, jak długo mówię, i nie
 powinna mi przerywać w środku zdania.
 
+## ConjunctionPl
+
+I tak to działa.
+
+[the sentence opens with `I`, the Polish word for "and", which Polish does not
+capitalise mid-sentence]
+
 ## GutenTagDe
 
 Guten Tag, das ist ein Test der Spracherkennung auf Deutsch.
 
+## NounDe
+
+Hund im Garten.
+
+[the utterance opens with a noun, which German capitalises wherever it falls]
+
 ## BonjourFr
 
 Bonjour, ceci est un test de reconnaissance vocale en français.
+
+## SentenceEs
+
+Estoy muy bien, gracias.
+
+[a plain Spanish sentence, with no inverted mark of its own to get in the way
+of one already in the field]
 
 ## SentenceZh
 

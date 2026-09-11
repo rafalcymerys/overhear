@@ -18,6 +18,7 @@ EN=Samantha
 PL=Zosia
 DE=Anna
 FR=Thomas
+ES=Mónica
 ZH=Tingting
 
 # say → 16 kHz mono WAV
@@ -31,11 +32,18 @@ speak HelloEn "$EN" "Hello."
 speak SentenceEn "$EN" "The quick brown fox jumps over the lazy dog."
 speak ParagraphEn "$EN" "I am writing a long message to test how the application handles speech that runs on for a while. It should keep listening for as long as I keep talking, and it should not cut me off in the middle of a sentence just because I have been speaking for some time."
 speak MonologueEn "$EN" "I am going to keep talking for quite a long time now, without stopping, so that the recording runs past the point where a single batch of speech is supposed to end. The application caps a batch at thirty seconds, and I want to be sure that what I say after that point is still transcribed rather than quietly thrown away. So I will keep going, describing nothing in particular, filling the time with ordinary sentences that carry no special meaning at all. The weather this morning was unremarkable. The coffee was too hot to drink for the first few minutes. There is a stack of books on the desk that I have been meaning to read for months, and every week I move it slightly to the left and then forget about it again. None of this matters, and that is rather the point, because what I need from this recording is length rather than content. I am still talking. I will keep talking until well past the cap, and then I will say one final sentence so that it is obvious where the end is. This is the final sentence."
+speak ContinuationEn "$EN" "and some bread."
+speak AcronymEn "$EN" "NASA hired her."
+speak PronounEn "$EN" "I was late."
+speak NumberEn "$EN" "1999 was a good year."
 speak DzienDobryPl "$PL" "Dzień dobry."
 speak SentencePl "$PL" "Dzień dobry, to jest test rozpoznawania mowy po polsku."
 speak ParagraphPl "$PL" "Piszę dłuższą wiadomość, żeby sprawdzić jak aplikacja radzi sobie z dłuższą wypowiedzią po polsku. Powinna nagrywać tak długo, jak długo mówię, i nie powinna mi przerywać w środku zdania."
+speak ConjunctionPl "$PL" "I tak to działa."
 speak GutenTagDe "$DE" "Guten Tag, das ist ein Test der Spracherkennung auf Deutsch."
+speak NounDe "$DE" "Hund im Garten."
 speak BonjourFr "$FR" "Bonjour, ceci est un test de reconnaissance vocale en français."
+speak SentenceEs "$ES" "Estoy muy bien, gracias."
 speak SentenceZh "$ZH" "你好，这是一个语音识别测试。"
 speak Alexa "$EN" "Alexa."
 speak HeyJarvis "$EN" "Hey Jarvis."
