@@ -109,14 +109,26 @@ final class ListeningController {
     /// Never in hold to talk, where **Start listening on launch** has nothing
     /// to act on: there would be no key held, and no **Stop Listening** to
     /// reach the session with.
+    ///
+    /// A load that fails ends the wait instead of leaving it for whatever
+    /// reaches idle next. The session it would have resumed belonged to the
+    /// engine that could not come up, and **Try Again** is a request to load,
+    /// not to start listening as well.
     func listenWhenIdle() {
         guard settings.listeningMode == .alwaysOn else { return }
         idleObservation = appState.$status
-            .first { $0 == .idle }
-            .sink { [weak self] _ in
-                self?.engine.activate()
+            .first { $0 == .idle || $0 == .error }
+            .sink { [weak self] status in
                 self?.idleObservation = nil
+                guard status == .idle else { return }
+                self?.engine.activate()
             }
+    }
+
+    /// Whether dictation is due to start once the engine reaches idle — the
+    /// user has it switched on, and only the load stands in the way.
+    var isWaitingToListen: Bool {
+        idleObservation != nil
     }
 
     func cancelPendingStart() {

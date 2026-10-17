@@ -24,6 +24,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Who starts and ends a session: the hotkey, the mode, and the hold.
     private var listening: ListeningController!
     private var restartTask: Task<Void, Never>?
+    /// Whether the restart under way is to resume dictation. Kept outside the
+    /// task because a later change cancels it, and the one that replaces it
+    /// has to know what the engine was doing before it went down.
+    private var resumesAfterRestart = false
     /// Whether the engine has been brought up. Not the same question as
     /// "is setup finished", which is true from the assignment that completes
     /// the last requirement — a moment before anything has started. That gap
@@ -171,16 +175,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsWindow.show()
     }
 
+    /// Rebuild the engine a second after the last change to a setting it is
+    /// built from — the languages or the cancel word.
+    ///
+    /// Dictation resumes afterwards if it was running, as it does after a
+    /// model swap: the user changed a setting rather than asking to stop.
     private func scheduleRestart() {
         listening.forgetTheHold()
         restartTask?.cancel()
         restartTask = Task {
             try? await Task.sleep(for: .seconds(1))
             guard !Task.isCancelled else { return }
-            engine.stop()
-            try? await Task.sleep(for: .seconds(0.5))
-            guard !Task.isCancelled else { return }
-            engine.start()
+            await restartEngine()
         }
     }
 
@@ -204,20 +210,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // been started.
         guard hasStartedEngine else { return }
 
-        let wasDictating = appState.status.isActive
         // The hold does not survive the swap: the audio it recorded is gone
         // with the engine, and a session resumed under a key that is already
         // down would have no release left to end it.
         listening.forgetTheHold()
         restartTask?.cancel()
-        restartTask = Task { @MainActor in
-            engine.stop()
-            try? await Task.sleep(for: .seconds(0.5))
-            guard !Task.isCancelled else { return }
-            engine.start()
-            guard wasDictating else { return }
+        restartTask = Task {
+            await restartEngine()
+        }
+    }
+
+    /// Take the engine down and bring it up again, resuming dictation once it
+    /// is idle if dictation was on.
+    ///
+    /// "On" is read when the engine goes down rather than when the setting
+    /// changed, so a **Stop Listening** during the debounce is honoured. It
+    /// counts a start still waiting on the load — the launch set to listen, or
+    /// the far side of an earlier reload — and it is carried across a restart
+    /// that a later change cancels in the pause below, where the status says
+    /// only that the engine is stopped. So several changes in a row resume
+    /// once, after the last.
+    ///
+    /// A reload that fails does not resume: `listenWhenIdle()` gives up at the
+    /// error, and the menu bar shows the failure rather than a session.
+    private func restartEngine() async {
+        resumesAfterRestart = resumesAfterRestart
+            || appState.status.isActive
+            || listening.isWaitingToListen
+        listening.cancelPendingStart()
+        engine.stop()
+        try? await Task.sleep(for: .seconds(0.5))
+        guard !Task.isCancelled else { return }
+        engine.start()
+        if resumesAfterRestart {
             listening.listenWhenIdle()
         }
+        resumesAfterRestart = false
     }
 
     @objc private func showAbout() {
@@ -248,6 +276,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// activates the model it is about to download.
     @objc private func redownloadModels() {
         restartTask?.cancel()
+        resumesAfterRestart = false
         listening.cancelPendingStart()
         engine.stop()
         hasStartedEngine = false

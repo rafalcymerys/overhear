@@ -73,18 +73,18 @@ Assert: `HeyJarvis` cancels the batch.
 Assert: `Alexa` no longer cancels, and the utterance containing it is
 transcribed.
 
-## Changing the cancel word during dictation stops it [to review]
+## Changing the cancel word during dictation resumes it
 
 1. Start dictation and confirm the active state in the menu bar.
 2. Open **Settings… → Hot Words** and change **Cancel word**.
 3. Wait two seconds and look at the menu bar icon.
 
-Assert: dictation is still active after the change, or the user is told it
-stopped.
+Assert: dictation is active again once the engine has reloaded.
+Assert: the new cancel word cancels and the old one no longer does.
 
-Changing the cancel word rebuilds the engine, which returns to idle. Dictation
-does not resume, and nothing indicates that it stopped other than the menu bar
-icon reverting. The same happens when changing the language selection.
+Changing the cancel word rebuilds the engine, so the menu bar passes through
+loading on the way. With dictation stopped before the change, it stays stopped
+afterwards.
 
 ## Repeated cancel words
 

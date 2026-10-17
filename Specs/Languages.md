@@ -159,16 +159,17 @@ Assert: the insertion is in one of the two selected languages.
 Assert: the engine reloads once rather than once per language.
 Assert: the reload starts about a second after the last change.
 
-## Dictation does not resume after a language change [to review]
+## Dictation resumes after a language change
 
 1. Start dictation and confirm the active state in the menu bar.
 2. Open **Settings… → Transcription** and change the selection.
 3. Wait for the reload to finish and look at the menu bar icon.
 
-Assert: dictation is active after the reload, or the user is told it stopped.
+Assert: dictation is active after the reload.
+Assert: changing several languages in a row resumes once, after the last.
 
-The engine returns to idle after reloading and dictation stays off. The only
-indication is the menu bar icon changing back to the idle state.
+With dictation stopped before the change, it stays stopped after the reload.
+A reload that fails shows the failure in the menu bar and does not resume.
 
 ## Language selection survives a restart
 
