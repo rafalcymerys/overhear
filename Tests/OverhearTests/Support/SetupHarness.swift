@@ -15,17 +15,22 @@ final class FakePermissionSystem: @unchecked Sendable {
     private(set) var dialogs: [Permission] = []
     private(set) var openedSettings: [URL] = []
 
+    /// Weak, not unowned: the service can outlive the fake. A test that starts
+    /// the poll lets go of the fake when it returns, and the teardown block
+    /// that stops the poll runs only after that — a tick in between is a read
+    /// from a test that has finished, and has to be harmless.
     func make() -> PermissionsService.System {
         PermissionsService.System(
-            microphoneState: { [unowned self] in microphone },
-            textInsertionState: { [unowned self] in textInsertion },
-            askForMicrophone: { [unowned self] completion in
+            microphoneState: { [weak self] in self?.microphone ?? .notDetermined },
+            textInsertionState: { [weak self] in self?.textInsertion ?? .notDetermined },
+            askForMicrophone: { [weak self] completion in
+                guard let self else { return }
                 dialogs.append(.microphone)
                 microphone = microphoneAnswer ? .granted : .denied
                 completion(microphoneAnswer)
             },
-            askForTextInsertion: { [unowned self] in dialogs.append(.textInsertion) },
-            openSettings: { [unowned self] url in openedSettings.append(url) }
+            askForTextInsertion: { [weak self] in self?.dialogs.append(.textInsertion) },
+            openSettings: { [weak self] url in self?.openedSettings.append(url) }
         )
     }
 }
