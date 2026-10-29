@@ -187,7 +187,7 @@ Whisper's alone, so the toggle sits disabled under Parakeet.
 
 **Hot Words**
 
-- **Cancel word**: which phrase discards the current utterance. Four are built in: Alexa, Hey Jarvis, Hey Mycroft, Hey Rhasspy.
+- **Cancel word**: which phrase discards the current utterance, or **None** to turn cancelling off. Four are built in: Alexa, Hey Jarvis, Hey Mycroft, Hey Rhasspy.
 - **Custom Hot Words**: install extra [openwakeword](https://github.com/dscripka/openWakeWord) `.onnx` models from a file or a URL to use as the cancel word. Installed models are stored in `~/Library/Application Support/Overhear/models/`.
 
 Changing the cancel word or the language set restarts the engine automatically, which takes a

@@ -83,11 +83,19 @@ final class AppSettings: ObservableObject {
         }
     }
 
-    @Published var cancelWord: HotWord {
+    /// The word that discards the batch being dictated, or none.
+    ///
+    /// None is stored as an empty string rather than by removing the key: an
+    /// absent key is a fresh install, which gets Alexa.
+    @Published var cancelWord: HotWord? {
         didSet {
-            defaults.set(cancelWord.modelValue, forKey: cancelWordKey)
+            defaults.set(cancelWord?.modelValue ?? Self.noCancelWord, forKey: cancelWordKey)
         }
     }
+
+    /// What `cancelWord` is stored as when it is none. Neither a built-in
+    /// word's name nor a custom word's absolute path can be empty.
+    private static let noCancelWord = ""
 
     /// Whether to drop Whisper's parenthesised descriptions of non-speech —
     /// `(coughing)` and the like — instead of pasting them.
@@ -209,8 +217,12 @@ final class AppSettings: ObservableObject {
         listeningMode = defaults.string(forKey: listeningModeKey)
             .flatMap(ListeningMode.init(rawValue:)) ?? .alwaysOn
         activeModelID = defaults.string(forKey: activeModelKey) ?? ModelCatalog.defaultModel.id
-        cancelWord = HotWord.defaultWord
-        if let saved = defaults.string(forKey: cancelWordKey) {
+        switch defaults.string(forKey: cancelWordKey) {
+        case nil:
+            cancelWord = HotWord.defaultWord
+        case Self.noCancelWord?:
+            cancelWord = nil
+        case let saved?:
             let candidates = availableHotWords ?? HotWordService.shared.allHotWords
             cancelWord = candidates.first { $0.modelValue == saved } ?? HotWord.defaultWord
         }

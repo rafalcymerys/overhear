@@ -83,7 +83,7 @@ final class EngineController {
         // single-language shortcut and detection fallback both depend on the
         // order it is given.
         let languages = settings.effectiveLanguageCodes.sorted()
-        let cancelWordPath = settings.cancelWord.modelPath(in: modelsDirectory)
+        let cancelWordPath = settings.cancelWord?.modelPath(in: modelsDirectory)
 
         // Pushed in rather than passed to start(...): it applies to the next
         // batch, where a language change rebuilds the engine.

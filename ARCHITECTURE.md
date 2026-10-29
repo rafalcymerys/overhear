@@ -6,7 +6,7 @@ A macOS menu bar app for dictation. Click to start listening, speak naturally, a
 
 Overhear runs silently in the menu bar. Clicking **Start Listening** enters dictation mode: the app continuously captures speech in batches, transcribes each batch when you pause, and injects the text into the focused application. Clicking **Stop Listening** (or pressing Stop in the overlay) deactivates dictation. If **Start listening on launch** is enabled (the default), the app activates dictation by itself as soon as the engine finishes loading.
 
-During dictation, saying the **cancel word** — "Alexa" by default — discards whatever is currently being heard or transcribed. The batch is dropped and the app returns to the ready state, still listening for the next utterance. The cancel word is configurable in Settings: four openWakeWord models are offered built in (Alexa, Hey Jarvis, Hey Mycroft, Hey Rhasspy), and additional `.onnx` models can be installed. See [Hot Words](#hot-words).
+During dictation, saying the **cancel word** — "Alexa" by default — discards whatever is currently being heard or transcribed. The batch is dropped and the app returns to the ready state, still listening for the next utterance. The cancel word is configurable in Settings: four openWakeWord models are offered built in (Alexa, Hey Jarvis, Hey Mycroft, Hey Rhasspy), and additional `.onnx` models can be installed. It can also be set to None, in which case the engine loads no word model and a batch ends only on a pause or a stop. See [Hot Words](#hot-words).
 
 > Terminology: the feature is called the *cancel word* in the UI, but the underlying models are wake-word detectors, so the event it produces is still named `wakeWordCancel`.
 

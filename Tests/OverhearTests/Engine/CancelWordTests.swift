@@ -210,6 +210,23 @@ final class CancelWordTests: XCTestCase {
         XCTAssertEqual(cancels, 1, "Alexa no longer cancels")
     }
 
+    // MARK: - No cancel word
+
+    /// With the cancel word off, saying what used to be it is ordinary speech:
+    /// the batch it was in is transcribed and nothing is discarded.
+    func testWithNoCancelWordNothingCancels() async throws {
+        let transcriber = StubTranscriber()
+        let harness = await makeEngineHarness(transcriber: transcriber, cancelWord: nil)
+        try await activate(harness)
+
+        harness.audio.sendSpeech(seconds: 0.5)
+        harness.audio.send(samples: try SyntheticSample.alexa.load())
+        harness.audio.sendSilence(seconds: 2.0)
+        try await harness.waitFor(.transcription("hello world"))
+        let cancels = await harness.count(of: .wakeWordCancel)
+        XCTAssertEqual(cancels, 0)
+    }
+
     // MARK: - Helpers
 
     private func chunks(of audio: [Float]) -> [[Float]] {

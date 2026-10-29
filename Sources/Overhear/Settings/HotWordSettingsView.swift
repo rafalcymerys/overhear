@@ -15,11 +15,15 @@ struct HotWordSettingsView: View {
                 // outside the card.
                 VStack(alignment: .leading, spacing: 4) {
                     Picker("Cancel word", selection: $settings.cancelWord) {
+                        Text("None").tag(HotWord?.none)
+                        Divider()
                         ForEach(hotWordService.allHotWords) { word in
-                            Text(word.displayName).tag(word)
+                            Text(word.displayName).tag(HotWord?.some(word))
                         }
                     }
-                    Text("Say this word while dictating to throw away what you just said.")
+                    Text(settings.cancelWord == nil
+                         ? "Nothing you say throws away what you just said. Stop listening to discard it instead."
+                         : "Say this word while dictating to throw away what you just said.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

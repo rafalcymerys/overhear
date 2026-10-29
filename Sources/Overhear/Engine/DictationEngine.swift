@@ -65,7 +65,7 @@ actor DictationEngine {
     /// models to toggle it.
     private var translatesUnsupported = false
     private var languages: [String] = ["en"]
-    private var cancelWordPath: String = ""
+    private var cancelWordPath: String?
 
     init(capture: any AudioSource = AudioCapture(),
          transcriber: any Transcribing = WhisperTranscriber(),
@@ -85,17 +85,19 @@ actor DictationEngine {
 
     /// Load models and start listening. `languages` and `cancelWordPath` are
     /// the two settings baked into an engine at construction, so changing either
-    /// one means building a new one.
-    func start(languages: [String], cancelWordPath: String) async {
+    /// one means building a new one. No path means no cancel word at all.
+    func start(languages: [String], cancelWordPath: String?) async {
         self.languages = languages.isEmpty ? ["en"] : languages
         self.cancelWordPath = cancelWordPath
 
         emit(.status("loading_models"))
 
         do {
-            cancelWord = try CancelWordListener(modelPath: cancelWordPath,
-                                               modelsDirectory: modelsDirectory,
-                                               env: try ORTEnvironment.shared())
+            cancelWord = try cancelWordPath.map {
+                try CancelWordListener(modelPath: $0,
+                                       modelsDirectory: modelsDirectory,
+                                       env: try ORTEnvironment.shared())
+            }
             emit(.status("wake_word_ready"))
         } catch {
             emit(.failed("Failed to load the cancel word model: \(error.localizedDescription)"))

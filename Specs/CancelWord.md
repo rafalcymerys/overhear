@@ -73,6 +73,22 @@ Assert: `HeyJarvis` cancels the batch.
 Assert: `Alexa` no longer cancels, and the utterance containing it is
 transcribed.
 
+## Turning the cancel word off
+
+1. Open **Settings… → Hot Words**.
+2. Set **Cancel word** to None.
+3. Wait for the engine to reload.
+4. Start dictation with TextEdit focused and say `SentenceThenAlexa`.
+
+Assert: the utterance is transcribed and inserted, Alexa included.
+Assert: no cancelled state is shown.
+Assert: the explanation under the picker says nothing will discard an
+utterance.
+Assert: after quitting and reopening Overhear, **Cancel word** is still None.
+
+Setting a word again brings cancelling back after the reload. **Stop
+Listening** still discards what was being said.
+
 ## Changing the cancel word during dictation resumes it
 
 1. Start dictation and confirm the active state in the menu bar.

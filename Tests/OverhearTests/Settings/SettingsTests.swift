@@ -169,6 +169,16 @@ final class SettingsTests: OverhearTestCase {
         XCTAssertEqual(second.cancelWord, custom)
     }
 
+    func testNoCancelWordIsRestored() {
+        let defaults = makeDefaults()
+
+        let first = AppSettings(defaults: defaults, availableHotWords: HotWord.builtIn)
+        first.cancelWord = nil
+
+        let second = AppSettings(defaults: defaults, availableHotWords: HotWord.builtIn)
+        XCTAssertNil(second.cancelWord, "turning it off must not come back as Alexa on the next launch")
+    }
+
     // Language catalog invariants the settings UI relies on
 
     func testLanguageCatalogHasNoDuplicateCodes() {

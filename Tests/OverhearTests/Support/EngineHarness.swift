@@ -215,13 +215,13 @@ extension XCTestCase {
     ///
     /// - Parameters:
     ///   - transcriber: stands in for Whisper.
-    ///   - cancelWord: which word model the engine listens for.
+    ///   - cancelWord: which word model the engine listens for, or none.
     ///   - languages: what the user selected.
     ///   - primed: whether to feed the moment of audio that makes the engine
     ///     call itself idle. Off for tests about an engine with no microphone
     ///     behind it.
     func makeEngineHarness(transcriber: any Transcribing = StubTranscriber(),
-                           cancelWord: HotWord = .defaultWord,
+                           cancelWord: HotWord? = .defaultWord,
                            languages: [String] = ["en"],
                            primed: Bool = true,
                            resumeWindow: TimeInterval = 30) async -> EngineHarness {
@@ -243,7 +243,7 @@ extension XCTestCase {
 
         await engine.start(
             languages: languages,
-            cancelWordPath: cancelWord.modelPath(in: EngineTestModels.directory)
+            cancelWordPath: cancelWord?.modelPath(in: EngineTestModels.directory)
         )
 
         // The loop only reports itself idle once audio is actually arriving.
