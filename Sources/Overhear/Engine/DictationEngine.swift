@@ -293,9 +293,8 @@ actor DictationEngine {
             emit(.languageDetected(language))
         }
 
-        // Transcription can outlive a stop request. Dropping the result
-        // keeps the promise that nothing reaches the user's document after
-        // they press Stop.
+        // Transcription can outlive a stop request. Dropping the result keeps the promise that
+        // nothing reaches the user's document after they press Stop.
         if !result.text.isEmpty, isDictating {
             emit(.transcription(result.text))
         }
@@ -324,8 +323,7 @@ actor DictationEngine {
             }
 
             guard let chunk = await nextChunk(generation) else {
-                // Nothing more is coming. A release is the batch ending where
-                // the speaker left off; anything else voided it.
+                // Nothing more is coming. A release is the batch ending where the speaker left off; anything else voided it.
                 completed = isFinishing
                 break
             }
@@ -338,11 +336,13 @@ actor DictationEngine {
             }
 
             chunks.append(chunk)
-            let quiet = BatchRules.isSilent(chunk)
+            let quiet = BatchRules.isSilent(chunk, afterSpeech: heardSpeech)
 
             if !quiet, !heardSpeech {
                 heardSpeech = true
                 emit(.speechStart)
+            } else if !heardSpeech, chunks.count > BatchRules.preRollChunks {
+                chunks.removeFirst() // until speech starts, only the pre-roll is kept
             }
 
             if heardSpeech, quiet {
